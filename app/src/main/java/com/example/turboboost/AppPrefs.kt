@@ -18,9 +18,9 @@ class AppPrefs(ctx: Context) {
         prefs.edit().putInt("target_hz", hz).apply()
     }
 
-    fun isSenseActive(): Boolean = prefs.getBoolean("sense_active", false)
+    fun getLastPackage(): String = prefs.getString("last_pkg", "") ?: ""
 
-    fun setSenseActive(v: Boolean) {
-        prefs.edit().putBoolean("sense_active", v).apply()
+    fun setLastPackage(pkg: String) {
+        prefs.edit().putString("last_pkg", pkg).apply()
     }
 }
