@@ -113,8 +113,9 @@ class MainActivity : AppCompatActivity() {
         ui.onDevOptions = { info.openDeveloperOptions() }
 
         ui.onUnlock90 = {
+            val pkg = prefs.getLastPackage()
             executor.execute {
-                val res = info.unlock90Hz()
+                val res = if (pkg.isNotBlank()) info.unlockGameFps(pkg, 90) else "Сначала введите пакет"
                 main.post { Toast.makeText(this, res, Toast.LENGTH_LONG).show() }
             }
         }
@@ -138,8 +139,10 @@ class MainActivity : AppCompatActivity() {
         ui.onHzSelected = { hz ->
             prefs.setTargetHz(hz)
             if (prefs.isActive()) {
+                val pkg = prefs.getLastPackage()
                 executor.execute {
                     val res = info.activateMaxPerformance(hz)
+                    if (pkg.isNotBlank()) info.unlockGameFps(pkg, hz)
                     main.post { ui.statusResult.text = res }
                 }
             }
@@ -180,12 +183,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         val newState = !prefs.isActive()
+        val pkg = prefs.getLastPackage()
 
         if (newState) {
             ui.statusResult.text = "Оптимизация..."
             val hz = prefs.getTargetHz()
             executor.execute {
                 val result = info.activateMaxPerformance(hz)
+                if (pkg.isNotBlank()) info.unlockGameFps(pkg, hz)
                 main.post {
                     prefs.setActive(true)
                     ui.setActive(true)
@@ -199,6 +204,7 @@ class MainActivity : AppCompatActivity() {
             ui.statusResult.text = "Отключение..."
             executor.execute {
                 val result = info.deactivateMaxPerformance()
+                if (pkg.isNotBlank()) info.resetGameFps(pkg)
                 main.post {
                     prefs.setActive(false)
                     ui.setActive(false)
