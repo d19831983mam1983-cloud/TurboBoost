@@ -11,6 +11,7 @@ import android.graphics.drawable.LayerDrawable
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.DecelerateInterpolator
@@ -23,7 +24,9 @@ import android.widget.TextView
 
 class OptimizerUI(private val ctx: Context) {
 
-    lateinit var root: ScrollView
+    lateinit var root: FrameLayout
+    lateinit var mainScroll: ScrollView
+    lateinit var secretScreen: ScrollView
     lateinit var content: LinearLayout
     lateinit var btnToggle: TextView
     lateinit var btnDevOptions: TextView
@@ -38,6 +41,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var hzRow: LinearLayout
     lateinit var senseRow: LinearLayout
     lateinit var thermalRow: LinearLayout
+    lateinit var secretLabel: TextView
 
     var onToggle: (() -> Unit)? = null
     var onDevOptions: (() -> Unit)? = null
@@ -46,26 +50,51 @@ class OptimizerUI(private val ctx: Context) {
     var onHzSelected: ((Int) -> Unit)? = null
     var onSenseSelected: ((Int) -> Unit)? = null
     var onThermalSelected: ((Int) -> Unit)? = null
+    var onUnlock90: (() -> Unit)? = null
     var currentHz: Int = 120
     var currentSense: Int = -1
     var currentThermal: Int = -1
 
-    fun build(): ScrollView {
-        root = ScrollView(ctx)
-        root.setBackgroundColor(Color.parseColor("#0B0F1A"))
-        root.isFillViewport = true
+    private var tapCount = 0
+    private var lastTapTime = 0L
 
-        content = LinearLayout(ctx)
-        content.orientation = LinearLayout.VERTICAL
-        content.setPadding(dp(18), dp(44), dp(18), dp(20))
-        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+    fun build(): FrameLayout {
+        root = FrameLayout(ctx)
+        root.setBackgroundColor(Color.parseColor("#0B0F1A"))
+
+        mainScroll = ScrollView(ctx)
+        mainScroll.isFillViewport = true
+        root.addView(mainScroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        val mainContent = LinearLayout(ctx)
+        mainContent.orientation = LinearLayout.VERTICAL
+        mainContent.setPadding(dp(18), dp(20), dp(18), dp(20))
+        mainScroll.addView(mainContent, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        secretLabel = TextView(ctx)
+        secretLabel.text = "t.me/FIXSENSZNAK"
+        secretLabel.setTextColor(Color.parseColor("#33FFFFFF"))
+        secretLabel.textSize = 10f
+        secretLabel.gravity = Gravity.CENTER
+        secretLabel.setPadding(0, dp(10), 0, dp(10))
+        secretLabel.setOnClickListener {
+            val now = System.currentTimeMillis()
+            if (now - lastTapTime > 500) tapCount = 0
+            lastTapTime = now
+            tapCount++
+            if (tapCount >= 5) {
+                tapCount = 0
+                showSecretScreen()
+            }
+        }
+        mainContent.addView(secretLabel, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val title = TextView(ctx)
         title.text = "TurboBoost"
         title.setTextColor(Color.WHITE)
         title.textSize = 30f
         title.gravity = Gravity.CENTER
-        content.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        mainContent.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val sub = TextView(ctx)
         sub.text = "Максимальный отклик"
@@ -74,24 +103,24 @@ class OptimizerUI(private val ctx: Context) {
         sub.gravity = Gravity.CENTER
         val subLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         subLp.topMargin = dp(2)
-        content.addView(sub, subLp)
+        mainContent.addView(sub, subLp)
 
         cardChip = card("Чип: —")
-        content.addView(cardChip, cardLp())
+        mainContent.addView(cardChip, cardLp())
         cardScreen = card("Экран: —")
-        content.addView(cardScreen, cardLp())
+        mainContent.addView(cardScreen, cardLp())
 
         val hzLabel = TextView(ctx)
         hzLabel.text = "Частота экрана (Гц):"
         hzLabel.setTextColor(Color.WHITE)
         hzLabel.textSize = 14f
         hzLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        content.addView(hzLabel)
+        mainContent.addView(hzLabel)
 
         hzRow = LinearLayout(ctx)
         hzRow.orientation = LinearLayout.HORIZONTAL
         hzRow.gravity = Gravity.CENTER_VERTICAL
-        content.addView(hzRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        mainContent.addView(hzRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val rates = listOf(60, 90, 120, 144)
         for (r in rates) {
@@ -111,12 +140,12 @@ class OptimizerUI(private val ctx: Context) {
         senseLabel.setTextColor(Color.WHITE)
         senseLabel.textSize = 14f
         senseLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        content.addView(senseLabel)
+        mainContent.addView(senseLabel)
 
         senseRow = LinearLayout(ctx)
         senseRow.orientation = LinearLayout.HORIZONTAL
         senseRow.gravity = Gravity.CENTER_VERTICAL
-        content.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        mainContent.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val senses = listOf("Средний", "Сильный", "Эксп.", "Макс")
         for ((i, name) in senses.withIndex()) {
@@ -136,12 +165,12 @@ class OptimizerUI(private val ctx: Context) {
         thermalLabel.setTextColor(Color.WHITE)
         thermalLabel.textSize = 14f
         thermalLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        content.addView(thermalLabel)
+        mainContent.addView(thermalLabel)
 
         thermalRow = LinearLayout(ctx)
         thermalRow.orientation = LinearLayout.HORIZONTAL
         thermalRow.gravity = Gravity.CENTER_VERTICAL
-        content.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        mainContent.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val thermals = listOf("Авто", "50", "60", "70")
         for ((i, name) in thermals.withIndex()) {
@@ -161,7 +190,7 @@ class OptimizerUI(private val ctx: Context) {
         pkgLabel.setTextColor(Color.WHITE)
         pkgLabel.textSize = 13f
         pkgLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        content.addView(pkgLabel)
+        mainContent.addView(pkgLabel)
 
         pkgInput = EditText(ctx)
         pkgInput.hint = "com.example.game"
@@ -172,13 +201,13 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.inputType = InputType.TYPE_CLASS_TEXT
         pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
         pkgInput.background = buttonUnselected()
-        content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
+        mainContent.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
             topMargin = dp(4)
         })
 
         val actionRow = LinearLayout(ctx)
         actionRow.orientation = LinearLayout.HORIZONTAL
-        content.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+        mainContent.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
             topMargin = dp(8)
         })
 
@@ -192,17 +221,17 @@ class OptimizerUI(private val ctx: Context) {
 
         btnDevOptions = smallButton("Настройки для разработчиков")
         btnDevOptions.setOnClickListener { onDevOptions?.invoke() }
-        content.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        mainContent.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
         cardBattery = card("Батарея: —")
-        content.addView(cardBattery, cardLp())
+        mainContent.addView(cardBattery, cardLp())
         cardTemp = card("Температура: —")
-        content.addView(cardTemp, cardLp())
+        mainContent.addView(cardTemp, cardLp())
         statusResult = card("Нажмите кнопку")
-        content.addView(statusResult, cardLp())
+        mainContent.addView(statusResult, cardLp())
 
         val spacer = View(ctx)
-        content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
+        mainContent.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
 
         btnToggle = TextView(ctx)
         btnToggle.text = "ОПТИМИЗИРОВАТЬ"
@@ -215,9 +244,78 @@ class OptimizerUI(private val ctx: Context) {
             animateButton(btnToggle)
             onToggle?.invoke()
         }
-        content.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
+        mainContent.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
+        buildSecretScreen()
         return root
+    }
+
+    private fun buildSecretScreen() {
+        secretScreen = ScrollView(ctx)
+        secretScreen.isFillViewport = true
+        secretScreen.setBackgroundColor(Color.parseColor("#0B0F1A"))
+        secretScreen.visibility = View.GONE
+        root.addView(secretScreen, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        val content = LinearLayout(ctx)
+        content.orientation = LinearLayout.VERTICAL
+        content.setPadding(dp(18), dp(60), dp(18), dp(20))
+        secretScreen.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val header = TextView(ctx)
+        header.text = "Секретное меню"
+        header.setTextColor(Color.WHITE)
+        header.textSize = 26f
+        header.gravity = Gravity.CENTER
+        content.addView(header, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val desc = TextView(ctx)
+        desc.text = "Разблокировка 90 Гц для Realme\n\n1. Нажмите кнопку ниже.\n2. Перейдите в Настройки телефона.\n3. Экран и яркость.\n4. Выберите 90 Гц."
+        desc.setTextColor(Color.parseColor("#AAFFFFFF"))
+        desc.textSize = 15f
+        desc.gravity = Gravity.CENTER
+        desc.setPadding(dp(20), dp(30), dp(20), dp(30))
+        content.addView(desc, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val btnUnlock = TextView(ctx)
+        btnUnlock.text = "АКТИВИРОВАТЬ 90 ГЦ"
+        btnUnlock.setTextColor(Color.WHITE)
+        btnUnlock.textSize = 18f
+        btnUnlock.gravity = Gravity.CENTER
+        btnUnlock.background = buttonBlue()
+        btnUnlock.elevation = dp(10).toFloat()
+        btnUnlock.setOnClickListener {
+            animateButton(btnUnlock)
+            onUnlock90?.invoke()
+        }
+        content.addView(btnUnlock, LinearLayout.LayoutParams(MATCH_PARENT, dp(64)).apply {
+            topMargin = dp(20)
+        })
+
+        val btnBack = TextView(ctx)
+        btnBack.text = "НАЗАД"
+        btnBack.setTextColor(Color.WHITE)
+        btnBack.textSize = 16f
+        btnBack.gravity = Gravity.CENTER
+        btnBack.background = buttonUnselected()
+        btnBack.setOnClickListener { hideSecretScreen() }
+        content.addView(btnBack, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply {
+            topMargin = dp(30)
+        })
+    }
+
+    private fun showSecretScreen() {
+        secretScreen.visibility = View.VISIBLE
+        mainScroll.visibility = View.GONE
+        secretScreen.alpha = 0f
+        secretScreen.animate().alpha(1f).setDuration(300).start()
+    }
+
+    private fun hideSecretScreen() {
+        secretScreen.animate().alpha(0f).setDuration(200).withEndAction {
+            secretScreen.visibility = View.GONE
+            mainScroll.visibility = View.VISIBLE
+        }.start()
     }
 
     fun setPackageText(text: String) {
