@@ -91,7 +91,7 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("am kill-all")
         SystemReader.read("echo 1 > /proc/sys/vm/drop_caches")
 
-        return "Сеть: BBR · GPU: фикс · RAM: очищено · Энергосбережение: выкл"
+        return "Максимум: CPU/GPU/RAM/Сеть/Энергия"
     }
 
     fun deactivateMaxPerformance(): String {
