@@ -16,6 +16,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -57,7 +58,7 @@ class OptimizerUI(private val ctx: Context) {
         content = LinearLayout(ctx)
         content.orientation = LinearLayout.VERTICAL
         content.setPadding(dp(18), dp(44), dp(18), dp(20))
-        root.addView(content, ScrollView.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val title = TextView(ctx)
         title.text = "TurboBoost"
