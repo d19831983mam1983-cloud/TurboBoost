@@ -1,12 +1,10 @@
-package com.example.turboboost
+ package com.example.turboboost
 
-import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -135,35 +133,27 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        ui.onSenseSelected = { level ->
+            executor.execute {
+                val res = info.applySense(level)
+                main.post { ui.statusResult.text = res }
+            }
+        }
+
+        ui.onThermalSelected = { level ->
+            executor.execute {
+                val res = if (level == 0) info.resetThermal() else info.setThermalLimit(level * 10 + 40)
+                main.post { ui.statusResult.text = res }
+            }
+        }
+
         ui.onToggle = { if (!busy) toggle() }
 
-        checkRebootState()
+        ui.setActive(prefs.isActive())
+        if (prefs.isActive()) startKeepAliveService()
+
         refresh()
         startLoop()
-    }
-
-    private fun checkRebootState() {
-        val lastUptime = prefs.getLastUptime()
-        val currentUptime = SystemClock.elapsedRealtime()
-        
-        var isRebooted = false
-        if (lastUptime > 0 && currentUptime < lastUptime) {
-            isRebooted = true
-        } else if (lastUptime == 0L && currentUptime > 60000L) {
-            isRebooted = true
-        }
-
-        if (isRebooted) {
-            prefs.setActive(false)
-            prefs.saveUptime(currentUptime)
-        }
-
-        val active = prefs.isActive()
-        ui.setActive(active)
-        if (active) {
-            startKeepAliveService()
-            prefs.saveUptime(currentUptime)
-        }
     }
 
     fun toggle() {
@@ -184,7 +174,6 @@ class MainActivity : AppCompatActivity() {
                 val result = info.activateMaxPerformance(hz)
                 main.post {
                     prefs.setActive(true)
-                    prefs.saveUptime(SystemClock.elapsedRealtime())
                     ui.setActive(true)
                     ui.statusResult.text = result
                     busy = false
