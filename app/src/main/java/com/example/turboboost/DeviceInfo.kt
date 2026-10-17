@@ -54,13 +54,12 @@ class DeviceInfo(private val ctx: Context) {
     fun activateMaxPerformance(hz: Int): String {
         SystemReader.read("settings put system peak_refresh_rate $hz")
         SystemReader.read("settings put system min_refresh_rate $hz")
-
+        
         SystemReader.read("settings put global window_animation_scale 0.0")
         SystemReader.read("settings put global transition_animation_scale 0.0")
         SystemReader.read("settings put global animator_duration_scale 0.0")
 
-        val cores = 8
-        for (i in 0 until cores) {
+        for (i in 0 until 8) {
             SystemReader.read("echo performance > $cpuBase/cpu$i/cpufreq/scaling_governor")
             val max = SystemReader.read("cat $cpuBase/cpu$i/cpufreq/cpuinfo_max_freq").toLongOrNull() ?: 0L
             if (max > 0L) {
@@ -69,21 +68,18 @@ class DeviceInfo(private val ctx: Context) {
             }
         }
 
-        SystemReader.read("setprop debug.hwui.renderer skiavk")
-        
-        return "Экран: $hz Hz · Анимации: выкл"
+        return "Экран: $hz Hz · CPU: performance"
     }
 
     fun deactivateMaxPerformance(): String {
         SystemReader.read("settings delete system peak_refresh_rate")
         SystemReader.read("settings delete system min_refresh_rate")
-
+        
         SystemReader.read("settings put global window_animation_scale 1.0")
         SystemReader.read("settings put global transition_animation_scale 1.0")
         SystemReader.read("settings put global animator_duration_scale 1.0")
 
-        val cores = 8
-        for (i in 0 until cores) {
+        for (i in 0 until 8) {
             SystemReader.read("echo schedutil > $cpuBase/cpu$i/cpufreq/scaling_governor")
             val min = SystemReader.read("cat $cpuBase/cpu$i/cpufreq/cpuinfo_min_freq").toLongOrNull() ?: 0L
             if (min > 0L) {
@@ -91,23 +87,17 @@ class DeviceInfo(private val ctx: Context) {
             }
         }
 
-        SystemReader.read("setprop debug.hwui.renderer skiagl")
-
         return "Настройки возвращены в авто"
     }
 
     fun activateSense(): String {
-        SystemReader.read("settings put secure touch_slop 10")
+        SystemReader.read("settings put secure touch_slop 4")
         SystemReader.read("settings put secure pointer_speed 7")
-        SystemReader.read("settings put secure long_press_timeout 250")
-        SystemReader.read("settings put secure multi_press_timeout 250")
+        SystemReader.read("settings put secure long_press_timeout 200")
+        SystemReader.read("settings put secure multi_press_timeout 200")
         SystemReader.read("settings put system pointer_speed 7")
         SystemReader.read("settings put system touch.pressure.scale 0.001")
-        SystemReader.read("settings put system touch.size.calibration diameter")
-        SystemReader.read("settings put system touch.size.scale 1")
-        SystemReader.read("settings put system touch.size.bias 0")
         SystemReader.read("settings put system low_power_trigger_level 0")
-        SystemReader.read("settings put system hotword_detection_enabled 0")
         return "Сенса: макс"
     }
 
@@ -118,11 +108,7 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("settings delete secure multi_press_timeout")
         SystemReader.read("settings delete system pointer_speed")
         SystemReader.read("settings delete system touch.pressure.scale")
-        SystemReader.read("settings delete system touch.size.calibration")
-        SystemReader.read("settings delete system touch.size.scale")
-        SystemReader.read("settings delete system touch.size.bias")
         SystemReader.read("settings delete system low_power_trigger_level")
-        SystemReader.read("settings delete system hotword_detection_enabled")
         return "Сенса: авто"
     }
 }
