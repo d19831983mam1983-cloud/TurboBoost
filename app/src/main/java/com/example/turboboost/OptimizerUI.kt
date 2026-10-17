@@ -33,13 +33,19 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var cardTemp: TextView
     lateinit var statusResult: TextView
     lateinit var hzRow: LinearLayout
+    lateinit var senseRow: LinearLayout
+    lateinit var thermalRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null
     var onDevOptions: (() -> Unit)? = null
     var onCompile: ((String) -> Unit)? = null
     var onKeep: ((String) -> Unit)? = null
     var onHzSelected: ((Int) -> Unit)? = null
+    var onSenseSelected: ((Int) -> Unit)? = null
+    var onThermalSelected: ((Int) -> Unit)? = null
     var currentHz: Int = 120
+    var currentSense: Int = -1
+    var currentThermal: Int = -1
 
     fun build(): LinearLayout {
         root = LinearLayout(ctx)
@@ -94,6 +100,56 @@ class OptimizerUI(private val ctx: Context) {
             hzRow.addView(b, lp)
         }
 
+        val senseLabel = TextView(ctx)
+        senseLabel.text = "Сенса (чувствительность):"
+        senseLabel.setTextColor(Color.WHITE)
+        senseLabel.textSize = 14f
+        senseLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        root.addView(senseLabel)
+
+        senseRow = LinearLayout(ctx)
+        senseRow.orientation = LinearLayout.HORIZONTAL
+        senseRow.gravity = Gravity.CENTER_VERTICAL
+        root.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val senses = listOf("Средний", "Сильный", "Эксп.", "Макс")
+        for ((i, name) in senses.withIndex()) {
+            val b = smallButton(name)
+            b.setOnClickListener {
+                currentSense = i
+                onSenseSelected?.invoke(i)
+                updateSenseSelection()
+            }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f)
+            lp.marginEnd = dp(6)
+            senseRow.addView(b, lp)
+        }
+
+        val thermalLabel = TextView(ctx)
+        thermalLabel.text = "Троттлинг (порог °C):"
+        thermalLabel.setTextColor(Color.WHITE)
+        thermalLabel.textSize = 14f
+        thermalLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        root.addView(thermalLabel)
+
+        thermalRow = LinearLayout(ctx)
+        thermalRow.orientation = LinearLayout.HORIZONTAL
+        thermalRow.gravity = Gravity.CENTER_VERTICAL
+        root.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val thermals = listOf("Авто", "50", "60", "70")
+        for ((i, name) in thermals.withIndex()) {
+            val b = smallButton(name)
+            b.setOnClickListener {
+                currentThermal = i
+                onThermalSelected?.invoke(i)
+                updateThermalSelection()
+            }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f)
+            lp.marginEnd = dp(6)
+            thermalRow.addView(b, lp)
+        }
+
         val pkgLabel = TextView(ctx)
         pkgLabel.text = "Пакет игры:"
         pkgLabel.setTextColor(Color.WHITE)
@@ -121,24 +177,16 @@ class OptimizerUI(private val ctx: Context) {
         })
 
         btnCompile = smallButton("Ускорить запуск")
-        btnCompile.setOnClickListener {
-            onCompile?.invoke(pkgInput.text.toString().trim())
-        }
-        actionRow.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-            marginEnd = dp(6)
-        })
+        btnCompile.setOnClickListener { onCompile?.invoke(pkgInput.text.toString().trim()) }
+        actionRow.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
 
         btnKeep = smallButton("Держать в памяти")
-        btnKeep.setOnClickListener {
-            onKeep?.invoke(pkgInput.text.toString().trim())
-        }
+        btnKeep.setOnClickListener { onKeep?.invoke(pkgInput.text.toString().trim()) }
         actionRow.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         btnDevOptions = smallButton("Настройки для разработчиков")
         btnDevOptions.setOnClickListener { onDevOptions?.invoke() }
-        root.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
-            topMargin = dp(8)
-        })
+        root.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
         cardBattery = card("Батарея: —")
         root.addView(cardBattery, cardLp())
@@ -158,9 +206,7 @@ class OptimizerUI(private val ctx: Context) {
         btnToggle.background = buttonBlue()
         btnToggle.elevation = dp(12).toFloat()
         btnToggle.setOnClickListener {
-            btnToggle.animate().scaleX(0.92f).scaleY(0.92f).setDuration(60).withEndAction {
-                btnToggle.animate().scaleX(1f).scaleY(1f).setDuration(250).setInterpolator(OvershootInterpolator()).start()
-            }.start()
+            animateButton(btnToggle)
             onToggle?.invoke()
         }
         root.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
@@ -169,19 +215,34 @@ class OptimizerUI(private val ctx: Context) {
         return root
     }
 
+    private fun animateButton(v: View) {
+        v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(60).withEndAction {
+            v.animate().scaleX(1f).scaleY(1f).setDuration(250).setInterpolator(OvershootInterpolator()).start()
+        }.start()
+    }
+
     fun setPackageText(text: String) {
-        if (text.isNotEmpty()) {
-            pkgInput.setText(text)
-        }
+        if (text.isNotEmpty()) pkgInput.setText(text)
+    }
+
+    fun setSenseLevel(level: Int) {
+        currentSense = level
+        updateSenseSelection()
+    }
+
+    fun setThermalLevel(level: Int) {
+        currentThermal = level
+        updateThermalSelection()
     }
 
     private fun smallButton(text: String): TextView {
         val tv = TextView(ctx)
         tv.text = text
         tv.setTextColor(Color.WHITE)
-        tv.textSize = 13f
+        tv.textSize = 12f
         tv.gravity = Gravity.CENTER
         tv.background = buttonUnselected()
+        tv.setOnClickListener { animateButton(tv) }
         return tv
     }
 
@@ -199,6 +260,22 @@ class OptimizerUI(private val ctx: Context) {
         for (i in 0 until hzRow.childCount) {
             val v = hzRow.getChildAt(i) as TextView
             if (v.text.toString() == currentHz.toString()) v.background = buttonBlue()
+            else v.background = buttonUnselected()
+        }
+    }
+
+    fun updateSenseSelection() {
+        for (i in 0 until senseRow.childCount) {
+            val v = senseRow.getChildAt(i) as TextView
+            if (i == currentSense) v.background = buttonBlue()
+            else v.background = buttonUnselected()
+        }
+    }
+
+    fun updateThermalSelection() {
+        for (i in 0 until thermalRow.childCount) {
+            val v = thermalRow.getChildAt(i) as TextView
+            if (i == currentThermal) v.background = buttonBlue()
             else v.background = buttonUnselected()
         }
     }
