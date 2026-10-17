@@ -29,6 +29,18 @@ class MainActivity : AppCompatActivity() {
         ui = OptimizerUI(this)
         setContentView(ui.build())
 
+        ShizukuHelper.init()
+        ShizukuHelper.onPermissionResult = { granted ->
+            main.post {
+                if (granted) {
+                    ui.statusResult.text = "Shizuku: разрешено"
+                    refresh()
+                } else {
+                    ui.statusResult.text = "Shizuku: нет разрешения"
+                }
+            }
+        }
+
         ui.onToggle = {
             if (!busy) {
                 toggle()
@@ -36,6 +48,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.setActive(prefs.isActive())
+
+        if (ShizukuHelper.isAvailable() && !ShizukuHelper.hasPermission()) {
+            ShizukuHelper.requestPermission()
+        } else if (!ShizukuHelper.isAvailable()) {
+            ui.statusResult.text = "Shizuku не запущен"
+        }
+
         startLoop()
     }
 
@@ -51,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         prefs.setActive(newState)
         ui.setActive(newState)
         if (newState) {
-            ui.statusResult.text = "Режим включён (без root частота не меняется)"
+            ui.statusResult.text = "Режим включён"
         } else {
             ui.statusResult.text = "Режим выключен"
         }
@@ -110,6 +129,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        ShizukuHelper.destroy()
         executor.shutdown()
         super.onDestroy()
     }
