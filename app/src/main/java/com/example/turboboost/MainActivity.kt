@@ -1,14 +1,10 @@
 package com.example.turboboost
 
-import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.view.WindowManager
-import android.view.animation.OvershootInterpolator
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.util.concurrent.Executors
@@ -33,11 +29,25 @@ class MainActivity : AppCompatActivity() {
         ui = OptimizerUI(this)
         setContentView(ui.build())
 
+        ui.currentHz = prefs.getTargetHz()
+        ui.updateHzSelection()
+
+        ui.onHzSelected = { hz ->
+            prefs.setTargetHz(hz)
+            if (prefs.isActive()) {
+                executor.execute {
+                    val res = info.activateMaxPerformance(hz)
+                    main.post { ui.statusResult.text = res }
+                }
+            }
+        }
+
         ShizukuHelper.init()
         ShizukuHelper.onPermissionResult = { granted ->
             main.post {
                 if (granted) {
                     ui.statusResult.text = "Shizuku: разрешено"
+                    syncSystemState()
                     refresh()
                 } else {
                     ui.statusResult.text = "Shizuku: нет разрешения"
@@ -47,16 +57,9 @@ class MainActivity : AppCompatActivity() {
 
         ui.onToggle = {
             if (!busy) {
-                if (prefs.isActive()) {
-                    ui.btnToggle.animate().scaleX(0.9f).scaleY(0.9f).setDuration(100).withEndAction {
-                        ui.btnToggle.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(OvershootInterpolator()).start()
-                    }.start()
-                }
                 toggle()
             }
         }
-
-        ui.setActive(prefs.isActive())
 
         if (ShizukuHelper.isAvailable() && !ShizukuHelper.hasPermission()) {
             ShizukuHelper.requestPermission()
@@ -64,12 +67,26 @@ class MainActivity : AppCompatActivity() {
             ui.statusResult.text = "Shizuku не запущен"
         }
 
-        if (prefs.isActive() && Settings.canDrawOverlays(this)) {
-            startFloating()
-        }
-
+        syncSystemState()
         refresh()
         startLoop()
+    }
+
+    fun syncSystemState() {
+        executor.execute {
+            val isSystemBoosted = info.checkSystemState()
+            if (prefs.isActive() && !isSystemBoosted) {
+                prefs.setActive(false)
+                main.post {
+                    ui.setActive(false)
+                    ui.statusResult.text = "Система перезагружена. Включите заново."
+                }
+            } else {
+                main.post {
+                    ui.setActive(prefs.isActive())
+                }
+            }
+        }
     }
 
     fun toggle() {
@@ -85,46 +102,30 @@ class MainActivity : AppCompatActivity() {
 
         if (newState) {
             ui.statusResult.text = "Включение..."
+            val hz = prefs.getTargetHz()
             executor.execute {
-                val result = info.activateBoost(prefs)
+                val result = info.activateMaxPerformance(hz)
                 main.post {
                     prefs.setActive(true)
                     ui.setActive(true)
                     ui.statusResult.text = result
                     busy = false
                     refresh()
-                    if (!Settings.canDrawOverlays(this@MainActivity)) {
-                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                        startActivity(intent)
-                    } else {
-                        startFloating()
-                    }
                 }
             }
         } else {
             ui.statusResult.text = "Отключение..."
             executor.execute {
-                val result = info.deactivateBoost(prefs)
+                val result = info.deactivateMaxPerformance()
                 main.post {
                     prefs.setActive(false)
                     ui.setActive(false)
                     ui.statusResult.text = result
                     busy = false
-                    stopFloating()
                     refresh()
                 }
             }
         }
-    }
-
-    fun startFloating() {
-        val intent = Intent(this, FloatingService::class.java)
-        startService(intent)
-    }
-
-    fun stopFloating() {
-        val intent = Intent(this, FloatingService::class.java)
-        stopService(intent)
     }
 
     fun startLoop() {
@@ -139,42 +140,27 @@ class MainActivity : AppCompatActivity() {
 
     fun refresh() {
         executor.execute {
-            val cores = info.coreCount()
-            val gov = if (cores > 0) info.cpuGovernor(0) else "?"
-            val cur = if (cores > 0) info.cpuCurFreq(0) else 0L
-            val max = if (cores > 0) info.cpuMaxFreq(0) else 0L
-            val gpu = info.gpuPath()
-            val gpuMax = info.gpuMaxFreq(gpu)
-            val hz = info.maxRefreshRate()
+            val hz = info.currentHz()
             val bat = info.batteryLevel()
             val temp = info.cpuTemp()
             val chip = info.chipName()
-            val th = info.thermalThreshold()
 
             main.post {
                 ui.cardChip.text = "Чип: $chip"
-                ui.cardCpu.text = "CPU: $gov · ${cur / 1000} МГц (макс ${max / 1000})"
-                ui.cardGpu.text = if (gpu.isNotEmpty())
-                    "GPU: макс ${gpuMax / 1_000_000} МГц"
-                else
-                    "GPU: не найдено"
-                ui.cardScreen.text = "Экран: до $hz Hz"
+                ui.cardScreen.text = "Текущая частота: $hz Hz"
                 ui.cardBattery.text = "Батарея: $bat%"
-                ui.cardTemp.text = "Температура: ${"%.0f".format(temp)}°C (порог ${"%.0f".format(th)}°C)"
+                ui.cardTemp.text = "Температура: ${"%.0f".format(temp)}°C"
                 ui.setBatteryLowBlock(bat <= 10)
 
-                if (prefs.isActive()) {
-                    if (bat <= 10) {
-                        busy = true
-                        executor.execute {
-                            info.deactivateBoost(prefs)
-                            main.post {
-                                prefs.setActive(false)
-                                ui.setActive(false)
-                                ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
-                                busy = false
-                                stopFloating()
-                            }
+                if (prefs.isActive() && bat <= 10) {
+                    busy = true
+                    executor.execute {
+                        info.deactivateMaxPerformance()
+                        main.post {
+                            prefs.setActive(false)
+                            ui.setActive(false)
+                            ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
+                            busy = false
                         }
                     }
                 }
