@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
 
         ui.currentHz = prefs.getTargetHz()
         ui.updateHzSelection()
+        ui.setSenseState(prefs.isSenseActive())
 
         ui.onHzSelected = { hz ->
             prefs.setTargetHz(hz)
@@ -38,6 +39,26 @@ class MainActivity : AppCompatActivity() {
                 executor.execute {
                     val res = info.activateMaxPerformance(hz)
                     main.post { ui.statusResult.text = res }
+                }
+            }
+        }
+
+        ui.onSenseToggle = {
+            executor.execute {
+                if (prefs.isSenseActive()) {
+                    val res = info.deactivateSense()
+                    prefs.setSenseActive(false)
+                    main.post {
+                        ui.setSenseState(false)
+                        ui.statusResult.text = res
+                    }
+                } else {
+                    val res = info.activateSense()
+                    prefs.setSenseActive(true)
+                    main.post {
+                        ui.setSenseState(true)
+                        ui.statusResult.text = res
+                    }
                 }
             }
         }
