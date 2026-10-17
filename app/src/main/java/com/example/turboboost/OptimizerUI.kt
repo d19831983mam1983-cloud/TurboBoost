@@ -21,7 +21,7 @@ class OptimizerUI(private val ctx: Context) {
 
     lateinit var root: LinearLayout
     lateinit var btnToggle: TextView
-    lateinit var btnSense: TextView
+    lateinit var btnDevOptions: TextView
     lateinit var cardChip: TextView
     lateinit var cardScreen: TextView
     lateinit var cardBattery: TextView
@@ -30,7 +30,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var hzRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null
-    var onSenseToggle: (() -> Unit)? = null
+    var onDevOptions: (() -> Unit)? = null
     var onHzSelected: ((Int) -> Unit)? = null
     var currentHz: Int = 120
 
@@ -59,7 +59,6 @@ class OptimizerUI(private val ctx: Context) {
 
         cardChip = card("Чип: —")
         root.addView(cardChip, cardLp())
-        
         cardScreen = card("Экран: —")
         root.addView(cardScreen, cardLp())
 
@@ -88,24 +87,16 @@ class OptimizerUI(private val ctx: Context) {
             hzRow.addView(b, lp)
         }
 
-        btnSense = TextView(ctx)
-        btnSense.text = "СЕНСА: ВЫКЛ"
-        btnSense.setTextColor(Color.WHITE)
-        btnSense.textSize = 16f
-        btnSense.gravity = Gravity.CENTER
-        btnSense.background = buttonUnselected()
-        btnSense.elevation = dp(6).toFloat()
-        btnSense.setOnClickListener { onSenseToggle?.invoke() }
-        root.addView(btnSense, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply {
+        btnDevOptions = smallButton("Настройки для разработчиков")
+        btnDevOptions.setOnClickListener { onDevOptions?.invoke() }
+        root.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
             topMargin = dp(12)
         })
 
         cardBattery = card("Батарея: —")
         root.addView(cardBattery, cardLp())
-        
         cardTemp = card("Температура: —")
         root.addView(cardTemp, cardLp())
-        
         statusResult = card("Нажмите кнопку")
         root.addView(statusResult, cardLp())
 
@@ -113,7 +104,7 @@ class OptimizerUI(private val ctx: Context) {
         root.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
 
         btnToggle = TextView(ctx)
-        btnToggle.text = "ЗАФИКСИРОВАТЬ"
+        btnToggle.text = "ОПТИМИЗИРОВАТЬ"
         btnToggle.setTextColor(Color.WHITE)
         btnToggle.textSize = 20f
         btnToggle.gravity = Gravity.CENTER
@@ -131,6 +122,16 @@ class OptimizerUI(private val ctx: Context) {
         return root
     }
 
+    private fun smallButton(text: String): TextView {
+        val tv = TextView(ctx)
+        tv.text = text
+        tv.setTextColor(Color.WHITE)
+        tv.textSize = 14f
+        tv.gravity = Gravity.CENTER
+        tv.background = buttonUnselected()
+        return tv
+    }
+
     private fun hzButton(text: String): TextView {
         val tv = TextView(ctx)
         tv.text = text
@@ -144,21 +145,8 @@ class OptimizerUI(private val ctx: Context) {
     fun updateHzSelection() {
         for (i in 0 until hzRow.childCount) {
             val v = hzRow.getChildAt(i) as TextView
-            if (v.text.toString() == currentHz.toString()) {
-                v.background = buttonBlue()
-            } else {
-                v.background = buttonUnselected()
-            }
-        }
-    }
-
-    fun setSenseState(active: Boolean) {
-        if (active) {
-            btnSense.text = "СЕНСА: ВКЛ"
-            btnSense.background = buttonBlue()
-        } else {
-            btnSense.text = "СЕНСА: ВЫКЛ"
-            btnSense.background = buttonUnselected()
+            if (v.text.toString() == currentHz.toString()) v.background = buttonBlue()
+            else v.background = buttonUnselected()
         }
     }
 
@@ -167,13 +155,7 @@ class OptimizerUI(private val ctx: Context) {
         for ((i, v) in views.withIndex()) {
             v.alpha = 0f
             v.translationY = dp(30).toFloat()
-            v.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(500)
-                .setStartDelay(i * 60L)
-                .setInterpolator(DecelerateInterpolator())
-                .start()
+            v.animate().alpha(1f).translationY(0f).setDuration(500).setStartDelay(i * 60L).setInterpolator(DecelerateInterpolator()).start()
         }
     }
 
@@ -182,7 +164,7 @@ class OptimizerUI(private val ctx: Context) {
             btnToggle.text = "ВЕРНУТЬ АВТО"
             btnToggle.background = buttonRed()
         } else {
-            btnToggle.text = "ЗАФИКСИРОВАТЬ"
+            btnToggle.text = "ОПТИМИЗИРОВАТЬ"
             btnToggle.background = buttonBlue()
         }
     }
@@ -215,11 +197,7 @@ class OptimizerUI(private val ctx: Context) {
         val g = GradientDrawable()
         g.shape = GradientDrawable.RECTANGLE
         g.cornerRadius = dp(22).toFloat()
-        g.colors = intArrayOf(
-            Color.parseColor("#66FFFFFF"),
-            Color.parseColor("#33FFFFFF"),
-            Color.parseColor("#22FFFFFF")
-        )
+        g.colors = intArrayOf(Color.parseColor("#66FFFFFF"), Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"))
         g.gradientType = GradientDrawable.LINEAR_GRADIENT
         g.orientation = GradientDrawable.Orientation.TL_BR
         g.setStroke(dp(1), Color.parseColor("#88FFFFFF"))
@@ -229,17 +207,9 @@ class OptimizerUI(private val ctx: Context) {
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
                 val w = bounds.width().toFloat()
                 val h = bounds.height().toFloat()
-                val shader = LinearGradient(
-                    0f, 0f, w, 0f,
-                    intArrayOf(
-                        Color.parseColor("#55FFFFFF"),
-                        Color.parseColor("#00FFFFFF"),
-                        Color.parseColor("#00FFFFFF"),
-                        Color.parseColor("#55FFFFFF")
-                    ),
-                    floatArrayOf(0f, 0.15f, 0.85f, 1f),
-                    Shader.TileMode.CLAMP
-                )
+                val shader = LinearGradient(0f, 0f, w, 0f,
+                    intArrayOf(Color.parseColor("#55FFFFFF"), Color.parseColor("#00FFFFFF"), Color.parseColor("#00FFFFFF"), Color.parseColor("#55FFFFFF")),
+                    floatArrayOf(0f, 0.15f, 0.85f, 1f), Shader.TileMode.CLAMP)
                 p.shader = shader
                 canvas.drawRoundRect(0f, 0f, w, h, dp(22).toFloat(), dp(22).toFloat(), p)
             }
@@ -248,38 +218,9 @@ class OptimizerUI(private val ctx: Context) {
         return LayerDrawable(arrayOf(g, edge))
     }
 
-    private fun buttonBlue(): LayerDrawable {
-        return btnBase(
-            intArrayOf(
-                Color.parseColor("#5B8DEF"),
-                Color.parseColor("#7BA7F5"),
-                Color.parseColor("#5B8DEF")
-            ),
-            "#CCFFFFFF"
-        )
-    }
-
-    private fun buttonRed(): LayerDrawable {
-        return btnBase(
-            intArrayOf(
-                Color.parseColor("#EF4444"),
-                Color.parseColor("#F87171"),
-                Color.parseColor("#EF4444")
-            ),
-            "#CCFFFFFF"
-        )
-    }
-
-    private fun buttonUnselected(): LayerDrawable {
-        return btnBase(
-            intArrayOf(
-                Color.parseColor("#33FFFFFF"),
-                Color.parseColor("#22FFFFFF"),
-                Color.parseColor("#33FFFFFF")
-            ),
-            "#55FFFFFF"
-        )
-    }
+    private fun buttonBlue(): LayerDrawable = btnBase(intArrayOf(Color.parseColor("#5B8DEF"), Color.parseColor("#7BA7F5"), Color.parseColor("#5B8DEF")), "#CCFFFFFF")
+    private fun buttonRed(): LayerDrawable = btnBase(intArrayOf(Color.parseColor("#EF4444"), Color.parseColor("#F87171"), Color.parseColor("#EF4444")), "#CCFFFFFF")
+    private fun buttonUnselected(): LayerDrawable = btnBase(intArrayOf(Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"), Color.parseColor("#33FFFFFF")), "#55FFFFFF")
 
     private fun btnBase(colors: IntArray, stroke: String): LayerDrawable {
         val g = GradientDrawable()
