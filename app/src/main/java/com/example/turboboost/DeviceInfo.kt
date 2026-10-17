@@ -95,4 +95,34 @@ class DeviceInfo(private val ctx: Context) {
 
         return "Настройки возвращены в авто"
     }
+
+    fun activateSense(): String {
+        SystemReader.read("settings put secure touch_slop 10")
+        SystemReader.read("settings put secure pointer_speed 7")
+        SystemReader.read("settings put secure long_press_timeout 250")
+        SystemReader.read("settings put secure multi_press_timeout 250")
+        SystemReader.read("settings put system pointer_speed 7")
+        SystemReader.read("settings put system touch.pressure.scale 0.001")
+        SystemReader.read("settings put system touch.size.calibration diameter")
+        SystemReader.read("settings put system touch.size.scale 1")
+        SystemReader.read("settings put system touch.size.bias 0")
+        SystemReader.read("settings put system low_power_trigger_level 0")
+        SystemReader.read("settings put system hotword_detection_enabled 0")
+        return "Сенса: макс"
+    }
+
+    fun deactivateSense(): String {
+        SystemReader.read("settings delete secure touch_slop")
+        SystemReader.read("settings delete secure pointer_speed")
+        SystemReader.read("settings delete secure long_press_timeout")
+        SystemReader.read("settings delete secure multi_press_timeout")
+        SystemReader.read("settings delete system pointer_speed")
+        SystemReader.read("settings delete system touch.pressure.scale")
+        SystemReader.read("settings delete system touch.size.calibration")
+        SystemReader.read("settings delete system touch.size.scale")
+        SystemReader.read("settings delete system touch.size.bias")
+        SystemReader.read("settings delete system low_power_trigger_level")
+        SystemReader.read("settings delete system hotword_detection_enabled")
+        return "Сенса: авто"
+    }
 }
