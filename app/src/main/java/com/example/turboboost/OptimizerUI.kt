@@ -95,7 +95,7 @@ class OptimizerUI(private val ctx: Context) {
         }
 
         val pkgLabel = TextView(ctx)
-        pkgLabel.text = "Пакет игры (например, com.axlebolt.standoff2):"
+        pkgLabel.text = "Пакет игры:"
         pkgLabel.setTextColor(Color.WHITE)
         pkgLabel.textSize = 13f
         pkgLabel.setPadding(dp(8), dp(12), 0, dp(4))
@@ -144,7 +144,7 @@ class OptimizerUI(private val ctx: Context) {
         root.addView(cardBattery, cardLp())
         cardTemp = card("Температура: —")
         root.addView(cardTemp, cardLp())
-        statusResult = card("Введите пакет и нажмите кнопку")
+        statusResult = card("Нажмите кнопку")
         root.addView(statusResult, cardLp())
 
         val spacer = View(ctx)
@@ -167,6 +167,12 @@ class OptimizerUI(private val ctx: Context) {
 
         animateIn()
         return root
+    }
+
+    fun setPackageText(text: String) {
+        if (text.isNotEmpty()) {
+            pkgInput.setText(text)
+        }
     }
 
     private fun smallButton(text: String): TextView {
