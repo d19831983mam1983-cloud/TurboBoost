@@ -1,10 +1,14 @@
 package com.example.turboboost
 
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.WindowManager
+import android.view.animation.OvershootInterpolator
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.util.concurrent.Executors
@@ -43,6 +47,11 @@ class MainActivity : AppCompatActivity() {
 
         ui.onToggle = {
             if (!busy) {
+                if (prefs.isActive()) {
+                    ui.btnToggle.animate().scaleX(0.9f).scaleY(0.9f).setDuration(100).withEndAction {
+                        ui.btnToggle.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(OvershootInterpolator()).start()
+                    }.start()
+                }
                 toggle()
             }
         }
@@ -55,6 +64,11 @@ class MainActivity : AppCompatActivity() {
             ui.statusResult.text = "Shizuku не запущен"
         }
 
+        if (prefs.isActive() && Settings.canDrawOverlays(this)) {
+            startFloating()
+        }
+
+        refresh()
         startLoop()
     }
 
@@ -68,7 +82,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val newState = !prefs.isActive()
-        
+
         if (newState) {
             ui.statusResult.text = "Включение..."
             executor.execute {
@@ -79,6 +93,12 @@ class MainActivity : AppCompatActivity() {
                     ui.statusResult.text = result
                     busy = false
                     refresh()
+                    if (!Settings.canDrawOverlays(this@MainActivity)) {
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                        startActivity(intent)
+                    } else {
+                        startFloating()
+                    }
                 }
             }
         } else {
@@ -90,10 +110,21 @@ class MainActivity : AppCompatActivity() {
                     ui.setActive(false)
                     ui.statusResult.text = result
                     busy = false
+                    stopFloating()
                     refresh()
                 }
             }
         }
+    }
+
+    fun startFloating() {
+        val intent = Intent(this, FloatingService::class.java)
+        startService(intent)
+    }
+
+    fun stopFloating() {
+        val intent = Intent(this, FloatingService::class.java)
+        stopService(intent)
     }
 
     fun startLoop() {
@@ -142,17 +173,7 @@ class MainActivity : AppCompatActivity() {
                                 ui.setActive(false)
                                 ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
                                 busy = false
-                            }
-                        }
-                    } else if (temp > th) {
-                        busy = true
-                        executor.execute {
-                            info.deactivateBoost(prefs)
-                            main.post {
-                                prefs.setActive(false)
-                                ui.setActive(false)
-                                ui.statusResult.text = "Автоотключение: перегрев"
-                                busy = false
+                                stopFloating()
                             }
                         }
                     }
