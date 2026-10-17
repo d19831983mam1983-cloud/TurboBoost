@@ -1,8 +1,6 @@
 package com.example.turboboost
 
-import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -36,11 +34,8 @@ class MainActivity : AppCompatActivity() {
         ShizukuHelper.init()
         ShizukuHelper.onPermissionResult = { granted ->
             main.post {
-                if (granted) {
-                    buildMainUI()
-                } else {
-                    showBlockedScreen()
-                }
+                if (granted) buildMainUI()
+                else showBlockedScreen()
             }
         }
 
@@ -48,21 +43,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAccess() {
-        if (!ShizukuHelper.isAvailable()) {
-            showBlockedScreen()
-            return
-        }
-        if (!ShizukuHelper.hasPermission()) {
-            ShizukuHelper.requestPermission()
-            showBlockedScreen()
-            return
-        }
+        if (!ShizukuHelper.isAvailable()) { showBlockedScreen(); return }
+        if (!ShizukuHelper.hasPermission()) { ShizukuHelper.requestPermission(); showBlockedScreen(); return }
         buildMainUI()
     }
 
     private fun showBlockedScreen() {
         uiBuilt = false
-        val blocked = androidx.appcompat.widget.LinearLayoutCompat(this)
+        val blocked = android.widget.LinearLayout(this)
         blocked.orientation = android.widget.LinearLayout.VERTICAL
         blocked.gravity = android.view.Gravity.CENTER
         blocked.setBackgroundColor(Color.parseColor("#0B0F1A"))
@@ -76,7 +64,7 @@ class MainActivity : AppCompatActivity() {
         blocked.addView(title)
 
         val message = android.widget.TextView(this)
-        message.text = "Для работы приложения нужен Shizuku с выданным разрешением.\n\n1. Установите Shizuku.\n2. Запустите его через ADB.\n3. Откройте TurboBoost и разрешите доступ."
+        message.text = "Для работы нужен Shizuku с разрешением."
         message.setTextColor(Color.parseColor("#AAFFFFFF"))
         message.textSize = 15f
         message.gravity = android.view.Gravity.CENTER
@@ -98,20 +86,12 @@ class MainActivity : AppCompatActivity() {
         bg.cornerRadius = 24f
         bg.setColor(Color.parseColor("#5B8DEF"))
         retryBtn.background = bg
+        retryBtn.setOnClickListener { checkAccess() }
         val lpBtn = android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         )
         lpBtn.topMargin = 60
-        retryBtn.setOnClickListener {
-            if (!ShizukuHelper.isAvailable()) {
-                Toast.makeText(this, "Shizuku не запущен", Toast.LENGTH_SHORT).show()
-            } else if (!ShizukuHelper.hasPermission()) {
-                ShizukuHelper.requestPermission()
-            } else {
-                buildMainUI()
-            }
-        }
         blocked.addView(retryBtn, lpBtn)
 
         setContentView(blocked)
@@ -126,6 +106,20 @@ class MainActivity : AppCompatActivity() {
         ui.updateHzSelection()
 
         ui.onDevOptions = { info.openDeveloperOptions() }
+
+        ui.onCompile = { pkg ->
+            executor.execute {
+                val res = info.compilePackage(pkg)
+                main.post { ui.statusResult.text = res }
+            }
+        }
+
+        ui.onKeep = { pkg ->
+            executor.execute {
+                val res = info.tryKeepAlive(pkg)
+                main.post { ui.statusResult.text = res }
+            }
+        }
 
         ui.onHzSelected = { hz ->
             prefs.setTargetHz(hz)
@@ -150,7 +144,7 @@ class MainActivity : AppCompatActivity() {
             if (prefs.isActive() && !isSystemBoosted) {
                 prefs.setActive(false)
                 stopKeepAliveService()
-                main.post { ui.setActive(false); ui.statusResult.text = "Система перезагружена. Включите заново." }
+                main.post { ui.setActive(false); ui.statusResult.text = "Система перезагружена." }
             } else {
                 main.post { ui.setActive(prefs.isActive()) }
                 if (prefs.isActive()) startKeepAliveService()
@@ -200,7 +194,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startKeepAliveService() {
-        val intent = Intent(this, KeepAliveService::class.java)
+        val intent = android.content.Intent(this, KeepAliveService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             ContextCompat.startForegroundService(this, intent)
         } else {
@@ -209,7 +203,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun stopKeepAliveService() {
-        val intent = Intent(this, KeepAliveService::class.java)
+        val intent = android.content.Intent(this, KeepAliveService::class.java)
         stopService(intent)
     }
 
