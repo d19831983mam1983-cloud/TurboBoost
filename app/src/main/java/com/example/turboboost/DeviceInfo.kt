@@ -53,7 +53,6 @@ class DeviceInfo(private val ctx: Context) {
     fun activateMaxPerformance(hz: Int): String {
         SystemReader.read("settings put system peak_refresh_rate $hz")
         SystemReader.read("settings put system min_refresh_rate $hz")
-        
         SystemReader.read("settings put global window_animation_scale 0.0")
         SystemReader.read("settings put global transition_animation_scale 0.0")
         SystemReader.read("settings put global animator_duration_scale 0.0")
@@ -69,14 +68,6 @@ class DeviceInfo(private val ctx: Context) {
 
         SystemReader.read("settings put global private_dns_mode hostname")
         SystemReader.read("settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
-        
-        SystemReader.read("settings put secure touch_slop 4")
-        SystemReader.read("settings put secure pointer_speed 7")
-        SystemReader.read("settings put secure long_press_timeout 200")
-        SystemReader.read("settings put secure multi_press_timeout 200")
-        SystemReader.read("settings put system pointer_speed 7")
-        SystemReader.read("settings put system touch.pressure.scale 0.001")
-        SystemReader.read("settings put system low_power_trigger_level 0")
 
         return "Экран: $hz Hz · DNS: Cloudflare"
     }
@@ -84,7 +75,6 @@ class DeviceInfo(private val ctx: Context) {
     fun deactivateMaxPerformance(): String {
         SystemReader.read("settings delete system peak_refresh_rate")
         SystemReader.read("settings delete system min_refresh_rate")
-        
         SystemReader.read("settings put global window_animation_scale 1.0")
         SystemReader.read("settings put global transition_animation_scale 1.0")
         SystemReader.read("settings put global animator_duration_scale 1.0")
@@ -98,15 +88,21 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("settings put global private_dns_mode off")
         SystemReader.read("settings delete global private_dns_specifier")
 
-        SystemReader.read("settings delete secure touch_slop")
-        SystemReader.read("settings delete secure pointer_speed")
-        SystemReader.read("settings delete secure long_press_timeout")
-        SystemReader.read("settings delete secure multi_press_timeout")
-        SystemReader.read("settings delete system pointer_speed")
-        SystemReader.read("settings delete system touch.pressure.scale")
-        SystemReader.read("settings delete system low_power_trigger_level")
-
         return "Настройки возвращены в авто"
+    }
+
+    fun compilePackage(pkg: String): String {
+        if (pkg.isBlank()) return "Введите пакет"
+        val code = SystemReader.read("cmd package compile -m speed -f $pkg")
+        return if (code.isBlank()) "Компиляция запущена: $pkg" else "Результат: $code"
+    }
+
+    fun tryKeepAlive(pkg: String): String {
+        if (pkg.isBlank()) return "Введите пакет"
+        SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow")
+        SystemReader.read("appops set $pkg KEEP_ALIVE allow")
+        SystemReader.read("cmd deviceidle whitelist +$pkg")
+        return "Попытка удержания: $pkg"
     }
 
     fun openDeveloperOptions() {
