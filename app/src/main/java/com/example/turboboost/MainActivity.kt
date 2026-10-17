@@ -106,15 +106,18 @@ class MainActivity : AppCompatActivity() {
         ui.setPackageText(prefs.getLastPackage())
 
         val savedSense = prefs.getSenseLevel()
-        if (savedSense >= 0) {
-            ui.setSenseLevel(savedSense)
-        }
+        if (savedSense >= 0) ui.setSenseLevel(savedSense)
         val savedThermal = prefs.getThermalLevel()
-        if (savedThermal >= 0) {
-            ui.setThermalLevel(savedThermal)
-        }
+        if (savedThermal >= 0) ui.setThermalLevel(savedThermal)
 
         ui.onDevOptions = { info.openDeveloperOptions() }
+
+        ui.onUnlock90 = {
+            executor.execute {
+                val res = info.unlock90Hz()
+                main.post { Toast.makeText(this, res, Toast.LENGTH_LONG).show() }
+            }
+        }
 
         ui.onCompile = { pkg ->
             prefs.setLastPackage(pkg)
