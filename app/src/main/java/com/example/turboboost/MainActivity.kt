@@ -1,10 +1,12 @@
 package com.example.turboboost
 
+import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -135,22 +137,32 @@ class MainActivity : AppCompatActivity() {
 
         ui.onToggle = { if (!busy) toggle() }
 
-        syncSystemState()
+        checkRebootState()
         refresh()
         startLoop()
     }
 
-    fun syncSystemState() {
-        executor.execute {
-            val isSystemBoosted = info.checkSystemState()
-            if (prefs.isActive() && !isSystemBoosted) {
-                prefs.setActive(false)
-                stopKeepAliveService()
-                main.post { ui.setActive(false); ui.statusResult.text = "Система перезагружена." }
-            } else {
-                main.post { ui.setActive(prefs.isActive()) }
-                if (prefs.isActive()) startKeepAliveService()
-            }
+    private fun checkRebootState() {
+        val lastUptime = prefs.getLastUptime()
+        val currentUptime = SystemClock.elapsedRealtime()
+        
+        var isRebooted = false
+        if (lastUptime > 0 && currentUptime < lastUptime) {
+            isRebooted = true
+        } else if (lastUptime == 0L && currentUptime > 60000L) {
+            isRebooted = true
+        }
+
+        if (isRebooted) {
+            prefs.setActive(false)
+            prefs.saveUptime(currentUptime)
+        }
+
+        val active = prefs.isActive()
+        ui.setActive(active)
+        if (active) {
+            startKeepAliveService()
+            prefs.saveUptime(currentUptime)
         }
     }
 
@@ -172,6 +184,7 @@ class MainActivity : AppCompatActivity() {
                 val result = info.activateMaxPerformance(hz)
                 main.post {
                     prefs.setActive(true)
+                    prefs.saveUptime(SystemClock.elapsedRealtime())
                     ui.setActive(true)
                     ui.statusResult.text = result
                     busy = false
