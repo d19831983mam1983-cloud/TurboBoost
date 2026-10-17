@@ -66,15 +66,34 @@ class MainActivity : AppCompatActivity() {
             busy = false
             return
         }
+
         val newState = !prefs.isActive()
-        prefs.setActive(newState)
-        ui.setActive(newState)
+        
         if (newState) {
-            ui.statusResult.text = "Режим включён"
+            ui.statusResult.text = "Включение..."
+            executor.execute {
+                val result = info.activateBoost(prefs)
+                main.post {
+                    prefs.setActive(true)
+                    ui.setActive(true)
+                    ui.statusResult.text = result
+                    busy = false
+                    refresh()
+                }
+            }
         } else {
-            ui.statusResult.text = "Режим выключен"
+            ui.statusResult.text = "Отключение..."
+            executor.execute {
+                val result = info.deactivateBoost(prefs)
+                main.post {
+                    prefs.setActive(false)
+                    ui.setActive(false)
+                    ui.statusResult.text = result
+                    busy = false
+                    refresh()
+                }
+            }
         }
-        busy = false
     }
 
     fun startLoop() {
@@ -115,13 +134,27 @@ class MainActivity : AppCompatActivity() {
 
                 if (prefs.isActive()) {
                     if (bat <= 10) {
-                        prefs.setActive(false)
-                        ui.setActive(false)
-                        ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
+                        busy = true
+                        executor.execute {
+                            info.deactivateBoost(prefs)
+                            main.post {
+                                prefs.setActive(false)
+                                ui.setActive(false)
+                                ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
+                                busy = false
+                            }
+                        }
                     } else if (temp > th) {
-                        prefs.setActive(false)
-                        ui.setActive(false)
-                        ui.statusResult.text = "Автоотключение: перегрев"
+                        busy = true
+                        executor.execute {
+                            info.deactivateBoost(prefs)
+                            main.post {
+                                prefs.setActive(false)
+                                ui.setActive(false)
+                                ui.statusResult.text = "Автоотключение: перегрев"
+                                busy = false
+                            }
+                        }
                     }
                 }
             }
