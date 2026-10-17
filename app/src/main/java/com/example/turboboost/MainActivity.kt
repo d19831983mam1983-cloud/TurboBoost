@@ -31,7 +31,8 @@ class MainActivity : AppCompatActivity() {
 
         ui.currentHz = prefs.getTargetHz()
         ui.updateHzSelection()
-        ui.setSenseState(prefs.isSenseActive())
+
+        ui.onDevOptions = { info.openDeveloperOptions() }
 
         ui.onHzSelected = { hz ->
             prefs.setTargetHz(hz)
@@ -39,26 +40,6 @@ class MainActivity : AppCompatActivity() {
                 executor.execute {
                     val res = info.activateMaxPerformance(hz)
                     main.post { ui.statusResult.text = res }
-                }
-            }
-        }
-
-        ui.onSenseToggle = {
-            executor.execute {
-                if (prefs.isSenseActive()) {
-                    val res = info.deactivateSense()
-                    prefs.setSenseActive(false)
-                    main.post {
-                        ui.setSenseState(false)
-                        ui.statusResult.text = res
-                    }
-                } else {
-                    val res = info.activateSense()
-                    prefs.setSenseActive(true)
-                    main.post {
-                        ui.setSenseState(true)
-                        ui.statusResult.text = res
-                    }
                 }
             }
         }
@@ -76,11 +57,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        ui.onToggle = {
-            if (!busy) {
-                toggle()
-            }
-        }
+        ui.onToggle = { if (!busy) toggle() }
 
         if (ShizukuHelper.isAvailable() && !ShizukuHelper.hasPermission()) {
             ShizukuHelper.requestPermission()
@@ -98,14 +75,9 @@ class MainActivity : AppCompatActivity() {
             val isSystemBoosted = info.checkSystemState()
             if (prefs.isActive() && !isSystemBoosted) {
                 prefs.setActive(false)
-                main.post {
-                    ui.setActive(false)
-                    ui.statusResult.text = "Система перезагружена. Включите заново."
-                }
+                main.post { ui.setActive(false); ui.statusResult.text = "Система перезагружена. Включите заново." }
             } else {
-                main.post {
-                    ui.setActive(prefs.isActive())
-                }
+                main.post { ui.setActive(prefs.isActive()) }
             }
         }
     }
@@ -122,7 +94,7 @@ class MainActivity : AppCompatActivity() {
         val newState = !prefs.isActive()
 
         if (newState) {
-            ui.statusResult.text = "Включение..."
+            ui.statusResult.text = "Оптимизация..."
             val hz = prefs.getTargetHz()
             executor.execute {
                 val result = info.activateMaxPerformance(hz)
