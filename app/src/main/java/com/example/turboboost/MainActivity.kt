@@ -1,12 +1,16 @@
 package com.example.turboboost
 
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -17,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     val executor = Executors.newSingleThreadExecutor()
     val main = Handler(Looper.getMainLooper())
     var busy = false
+    var uiBuilt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,6 +32,94 @@ class MainActivity : AppCompatActivity() {
         info = DeviceInfo(this)
         prefs = AppPrefs(this)
         ui = OptimizerUI(this)
+
+        ShizukuHelper.init()
+        ShizukuHelper.onPermissionResult = { granted ->
+            main.post {
+                if (granted) {
+                    buildMainUI()
+                } else {
+                    showBlockedScreen()
+                }
+            }
+        }
+
+        checkAccess()
+    }
+
+    private fun checkAccess() {
+        if (!ShizukuHelper.isAvailable()) {
+            showBlockedScreen()
+            return
+        }
+        if (!ShizukuHelper.hasPermission()) {
+            ShizukuHelper.requestPermission()
+            showBlockedScreen()
+            return
+        }
+        buildMainUI()
+    }
+
+    private fun showBlockedScreen() {
+        uiBuilt = false
+        val blocked = androidx.appcompat.widget.LinearLayoutCompat(this)
+        blocked.orientation = android.widget.LinearLayout.VERTICAL
+        blocked.gravity = android.view.Gravity.CENTER
+        blocked.setBackgroundColor(Color.parseColor("#0B0F1A"))
+        blocked.setPadding(60, 60, 60, 60)
+
+        val title = android.widget.TextView(this)
+        title.text = "Доступ закрыт"
+        title.setTextColor(Color.WHITE)
+        title.textSize = 28f
+        title.gravity = android.view.Gravity.CENTER
+        blocked.addView(title)
+
+        val message = android.widget.TextView(this)
+        message.text = "Для работы приложения нужен Shizuku с выданным разрешением.\n\n1. Установите Shizuku.\n2. Запустите его через ADB.\n3. Откройте TurboBoost и разрешите доступ."
+        message.setTextColor(Color.parseColor("#AAFFFFFF"))
+        message.textSize = 15f
+        message.gravity = android.view.Gravity.CENTER
+        val lp = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        lp.topMargin = 40
+        blocked.addView(message, lp)
+
+        val retryBtn = android.widget.TextView(this)
+        retryBtn.text = "ПРОВЕРИТЬ СНОВА"
+        retryBtn.setTextColor(Color.WHITE)
+        retryBtn.textSize = 18f
+        retryBtn.gravity = android.view.Gravity.CENTER
+        retryBtn.setPadding(40, 30, 40, 30)
+        val bg = android.graphics.drawable.GradientDrawable()
+        bg.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+        bg.cornerRadius = 24f
+        bg.setColor(Color.parseColor("#5B8DEF"))
+        retryBtn.background = bg
+        val lpBtn = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        lpBtn.topMargin = 60
+        retryBtn.setOnClickListener {
+            if (!ShizukuHelper.isAvailable()) {
+                Toast.makeText(this, "Shizuku не запущен", Toast.LENGTH_SHORT).show()
+            } else if (!ShizukuHelper.hasPermission()) {
+                ShizukuHelper.requestPermission()
+            } else {
+                buildMainUI()
+            }
+        }
+        blocked.addView(retryBtn, lpBtn)
+
+        setContentView(blocked)
+    }
+
+    private fun buildMainUI() {
+        if (uiBuilt) return
+        uiBuilt = true
         setContentView(ui.build())
 
         ui.currentHz = prefs.getTargetHz()
@@ -44,26 +137,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        ShizukuHelper.init()
-        ShizukuHelper.onPermissionResult = { granted ->
-            main.post {
-                if (granted) {
-                    ui.statusResult.text = "Shizuku: разрешено"
-                    syncSystemState()
-                    refresh()
-                } else {
-                    ui.statusResult.text = "Shizuku: нет разрешения"
-                }
-            }
-        }
-
         ui.onToggle = { if (!busy) toggle() }
-
-        if (ShizukuHelper.isAvailable() && !ShizukuHelper.hasPermission()) {
-            ShizukuHelper.requestPermission()
-        } else if (!ShizukuHelper.isAvailable()) {
-            ui.statusResult.text = "Shizuku не запущен"
-        }
 
         syncSystemState()
         refresh()
@@ -75,9 +149,11 @@ class MainActivity : AppCompatActivity() {
             val isSystemBoosted = info.checkSystemState()
             if (prefs.isActive() && !isSystemBoosted) {
                 prefs.setActive(false)
+                stopKeepAliveService()
                 main.post { ui.setActive(false); ui.statusResult.text = "Система перезагружена. Включите заново." }
             } else {
                 main.post { ui.setActive(prefs.isActive()) }
+                if (prefs.isActive()) startKeepAliveService()
             }
         }
     }
@@ -103,6 +179,7 @@ class MainActivity : AppCompatActivity() {
                     ui.setActive(true)
                     ui.statusResult.text = result
                     busy = false
+                    startKeepAliveService()
                     refresh()
                 }
             }
@@ -115,16 +192,31 @@ class MainActivity : AppCompatActivity() {
                     ui.setActive(false)
                     ui.statusResult.text = result
                     busy = false
+                    stopKeepAliveService()
                     refresh()
                 }
             }
         }
     }
 
+    fun startKeepAliveService() {
+        val intent = Intent(this, KeepAliveService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ContextCompat.startForegroundService(this, intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    fun stopKeepAliveService() {
+        val intent = Intent(this, KeepAliveService::class.java)
+        stopService(intent)
+    }
+
     fun startLoop() {
         val r = object : Runnable {
             override fun run() {
-                refresh()
+                if (uiBuilt) refresh()
                 main.postDelayed(this, 3000)
             }
         }
@@ -132,6 +224,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun refresh() {
+        if (!uiBuilt) return
         executor.execute {
             val hz = info.currentHz()
             val bat = info.batteryLevel()
@@ -139,6 +232,7 @@ class MainActivity : AppCompatActivity() {
             val chip = info.chipName()
 
             main.post {
+                if (!uiBuilt) return@post
                 ui.cardChip.text = "Чип: $chip"
                 ui.cardScreen.text = "Текущая частота: $hz Hz"
                 ui.cardBattery.text = "Батарея: $bat%"
@@ -154,11 +248,17 @@ class MainActivity : AppCompatActivity() {
                             ui.setActive(false)
                             ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
                             busy = false
+                            stopKeepAliveService()
                         }
                     }
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!uiBuilt) checkAccess()
     }
 
     override fun onDestroy() {
