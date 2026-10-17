@@ -213,6 +213,12 @@ class DeviceInfo(private val ctx: Context) {
         return "Троттлинг: авто"
     }
 
+    fun unlock90Hz(): String {
+        SystemReader.read("settings put system peak_refresh_rate 1")
+        SystemReader.read("settings put system min_refresh_rate 1")
+        return "Готово. Зайдите в Настройки телефона > Экран и выберите 90 Гц."
+    }
+
     fun compilePackage(pkg: String): String {
         if (pkg.isBlank()) return "Введите пакет"
         val code = SystemReader.read("cmd package compile -m speed -f $pkg")
