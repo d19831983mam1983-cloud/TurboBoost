@@ -17,11 +17,13 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
 class OptimizerUI(private val ctx: Context) {
 
-    lateinit var root: LinearLayout
+    lateinit var root: ScrollView
+    lateinit var content: LinearLayout
     lateinit var btnToggle: TextView
     lateinit var btnDevOptions: TextView
     lateinit var btnCompile: TextView
@@ -47,19 +49,22 @@ class OptimizerUI(private val ctx: Context) {
     var currentSense: Int = -1
     var currentThermal: Int = -1
 
-    fun build(): LinearLayout {
-        root = LinearLayout(ctx)
-        root.orientation = LinearLayout.VERTICAL
+    fun build(): ScrollView {
+        root = ScrollView(ctx)
         root.setBackgroundColor(Color.parseColor("#0B0F1A"))
-        root.fitsSystemWindows = true
-        root.setPadding(dp(18), dp(44), dp(18), dp(20))
+        root.isFillViewport = true
+
+        content = LinearLayout(ctx)
+        content.orientation = LinearLayout.VERTICAL
+        content.setPadding(dp(18), dp(44), dp(18), dp(20))
+        root.addView(content, ScrollView.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val title = TextView(ctx)
         title.text = "TurboBoost"
         title.setTextColor(Color.WHITE)
         title.textSize = 30f
         title.gravity = Gravity.CENTER
-        root.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val sub = TextView(ctx)
         sub.text = "Максимальный отклик"
@@ -68,24 +73,24 @@ class OptimizerUI(private val ctx: Context) {
         sub.gravity = Gravity.CENTER
         val subLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         subLp.topMargin = dp(2)
-        root.addView(sub, subLp)
+        content.addView(sub, subLp)
 
         cardChip = card("Чип: —")
-        root.addView(cardChip, cardLp())
+        content.addView(cardChip, cardLp())
         cardScreen = card("Экран: —")
-        root.addView(cardScreen, cardLp())
+        content.addView(cardScreen, cardLp())
 
         val hzLabel = TextView(ctx)
         hzLabel.text = "Частота экрана (Гц):"
         hzLabel.setTextColor(Color.WHITE)
         hzLabel.textSize = 14f
         hzLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(hzLabel)
+        content.addView(hzLabel)
 
         hzRow = LinearLayout(ctx)
         hzRow.orientation = LinearLayout.HORIZONTAL
         hzRow.gravity = Gravity.CENTER_VERTICAL
-        root.addView(hzRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(hzRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val rates = listOf(60, 90, 120, 144)
         for (r in rates) {
@@ -105,12 +110,12 @@ class OptimizerUI(private val ctx: Context) {
         senseLabel.setTextColor(Color.WHITE)
         senseLabel.textSize = 14f
         senseLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(senseLabel)
+        content.addView(senseLabel)
 
         senseRow = LinearLayout(ctx)
         senseRow.orientation = LinearLayout.HORIZONTAL
         senseRow.gravity = Gravity.CENTER_VERTICAL
-        root.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val senses = listOf("Средний", "Сильный", "Эксп.", "Макс")
         for ((i, name) in senses.withIndex()) {
@@ -130,12 +135,12 @@ class OptimizerUI(private val ctx: Context) {
         thermalLabel.setTextColor(Color.WHITE)
         thermalLabel.textSize = 14f
         thermalLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(thermalLabel)
+        content.addView(thermalLabel)
 
         thermalRow = LinearLayout(ctx)
         thermalRow.orientation = LinearLayout.HORIZONTAL
         thermalRow.gravity = Gravity.CENTER_VERTICAL
-        root.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val thermals = listOf("Авто", "50", "60", "70")
         for ((i, name) in thermals.withIndex()) {
@@ -155,7 +160,7 @@ class OptimizerUI(private val ctx: Context) {
         pkgLabel.setTextColor(Color.WHITE)
         pkgLabel.textSize = 13f
         pkgLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(pkgLabel)
+        content.addView(pkgLabel)
 
         pkgInput = EditText(ctx)
         pkgInput.hint = "com.example.game"
@@ -166,13 +171,13 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.inputType = InputType.TYPE_CLASS_TEXT
         pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
         pkgInput.background = buttonUnselected()
-        root.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
+        content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
             topMargin = dp(4)
         })
 
         val actionRow = LinearLayout(ctx)
         actionRow.orientation = LinearLayout.HORIZONTAL
-        root.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+        content.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
             topMargin = dp(8)
         })
 
@@ -186,17 +191,17 @@ class OptimizerUI(private val ctx: Context) {
 
         btnDevOptions = smallButton("Настройки для разработчиков")
         btnDevOptions.setOnClickListener { onDevOptions?.invoke() }
-        root.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        content.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
         cardBattery = card("Батарея: —")
-        root.addView(cardBattery, cardLp())
+        content.addView(cardBattery, cardLp())
         cardTemp = card("Температура: —")
-        root.addView(cardTemp, cardLp())
+        content.addView(cardTemp, cardLp())
         statusResult = card("Нажмите кнопку")
-        root.addView(statusResult, cardLp())
+        content.addView(statusResult, cardLp())
 
         val spacer = View(ctx)
-        root.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
 
         btnToggle = TextView(ctx)
         btnToggle.text = "ОПТИМИЗИРОВАТЬ"
@@ -209,9 +214,8 @@ class OptimizerUI(private val ctx: Context) {
             animateButton(btnToggle)
             onToggle?.invoke()
         }
-        root.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
+        content.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
-        animateIn()
         return root
     }
 
@@ -277,15 +281,6 @@ class OptimizerUI(private val ctx: Context) {
             val v = thermalRow.getChildAt(i) as TextView
             if (i == currentThermal) v.background = buttonBlue()
             else v.background = buttonUnselected()
-        }
-    }
-
-    private fun animateIn() {
-        val views = listOf(cardChip, cardScreen, cardBattery, cardTemp, statusResult, btnToggle)
-        for ((i, v) in views.withIndex()) {
-            v.alpha = 0f
-            v.translationY = dp(30).toFloat()
-            v.animate().alpha(1f).translationY(0f).setDuration(500).setStartDelay(i * 60L).setInterpolator(DecelerateInterpolator()).start()
         }
     }
 
