@@ -20,15 +20,18 @@ class OptimizerUI(private val ctx: Context) {
 
     lateinit var root: LinearLayout
     lateinit var btnToggle: TextView
-    lateinit var cardCpu: TextView
-    lateinit var cardGpu: TextView
+    lateinit var btnSense: TextView
+    lateinit var cardChip: TextView
     lateinit var cardScreen: TextView
     lateinit var cardBattery: TextView
     lateinit var cardTemp: TextView
-    lateinit var cardChip: TextView
     lateinit var statusResult: TextView
+    lateinit var hzRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null
+    var onSenseToggle: (() -> Unit)? = null
+    var onHzSelected: ((Int) -> Unit)? = null
+    var currentHz: Int = 120
 
     fun build(): LinearLayout {
         root = LinearLayout(ctx)
@@ -45,7 +48,7 @@ class OptimizerUI(private val ctx: Context) {
         root.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val sub = TextView(ctx)
-        sub.text = "Мониторинг частот"
+        sub.text = "Максимальный отклик"
         sub.setTextColor(Color.parseColor("#AAFFFFFF"))
         sub.textSize = 13f
         sub.gravity = Gravity.CENTER
@@ -55,16 +58,53 @@ class OptimizerUI(private val ctx: Context) {
 
         cardChip = card("Чип: —")
         root.addView(cardChip, cardLp())
-        cardCpu = card("CPU: —")
-        root.addView(cardCpu, cardLp())
-        cardGpu = card("GPU: —")
-        root.addView(cardGpu, cardLp())
+        
         cardScreen = card("Экран: —")
         root.addView(cardScreen, cardLp())
+
+        val hzLabel = TextView(ctx)
+        hzLabel.text = "Частота экрана (Гц):"
+        hzLabel.setTextColor(Color.WHITE)
+        hzLabel.textSize = 14f
+        hzLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        root.addView(hzLabel)
+
+        hzRow = LinearLayout(ctx)
+        hzRow.orientation = LinearLayout.HORIZONTAL
+        hzRow.gravity = Gravity.CENTER_VERTICAL
+        root.addView(hzRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val rates = listOf(60, 90, 120, 144)
+        for (r in rates) {
+            val b = hzButton("$r")
+            b.setOnClickListener {
+                currentHz = r
+                onHzSelected?.invoke(r)
+                updateHzSelection()
+            }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f)
+            lp.marginEnd = dp(6)
+            hzRow.addView(b, lp)
+        }
+
+        btnSense = TextView(ctx)
+        btnSense.text = "СЕНСА: ВЫКЛ"
+        btnSense.setTextColor(Color.WHITE)
+        btnSense.textSize = 16f
+        btnSense.gravity = Gravity.CENTER
+        btnSense.background = buttonUnselected()
+        btnSense.elevation = dp(6).toFloat()
+        btnSense.setOnClickListener { onSenseToggle?.invoke() }
+        root.addView(btnSense, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply {
+            topMargin = dp(12)
+        })
+
         cardBattery = card("Батарея: —")
         root.addView(cardBattery, cardLp())
+        
         cardTemp = card("Температура: —")
         root.addView(cardTemp, cardLp())
+        
         statusResult = card("Нажмите кнопку")
         root.addView(statusResult, cardLp())
 
@@ -72,29 +112,65 @@ class OptimizerUI(private val ctx: Context) {
         root.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
 
         btnToggle = TextView(ctx)
-        btnToggle.text = "ВКЛЮЧИТЬ"
+        btnToggle.text = "ЗАФИКСИРОВАТЬ"
         btnToggle.setTextColor(Color.WHITE)
         btnToggle.textSize = 20f
         btnToggle.gravity = Gravity.CENTER
         btnToggle.background = buttonBlue()
         btnToggle.elevation = dp(12).toFloat()
-        btnToggle.setOnClickListener { onToggle?.invoke() }
+        btnToggle.setOnClickListener {
+            btnToggle.animate().scaleX(0.95f).scaleY(0.95f).setDuration(50).withEndAction {
+                btnToggle.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+            }.start()
+            onToggle?.invoke()
+        }
         root.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
         animateIn()
         return root
     }
 
+    private fun hzButton(text: String): TextView {
+        val tv = TextView(ctx)
+        tv.text = text
+        tv.setTextColor(Color.WHITE)
+        tv.textSize = 14f
+        tv.gravity = Gravity.CENTER
+        tv.background = buttonUnselected()
+        return tv
+    }
+
+    fun updateHzSelection() {
+        for (i in 0 until hzRow.childCount) {
+            val v = hzRow.getChildAt(i) as TextView
+            if (v.text.toString() == currentHz.toString()) {
+                v.background = buttonBlue()
+            } else {
+                v.background = buttonUnselected()
+            }
+        }
+    }
+
+    fun setSenseState(active: Boolean) {
+        if (active) {
+            btnSense.text = "СЕНСА: ВКЛ"
+            btnSense.background = buttonBlue()
+        } else {
+            btnSense.text = "СЕНСА: ВЫКЛ"
+            btnSense.background = buttonUnselected()
+        }
+    }
+
     private fun animateIn() {
-        val views = listOf(cardChip, cardCpu, cardGpu, cardScreen, cardBattery, cardTemp, statusResult, btnToggle)
+        val views = listOf(cardChip, cardScreen, cardBattery, cardTemp, statusResult, btnToggle)
         for ((i, v) in views.withIndex()) {
             v.alpha = 0f
-            v.translationY = dp(30).toFloat()
+            v.translationY = dp(20).toFloat()
             v.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setDuration(400)
-                .setStartDelay(i * 50L)
+                .setDuration(300)
+                .setStartDelay(i * 30L)
                 .setInterpolator(DecelerateInterpolator())
                 .start()
         }
@@ -102,10 +178,10 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setActive(active: Boolean) {
         if (active) {
-            btnToggle.text = "ОТКЛЮЧИТЬ"
+            btnToggle.text = "ВЕРНУТЬ АВТО"
             btnToggle.background = buttonRed()
         } else {
-            btnToggle.text = "ВКЛЮЧИТЬ"
+            btnToggle.text = "ЗАФИКСИРОВАТЬ"
             btnToggle.background = buttonBlue()
         }
     }
@@ -177,7 +253,8 @@ class OptimizerUI(private val ctx: Context) {
                 Color.parseColor("#5B8DEF"),
                 Color.parseColor("#7BA7F5"),
                 Color.parseColor("#5B8DEF")
-            )
+            ),
+            "#CCFFFFFF"
         )
     }
 
@@ -187,18 +264,30 @@ class OptimizerUI(private val ctx: Context) {
                 Color.parseColor("#EF4444"),
                 Color.parseColor("#F87171"),
                 Color.parseColor("#EF4444")
-            )
+            ),
+            "#CCFFFFFF"
         )
     }
 
-    private fun btnBase(colors: IntArray): LayerDrawable {
+    private fun buttonUnselected(): LayerDrawable {
+        return btnBase(
+            intArrayOf(
+                Color.parseColor("#33FFFFFF"),
+                Color.parseColor("#22FFFFFF"),
+                Color.parseColor("#33FFFFFF")
+            ),
+            "#55FFFFFF"
+        )
+    }
+
+    private fun btnBase(colors: IntArray, stroke: String): LayerDrawable {
         val g = GradientDrawable()
         g.shape = GradientDrawable.RECTANGLE
-        g.cornerRadius = dp(24).toFloat()
+        g.cornerRadius = dp(12).toFloat()
         g.colors = colors
         g.gradientType = GradientDrawable.LINEAR_GRADIENT
         g.orientation = GradientDrawable.Orientation.LEFT_RIGHT
-        g.setStroke(dp(1), Color.parseColor("#CCFFFFFF"))
+        g.setStroke(dp(1), Color.parseColor(stroke))
         return LayerDrawable(arrayOf(g))
     }
 }
