@@ -23,4 +23,10 @@ class AppPrefs(ctx: Context) {
     fun setLastPackage(pkg: String) {
         prefs.edit().putString("last_pkg", pkg).apply()
     }
+
+    fun getLastUptime(): Long = prefs.getLong("last_uptime", 0L)
+
+    fun saveUptime(uptime: Long) {
+        prefs.edit().putLong("last_uptime", uptime).apply()
+    }
 }
