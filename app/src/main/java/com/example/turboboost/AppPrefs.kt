@@ -24,9 +24,15 @@ class AppPrefs(ctx: Context) {
         prefs.edit().putString("last_pkg", pkg).apply()
     }
 
-    fun getLastUptime(): Long = prefs.getLong("last_uptime", 0L)
+    fun getSenseLevel(): Int = prefs.getInt("sense_level", -1)
 
-    fun saveUptime(uptime: Long) {
-        prefs.edit().putLong("last_uptime", uptime).apply()
+    fun setSenseLevel(level: Int) {
+        prefs.edit().putInt("sense_level", level).apply()
+    }
+
+    fun getThermalLevel(): Int = prefs.getInt("thermal_level", -1)
+
+    fun setThermalLevel(level: Int) {
+        prefs.edit().putInt("thermal_level", level).apply()
     }
 }
