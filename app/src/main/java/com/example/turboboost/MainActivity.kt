@@ -23,7 +23,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
 
@@ -104,10 +103,12 @@ class MainActivity : AppCompatActivity() {
 
         ui.currentHz = prefs.getTargetHz()
         ui.updateHzSelection()
+        ui.setPackageText(prefs.getLastPackage())
 
         ui.onDevOptions = { info.openDeveloperOptions() }
 
         ui.onCompile = { pkg ->
+            prefs.setLastPackage(pkg)
             executor.execute {
                 val res = info.compilePackage(pkg)
                 main.post { ui.statusResult.text = res }
@@ -115,6 +116,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.onKeep = { pkg ->
+            prefs.setLastPackage(pkg)
             executor.execute {
                 val res = info.tryKeepAlive(pkg)
                 main.post { ui.statusResult.text = res }
