@@ -8,12 +8,14 @@ import android.graphics.Paint
 import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -22,6 +24,9 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var root: LinearLayout
     lateinit var btnToggle: TextView
     lateinit var btnDevOptions: TextView
+    lateinit var btnCompile: TextView
+    lateinit var btnKeep: TextView
+    lateinit var pkgInput: EditText
     lateinit var cardChip: TextView
     lateinit var cardScreen: TextView
     lateinit var cardBattery: TextView
@@ -31,6 +36,8 @@ class OptimizerUI(private val ctx: Context) {
 
     var onToggle: (() -> Unit)? = null
     var onDevOptions: (() -> Unit)? = null
+    var onCompile: ((String) -> Unit)? = null
+    var onKeep: ((String) -> Unit)? = null
     var onHzSelected: ((Int) -> Unit)? = null
     var currentHz: Int = 120
 
@@ -87,17 +94,57 @@ class OptimizerUI(private val ctx: Context) {
             hzRow.addView(b, lp)
         }
 
+        val pkgLabel = TextView(ctx)
+        pkgLabel.text = "Пакет игры (например, com.axlebolt.standoff2):"
+        pkgLabel.setTextColor(Color.WHITE)
+        pkgLabel.textSize = 13f
+        pkgLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        root.addView(pkgLabel)
+
+        pkgInput = EditText(ctx)
+        pkgInput.hint = "com.example.game"
+        pkgInput.setHintTextColor(Color.parseColor("#66FFFFFF"))
+        pkgInput.setTextColor(Color.WHITE)
+        pkgInput.textSize = 14f
+        pkgInput.setSingleLine()
+        pkgInput.inputType = InputType.TYPE_CLASS_TEXT
+        pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
+        pkgInput.background = buttonUnselected()
+        root.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
+            topMargin = dp(4)
+        })
+
+        val actionRow = LinearLayout(ctx)
+        actionRow.orientation = LinearLayout.HORIZONTAL
+        root.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+            topMargin = dp(8)
+        })
+
+        btnCompile = smallButton("Ускорить запуск")
+        btnCompile.setOnClickListener {
+            onCompile?.invoke(pkgInput.text.toString().trim())
+        }
+        actionRow.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            marginEnd = dp(6)
+        })
+
+        btnKeep = smallButton("Держать в памяти")
+        btnKeep.setOnClickListener {
+            onKeep?.invoke(pkgInput.text.toString().trim())
+        }
+        actionRow.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+
         btnDevOptions = smallButton("Настройки для разработчиков")
         btnDevOptions.setOnClickListener { onDevOptions?.invoke() }
         root.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
-            topMargin = dp(12)
+            topMargin = dp(8)
         })
 
         cardBattery = card("Батарея: —")
         root.addView(cardBattery, cardLp())
         cardTemp = card("Температура: —")
         root.addView(cardTemp, cardLp())
-        statusResult = card("Нажмите кнопку")
+        statusResult = card("Введите пакет и нажмите кнопку")
         root.addView(statusResult, cardLp())
 
         val spacer = View(ctx)
@@ -126,7 +173,7 @@ class OptimizerUI(private val ctx: Context) {
         val tv = TextView(ctx)
         tv.text = text
         tv.setTextColor(Color.WHITE)
-        tv.textSize = 14f
+        tv.textSize = 13f
         tv.gravity = Gravity.CENTER
         tv.background = buttonUnselected()
         return tv
