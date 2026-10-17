@@ -105,6 +105,15 @@ class MainActivity : AppCompatActivity() {
         ui.updateHzSelection()
         ui.setPackageText(prefs.getLastPackage())
 
+        val savedSense = prefs.getSenseLevel()
+        if (savedSense >= 0) {
+            ui.setSenseLevel(savedSense)
+        }
+        val savedThermal = prefs.getThermalLevel()
+        if (savedThermal >= 0) {
+            ui.setThermalLevel(savedThermal)
+        }
+
         ui.onDevOptions = { info.openDeveloperOptions() }
 
         ui.onCompile = { pkg ->
@@ -134,6 +143,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.onSenseSelected = { level ->
+            prefs.setSenseLevel(level)
             executor.execute {
                 val res = info.applySense(level)
                 main.post { ui.statusResult.text = res }
@@ -141,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.onThermalSelected = { level ->
+            prefs.setThermalLevel(level)
             executor.execute {
                 val res = if (level == 0) info.resetThermal() else info.setThermalLimit(level * 10 + 40)
                 main.post { ui.statusResult.text = res }
