@@ -12,17 +12,15 @@ class AppPrefs(ctx: Context) {
         prefs.edit().putBoolean("active", v).apply()
     }
 
-    fun saveOrigGovernors(govs: String) {
-        prefs.edit().putString("orig_govs", govs).apply()
+    fun getTargetHz(): Int = prefs.getInt("target_hz", 120)
+
+    fun setTargetHz(hz: Int) {
+        prefs.edit().putInt("target_hz", hz).apply()
     }
 
-    fun getOrigGovernors(): String = prefs.getString("orig_govs", "") ?: ""
+    fun isSenseActive(): Boolean = prefs.getBoolean("sense_active", false)
 
-    fun hasOrigGovernors(): Boolean = prefs.contains("orig_govs")
-
-    fun saveOrigGpuPath(path: String) {
-        prefs.edit().putString("orig_gpu_path", path).apply()
+    fun setSenseActive(v: Boolean) {
+        prefs.edit().putBoolean("sense_active", v).apply()
     }
-
-    fun getOrigGpuPath(): String = prefs.getString("orig_gpu_path", "") ?: ""
 }
