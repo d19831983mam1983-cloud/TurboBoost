@@ -129,6 +129,90 @@ class DeviceInfo(private val ctx: Context) {
         return "Настройки возвращены в авто"
     }
 
+    fun applySense(level: Int): String {
+        val slop: Int
+        val longPress: Int
+        val multiPress: Int
+        val pointer: Int
+        val pressure: String
+
+        when (level) {
+            0 -> {
+                slop = 8
+                longPress = 400
+                multiPress = 300
+                pointer = 1
+                pressure = "1"
+            }
+            1 -> {
+                slop = 6
+                longPress = 300
+                multiPress = 250
+                pointer = 4
+                pressure = "0.1"
+            }
+            2 -> {
+                slop = 4
+                longPress = 200
+                multiPress = 200
+                pointer = 7
+                pressure = "0.001"
+            }
+            else -> {
+                slop = 2
+                longPress = 120
+                multiPress = 120
+                pointer = 10
+                pressure = "0.0001"
+            }
+        }
+
+        SystemReader.read("settings put secure touch_slop $slop")
+        SystemReader.read("settings put secure long_press_timeout $longPress")
+        SystemReader.read("settings put secure multi_press_timeout $multiPress")
+        SystemReader.read("settings put secure pointer_speed $pointer")
+        SystemReader.read("settings put system pointer_speed $pointer")
+        SystemReader.read("settings put system touch.pressure.scale $pressure")
+
+        val names = arrayOf("Средний", "Сильный", "Экспериментальный", "Максимальный")
+        return "Сенса: ${names[level]}"
+    }
+
+    fun resetSense(): String {
+        SystemReader.read("settings delete secure touch_slop")
+        SystemReader.read("settings delete secure long_press_timeout")
+        SystemReader.read("settings delete secure multi_press_timeout")
+        SystemReader.read("settings delete secure pointer_speed")
+        SystemReader.read("settings delete system pointer_speed")
+        SystemReader.read("settings delete system touch.pressure.scale")
+        return "Сенса: авто"
+    }
+
+    fun setThermalLimit(temp: Int): String {
+        if (temp <= 0) {
+            SystemReader.read("dumpsys thermalservice override-status 0")
+            return "Троттлинг: выкл (опасно)"
+        }
+
+        val milli = temp * 1000
+        val zones = SystemReader.read("ls /sys/class/thermal/thermal_zone*").split("\n")
+        var count = 0
+        for (z in zones) {
+            if (z.isBlank()) continue
+            val code = SystemReader.read("test -w $z/trip_point_0_temp && echo ok")
+            if (code.contains("ok")) {
+                SystemReader.read("echo $milli > $z/trip_point_0_temp")
+                count++
+            }
+        }
+        return "Троттлинг: порог $temp°C (зон: $count)"
+    }
+
+    fun resetThermal(): String {
+        SystemReader.read("dumpsys thermalservice override-status -1")
+        return "Троттлинг: авто"
+    }
+
     fun compilePackage(pkg: String): String {
         if (pkg.isBlank()) return "Введите пакет"
         val code = SystemReader.read("cmd package compile -m speed -f $pkg")
