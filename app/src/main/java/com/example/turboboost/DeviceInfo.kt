@@ -66,10 +66,32 @@ class DeviceInfo(private val ctx: Context) {
             }
         }
 
+        SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=bbr")
+        SystemReader.read("sysctl -w net.core.default_qdisc=fq_codel")
+
+        val gpuPath = "/sys/class/kgsl/kgsl-3d0"
+        if (SystemReader.test(gpuPath)) {
+            SystemReader.read("echo performance > $gpuPath/devfreq/governor")
+            SystemReader.read("echo 0 > $gpuPath/min_pwrlevel")
+            SystemReader.read("echo 0 > $gpuPath/max_pwrlevel")
+            SystemReader.read("echo 1 > $gpuPath/force_clk_on")
+            SystemReader.read("echo 1 > $gpuPath/force_bus_on")
+            SystemReader.read("echo 1 > $gpuPath/force_rail_on")
+        }
+
         SystemReader.read("settings put global private_dns_mode hostname")
         SystemReader.read("settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
 
-        return "Экран: $hz Hz · DNS: Cloudflare"
+        SystemReader.read("settings put global low_power 0")
+        SystemReader.read("dumpsys deviceidle disable")
+        SystemReader.read("settings put global adaptive_battery_management_enabled 0")
+        SystemReader.read("settings put global app_standby_enabled 0")
+        SystemReader.read("settings put global cached_apps_freezer disabled")
+
+        SystemReader.read("am kill-all")
+        SystemReader.read("echo 1 > /proc/sys/vm/drop_caches")
+
+        return "Сеть: BBR · GPU: фикс · RAM: очищено · Энергосбережение: выкл"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -85,8 +107,24 @@ class DeviceInfo(private val ctx: Context) {
             if (min > 0L) SystemReader.read("echo $min > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
         }
 
+        SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=cubic")
+
+        val gpuPath = "/sys/class/kgsl/kgsl-3d0"
+        if (SystemReader.test(gpuPath)) {
+            SystemReader.read("echo msm-adreno-tz > $gpuPath/devfreq/governor")
+            SystemReader.read("echo 0 > $gpuPath/force_clk_on")
+            SystemReader.read("echo 0 > $gpuPath/force_bus_on")
+            SystemReader.read("echo 0 > $gpuPath/force_rail_on")
+        }
+
         SystemReader.read("settings put global private_dns_mode off")
         SystemReader.read("settings delete global private_dns_specifier")
+
+        SystemReader.read("settings delete global low_power")
+        SystemReader.read("dumpsys deviceidle enable")
+        SystemReader.read("settings delete global adaptive_battery_management_enabled")
+        SystemReader.read("settings delete global app_standby_enabled")
+        SystemReader.read("settings put global cached_apps_freezer enabled")
 
         return "Настройки возвращены в авто"
     }
