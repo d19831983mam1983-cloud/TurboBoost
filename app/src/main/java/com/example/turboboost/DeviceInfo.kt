@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
+import android.provider.Settings
 
 class DeviceInfo(private val ctx: Context) {
 
@@ -32,9 +33,7 @@ class DeviceInfo(private val ctx: Context) {
         return level * 100 / scale
     }
 
-    fun chipName(): String {
-        return Build.SOC_MODEL.ifBlank { Build.HARDWARE }
-    }
+    fun chipName(): String = Build.SOC_MODEL.ifBlank { Build.HARDWARE }
 
     fun currentHz(): Float {
         val out = SystemReader.read("settings get system peak_refresh_rate")
@@ -68,7 +67,18 @@ class DeviceInfo(private val ctx: Context) {
             }
         }
 
-        return "Экран: $hz Hz · CPU: performance"
+        SystemReader.read("settings put global private_dns_mode hostname")
+        SystemReader.read("settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
+        
+        SystemReader.read("settings put secure touch_slop 4")
+        SystemReader.read("settings put secure pointer_speed 7")
+        SystemReader.read("settings put secure long_press_timeout 200")
+        SystemReader.read("settings put secure multi_press_timeout 200")
+        SystemReader.read("settings put system pointer_speed 7")
+        SystemReader.read("settings put system touch.pressure.scale 0.001")
+        SystemReader.read("settings put system low_power_trigger_level 0")
+
+        return "Экран: $hz Hz · DNS: Cloudflare · Сенса: вкл"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -82,26 +92,12 @@ class DeviceInfo(private val ctx: Context) {
         for (i in 0 until 8) {
             SystemReader.read("echo schedutil > $cpuBase/cpu$i/cpufreq/scaling_governor")
             val min = SystemReader.read("cat $cpuBase/cpu$i/cpufreq/cpuinfo_min_freq").toLongOrNull() ?: 0L
-            if (min > 0L) {
-                SystemReader.read("echo $min > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
-            }
+            if (min > 0L) SystemReader.read("echo $min > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
         }
 
-        return "Настройки возвращены в авто"
-    }
+        SystemReader.read("settings put global private_dns_mode off")
+        SystemReader.read("settings delete global private_dns_specifier")
 
-    fun activateSense(): String {
-        SystemReader.read("settings put secure touch_slop 4")
-        SystemReader.read("settings put secure pointer_speed 7")
-        SystemReader.read("settings put secure long_press_timeout 200")
-        SystemReader.read("settings put secure multi_press_timeout 200")
-        SystemReader.read("settings put system pointer_speed 7")
-        SystemReader.read("settings put system touch.pressure.scale 0.001")
-        SystemReader.read("settings put system low_power_trigger_level 0")
-        return "Сенса: макс"
-    }
-
-    fun deactivateSense(): String {
         SystemReader.read("settings delete secure touch_slop")
         SystemReader.read("settings delete secure pointer_speed")
         SystemReader.read("settings delete secure long_press_timeout")
@@ -109,6 +105,7 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("settings delete system pointer_speed")
         SystemReader.read("settings delete system touch.pressure.scale")
         SystemReader.read("settings delete system low_power_trigger_level")
-        return "Сенса: авто"
+
+        return "Настройки возвращены в авто"
     }
 }
