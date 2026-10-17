@@ -55,12 +55,6 @@ class DeviceInfo(private val ctx: Context) {
         return 0L
     }
 
-    fun refreshRate(): Float {
-        val out = SystemReader.read("dumpsys display | grep -o 'fps=[0-9.]*' | head -1")
-        val m = Regex("fps=([0-9.]+)").find(out)
-        return m?.groupValues?.get(1)?.toFloatOrNull() ?: 60f
-    }
-
     fun maxRefreshRate(): Float {
         val out = SystemReader.read("dumpsys display | grep -o 'fps=[0-9.]*' | sort -rn | head -1")
         val m = Regex("fps=([0-9.]+)").find(out)
@@ -106,5 +100,70 @@ class DeviceInfo(private val ctx: Context) {
             hw.contains("tensor") -> 68f
             else -> 70f
         }
+    }
+
+    fun activateBoost(prefs: AppPrefs): String {
+        val cores = coreCount()
+        if (cores == 0) return "Ядра CPU не найдены"
+
+        var origGovs = ""
+        for (i in 0 until cores) {
+            val g = cpuGovernor(i)
+            origGovs += if (i == cores - 1) g else "$g,"
+        }
+        prefs.saveOrigGovernors(origGovs)
+
+        var cpuOk = 0
+        for (i in 0 until cores) {
+            val max = cpuMaxFreq(i)
+            if (max <= 0L) continue
+
+            SystemReader.read("echo performance > $cpuBase/cpu$i/cpufreq/scaling_governor")
+            SystemReader.read("echo $max > $cpuBase/cpu$i/cpufreq/scaling_max_freq")
+            SystemReader.read("echo $max > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
+            cpuOk++
+        }
+
+        val gpu = gpuPath()
+        prefs.saveOrigGpuPath(gpu)
+        if (gpu.isNotEmpty()) {
+            val gpuMax = gpuMaxFreq(gpu)
+            SystemReader.read("echo performance > $gpu/devfreq/governor")
+            SystemReader.read("echo performance > $gpu/governor")
+            if (gpuMax > 0L) {
+                SystemReader.read("echo $gpuMax > $gpu/max_gpuclk")
+                SystemReader.read("echo $gpuMax > $gpu/max_freq")
+                SystemReader.read("echo $gpuMax > $gpu/devfreq/max_freq")
+            }
+        }
+
+        val hz = maxRefreshRate()
+        if (hz > 0f) {
+            SystemReader.read("settings put system peak_refresh_rate $hz")
+            SystemReader.read("settings put system min_refresh_rate $hz")
+        }
+
+        return "CPU: $cpuOk ядер · GPU: ${if (gpu.isNotEmpty()) "вкл" else "—"} · Экран: $hz Hz"
+    }
+
+    fun deactivateBoost(prefs: AppPrefs): String {
+        val cores = coreCount()
+        val orig = prefs.getOrigGovernors().split(",")
+
+        for (i in 0 until cores) {
+            val g = if (i < orig.size && orig[i].isNotBlank()) orig[i] else "schedutil"
+            SystemReader.read("echo $g > $cpuBase/cpu$i/cpufreq/scaling_governor")
+        }
+
+        val gpu = prefs.getOrigGpuPath()
+        if (gpu.isNotEmpty()) {
+            SystemReader.read("echo msm-adreno-tz > $gpu/devfreq/governor")
+            SystemReader.read("echo msm-adreno-tz > $gpu/governor")
+        }
+
+        SystemReader.read("settings delete system peak_refresh_rate")
+        SystemReader.read("settings delete system min_refresh_rate")
+
+        return "Настройки возвращены"
     }
 }
