@@ -91,7 +91,7 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("am kill-all")
         SystemReader.read("echo 1 > /proc/sys/vm/drop_caches")
 
-        return "Максимум: CPU/GPU/RAM/Сеть/Энергия"
+        return "Максимум: CPU/GPU/RAM/Сеть"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -129,6 +129,28 @@ class DeviceInfo(private val ctx: Context) {
         return "Настройки возвращены в авто"
     }
 
+    fun unlockGameFps(pkg: String, hz: Int): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        
+        val safeHz = when {
+            hz >= 144 -> 144
+            hz >= 120 -> 120
+            hz >= 90 -> 90
+            else -> 60
+        }
+        
+        SystemReader.read("cmd game mode performance $pkg")
+        SystemReader.read("cmd game set --fps $safeHz $pkg")
+        
+        return "Игра $pkg: performance, FPS $safeHz"
+    }
+
+    fun resetGameFps(pkg: String): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        SystemReader.read("cmd game mode standard $pkg")
+        return "Игра $pkg: standard"
+    }
+
     fun applySense(level: Int): String {
         val slop: Int
         val longPress: Int
@@ -137,34 +159,10 @@ class DeviceInfo(private val ctx: Context) {
         val pressure: String
 
         when (level) {
-            0 -> {
-                slop = 8
-                longPress = 400
-                multiPress = 300
-                pointer = 1
-                pressure = "1"
-            }
-            1 -> {
-                slop = 6
-                longPress = 300
-                multiPress = 250
-                pointer = 4
-                pressure = "0.1"
-            }
-            2 -> {
-                slop = 4
-                longPress = 200
-                multiPress = 200
-                pointer = 7
-                pressure = "0.001"
-            }
-            else -> {
-                slop = 2
-                longPress = 120
-                multiPress = 120
-                pointer = 10
-                pressure = "0.0001"
-            }
+            0 -> { slop = 8; longPress = 400; multiPress = 300; pointer = 1; pressure = "1" }
+            1 -> { slop = 6; longPress = 300; multiPress = 250; pointer = 4; pressure = "0.1" }
+            2 -> { slop = 4; longPress = 200; multiPress = 200; pointer = 7; pressure = "0.001" }
+            else -> { slop = 2; longPress = 120; multiPress = 120; pointer = 10; pressure = "0.0001" }
         }
 
         SystemReader.read("settings put secure touch_slop $slop")
@@ -211,12 +209,6 @@ class DeviceInfo(private val ctx: Context) {
     fun resetThermal(): String {
         SystemReader.read("dumpsys thermalservice override-status -1")
         return "Троттлинг: авто"
-    }
-
-    fun unlock90Hz(): String {
-        SystemReader.read("settings put system peak_refresh_rate 1")
-        SystemReader.read("settings put system min_refresh_rate 1")
-        return "Готово. Зайдите в Настройки телефона > Экран и выберите 90 Гц."
     }
 
     fun compilePackage(pkg: String): String {
