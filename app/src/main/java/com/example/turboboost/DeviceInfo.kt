@@ -61,6 +61,15 @@ class DeviceInfo(private val ctx: Context) {
         return m?.groupValues?.get(1)?.toFloatOrNull() ?: 60f
     }
 
+    fun currentFps(): Float {
+        val out = SystemReader.read("dumpsys SurfaceFlinger --latency | head -n 2 | tail -n 1")
+        val valStr = out.trim().toLongOrNull() ?: return 0f
+        if (valStr > 0) {
+            return 1000000000f / valStr
+        }
+        return 60f
+    }
+
     fun cpuTemp(): Float {
         val out = SystemReader.read(
             "for z in /sys/class/thermal/thermal_zone*; do t=\$(cat \$z/temp 2>/dev/null); if [ -n \"\$t\" ]; then echo \"\$t\"; fi; done"
@@ -117,7 +126,6 @@ class DeviceInfo(private val ctx: Context) {
         for (i in 0 until cores) {
             val max = cpuMaxFreq(i)
             if (max <= 0L) continue
-
             SystemReader.read("echo performance > $cpuBase/cpu$i/cpufreq/scaling_governor")
             SystemReader.read("echo $max > $cpuBase/cpu$i/cpufreq/scaling_max_freq")
             SystemReader.read("echo $max > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
