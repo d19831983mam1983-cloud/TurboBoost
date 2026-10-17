@@ -78,7 +78,7 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("settings put system touch.pressure.scale 0.001")
         SystemReader.read("settings put system low_power_trigger_level 0")
 
-        return "Экран: $hz Hz · DNS: Cloudflare · Сенса: вкл"
+        return "Экран: $hz Hz · DNS: Cloudflare"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -107,5 +107,13 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("settings delete system low_power_trigger_level")
 
         return "Настройки возвращены в авто"
+    }
+
+    fun openDeveloperOptions() {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+        } catch (e: Exception) {}
     }
 }
