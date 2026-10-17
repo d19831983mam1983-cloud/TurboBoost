@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -119,8 +120,8 @@ class OptimizerUI(private val ctx: Context) {
         btnToggle.background = buttonBlue()
         btnToggle.elevation = dp(12).toFloat()
         btnToggle.setOnClickListener {
-            btnToggle.animate().scaleX(0.95f).scaleY(0.95f).setDuration(50).withEndAction {
-                btnToggle.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+            btnToggle.animate().scaleX(0.92f).scaleY(0.92f).setDuration(60).withEndAction {
+                btnToggle.animate().scaleX(1f).scaleY(1f).setDuration(250).setInterpolator(OvershootInterpolator()).start()
             }.start()
             onToggle?.invoke()
         }
@@ -165,12 +166,12 @@ class OptimizerUI(private val ctx: Context) {
         val views = listOf(cardChip, cardScreen, cardBattery, cardTemp, statusResult, btnToggle)
         for ((i, v) in views.withIndex()) {
             v.alpha = 0f
-            v.translationY = dp(20).toFloat()
+            v.translationY = dp(30).toFloat()
             v.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setDuration(300)
-                .setStartDelay(i * 30L)
+                .setDuration(500)
+                .setStartDelay(i * 60L)
                 .setInterpolator(DecelerateInterpolator())
                 .start()
         }
