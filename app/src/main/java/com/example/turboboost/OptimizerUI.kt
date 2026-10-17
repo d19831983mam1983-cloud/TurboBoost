@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -80,7 +81,23 @@ class OptimizerUI(private val ctx: Context) {
         btnToggle.setOnClickListener { onToggle?.invoke() }
         root.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
+        animateIn()
         return root
+    }
+
+    private fun animateIn() {
+        val views = listOf(cardChip, cardCpu, cardGpu, cardScreen, cardBattery, cardTemp, statusResult, btnToggle)
+        for ((i, v) in views.withIndex()) {
+            v.alpha = 0f
+            v.translationY = dp(30).toFloat()
+            v.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(400)
+                .setStartDelay(i * 50L)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
     }
 
     fun setActive(active: Boolean) {
