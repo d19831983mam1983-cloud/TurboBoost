@@ -332,16 +332,8 @@ class OptimizerUI(private val ctx: Context) {
         }
     }
 
-    fun setPreset(preset: Int) {
-        currentPreset = preset
-        updatePresetSelection()
-    }
-
-    fun setHz(hz: Int) {
-        currentHz = hz
-        updateHzSelection()
-    }
-
+    fun setPreset(preset: Int) { currentPreset = preset; updatePresetSelection() }
+    fun setHz(hz: Int) { currentHz = hz; updateHzSelection() }
     fun setPackageText(text: String) { if (text.isNotEmpty()) pkgInput.setText(text) }
     fun setSenseLevel(level: Int) { currentSense = level; updateSenseSelection() }
     fun setThermalLevel(level: Int) { currentThermal = level; updateThermalSelection() }
@@ -351,23 +343,12 @@ class OptimizerUI(private val ctx: Context) {
         btnOpt.background = if (active) redBg() else blueBg()
     }
 
-    fun setTurboState(active: Boolean) {
-        btnTurbo.background = if (active) turboGreenBg() else turboBlueBg()
-    }
-
-    fun setGpuBoostState(active: Boolean) {
-        btnGpuBoost.background = if (active) blueBg() else unselBg()
-    }
-
-    fun setBgLimitState(active: Boolean) {
-        btnBgLimit.background = if (active) blueBg() else unselBg()
-    }
+    fun setTurboState(active: Boolean) { btnTurbo.background = if (active) turboGreenBg() else turboBlueBg() }
+    fun setGpuBoostState(active: Boolean) { btnGpuBoost.background = if (active) blueBg() else unselBg() }
+    fun setBgLimitState(active: Boolean) { btnBgLimit.background = if (active) blueBg() else unselBg() }
 
     fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
-        if (!active) {
-            cardApplied.text = "Применено: —"
-            return
-        }
+        if (!active) { cardApplied.text = "Применено: —"; return }
         var count = 0
         if (gov) count++
         if (dns) count++
@@ -459,4 +440,5 @@ class OptimizerUI(private val ctx: Context) {
     private fun buttonBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#5B8DEF"), Color.parseColor("#7BA7F5"), Color.parseColor("#5B8DEF")), "#CCFFFFFF")
     private fun buttonRed(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#EF4444"), Color.parseColor("#F87171"), Color.parseColor("#EF4444")), "#CCFFFFFF")
     private fun buttonUnselected(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"), Color.parseColor("#33FFFFFF")), "#55FFFFFF")
-    private fun buttonTurboBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#3B82F6"), Color.parseColor("#60A5FA"), Color.parseC
+    private fun buttonTurboBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#3B82F6"), Color.parseColor("#60A5FA"), Color.parseColor("#3B82F6")), "#CCFFFFFF")
+    private fun buttonTurboGreen(): GradientDrawable = btnBase(intArrayOf(Colo
