@@ -157,14 +157,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.onTurboToggle = {
-            if (busy) return@onTurboToggle
-            val enable = !prefs.isTurboActive()
-            executor.execute {
-                val res = info.toggleTurbo(enable)
-                main.post {
-                    prefs.setTurboActive(enable)
-                    ui.setTurboState(enable)
-                    ui.statusResult.text = res
+            if (!busy) {
+                val enable = !prefs.isTurboActive()
+                executor.execute {
+                    val res = info.toggleTurbo(enable)
+                    main.post {
+                        prefs.setTurboActive(enable)
+                        ui.setTurboState(enable)
+                        ui.statusResult.text = res
+                    }
                 }
             }
         }
