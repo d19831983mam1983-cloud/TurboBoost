@@ -6,7 +6,6 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.text.InputType
-import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -27,6 +26,8 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var scroll2: ScrollView
     lateinit var page1: LinearLayout
     lateinit var page2: LinearLayout
+    lateinit var btnTabOpt: TextView
+    lateinit var btnTabMon: TextView
     lateinit var btnOpt: TextView
     lateinit var btnTurbo: TextView
     lateinit var btnDevOptions: TextView
@@ -105,7 +106,6 @@ class OptimizerUI(private val ctx: Context) {
         header()
         buildPage1()
         buildPage2()
-        swipe()
         animateIn()
         return root
     }
@@ -119,8 +119,30 @@ class OptimizerUI(private val ctx: Context) {
         h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         col.addView(tv("TurboBoost", 24f, Color.WHITE))
         col.addView(tv("ZNAK", 11f, Color.parseColor("#66FFFFFF")).apply { letterSpacing = 0.3f })
-        h.addView(tv("‹ мониторинг", 11f, Color.parseColor("#88FFFFFF")))
-        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(14); bottomMargin = dp(6) })
+        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(6) })
+
+        val tabs = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        page1.addView(tabs, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+
+        btnTabOpt = TextView(ctx).apply {
+            text = "Оптимизация"
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            gravity = Gravity.CENTER
+            background = blue()
+            setOnClickListener { goPage(0) }
+        }
+        tabs.addView(btnTabOpt, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) })
+
+        btnTabMon = TextView(ctx).apply {
+            text = "Мониторинг"
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            gravity = Gravity.CENTER
+            background = unsel()
+            setOnClickListener { goPage(1) }
+        }
+        tabs.addView(btnTabMon, LinearLayout.LayoutParams(0, dp(40), 1f))
     }
 
     private fun buildPage1() {
@@ -187,8 +209,8 @@ class OptimizerUI(private val ctx: Context) {
         val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         page2.addView(h, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         h.addView(tv("Мониторинг", 24f, Color.WHITE), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        h.addView(tv("назад ›", 11f, Color.parseColor("#88FFFFFF")).apply { setOnClickListener { goPage(0) } })
-        page2.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(14); bottomMargin = dp(6) })
+        h.addView(tv("← Оптимизация", 12f, Color.parseColor("#88FFFFFF")).apply { setOnClickListener { goPage(0) } })
+        page2.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(6) })
 
         cardChip = card("Чип: —"); addCard(page2, cardChip)
         cardGpu = card("GPU: —"); addCard(page2, cardGpu)
@@ -224,22 +246,6 @@ class OptimizerUI(private val ctx: Context) {
         page2.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
     }
 
-    private fun swipe() {
-        val gd = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent) = true
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null) return false
-                val dx = e2.x - e1.x
-                if (Math.abs(dx) > Math.abs(e2.y - e1.y) && Math.abs(dx) > dp(80)) {
-                    if (dx < 0 && page == 0) { goPage(1); return true }
-                    if (dx > 0 && page == 1) { goPage(0); return true }
-                }
-                return false
-            }
-        })
-        root.setOnTouchListener { _, ev -> gd.onTouchEvent(ev); false }
-    }
-
     private fun goPage(p: Int) {
         if (p == page) return
         page = p
@@ -248,10 +254,14 @@ class OptimizerUI(private val ctx: Context) {
             scroll2.translationX = w
             scroll2.animate().translationX(0f).setDuration(280).start()
             scroll1.animate().translationX(-w * 0.3f).alpha(0.5f).setDuration(280).start()
+            fade(btnTabOpt, unsel())
+            fade(btnTabMon, blue())
         } else {
             scroll1.translationX = -w * 0.3f; scroll1.alpha = 0.5f
             scroll1.animate().translationX(0f).alpha(1f).setDuration(280).start()
             scroll2.animate().translationX(w).setDuration(280).start()
+            fade(btnTabOpt, blue())
+            fade(btnTabMon, unsel())
         }
     }
 
