@@ -16,8 +16,23 @@ object SystemReader {
         }
     }
 
+    fun readMulti(commands: List<String>): List<String> {
+        val s = service ?: return commands.map { "" }
+        return commands.map {
+            try {
+                s.exec(it)
+            } catch (e: Throwable) {
+                ""
+            }
+        }
+    }
+
     fun test(path: String): Boolean {
         return read("test -e $path && echo ok").contains("ok")
+    }
+
+    fun testWrite(path: String): Boolean {
+        return read("test -w $path && echo ok").contains("ok")
     }
 
     fun isReady(): Boolean = service != null
