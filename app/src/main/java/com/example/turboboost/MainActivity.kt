@@ -326,12 +326,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onPause() { super.onPause(); if (uiBuilt) prefs.setUiScrollY(ui.scroll.scrollY) }
+    override fun onPause() { super.onPause(); if (uiBuilt) prefs.setUiScrollY(ui.scroll1.scrollY) }
 
     override fun onResume() {
         super.onResume()
         if (!uiBuilt) checkAccess()
-        else { val y = prefs.getUiScrollY(); if (y > 0) ui.scroll.post { ui.scroll.scrollTo(0, y) } }
+        else { val y = prefs.getUiScrollY(); if (y > 0) ui.scroll1.post { ui.scroll1.scrollTo(0, y) } }
     }
 
     override fun onDestroy() { ShizukuHelper.destroy(); executor.shutdown(); super.onDestroy() }
