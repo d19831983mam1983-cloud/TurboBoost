@@ -64,12 +64,19 @@ class OptimizerUI(private val ctx: Context) {
     var currentThermal: Int = -1
     var currentMode: Int = 0
 
-    private val blueBg by lazy { buttonBlue() }
-    private val redBg by lazy { buttonRed() }
-    private val unselBg by lazy { buttonUnselected() }
-    private val turboBlueBg by lazy { buttonTurboBlue() }
-    private val turboGreenBg by lazy { buttonTurboGreen() }
-    private val cardGrad by lazy { cardBg() }
+    private val blueState by lazy { buttonBlue().constantState }
+    private val redState by lazy { buttonRed().constantState }
+    private val unselState by lazy { buttonUnselected().constantState }
+    private val turboBlueState by lazy { buttonTurboBlue().constantState }
+    private val turboGreenState by lazy { buttonTurboGreen().constantState }
+    private val cardState by lazy { cardBg().constantState }
+
+    private fun blueBg(): GradientDrawable = blueState!!.newDrawable().mutate() as GradientDrawable
+    private fun redBg(): GradientDrawable = redState!!.newDrawable().mutate() as GradientDrawable
+    private fun unselBg(): GradientDrawable = unselState!!.newDrawable().mutate() as GradientDrawable
+    private fun turboBlueBg(): GradientDrawable = turboBlueState!!.newDrawable().mutate() as GradientDrawable
+    private fun turboGreenBg(): GradientDrawable = turboGreenState!!.newDrawable().mutate() as GradientDrawable
+    private fun cardBgCopy(): GradientDrawable = cardState!!.newDrawable().mutate() as GradientDrawable
 
     fun build(): FrameLayout {
         root = FrameLayout(ctx)
@@ -192,7 +199,7 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.setSingleLine()
         pkgInput.inputType = InputType.TYPE_CLASS_TEXT
         pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
-        pkgInput.background = buttonUnselected()
+        pkgInput.background = unselBg()
         content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
         val actionRow1 = LinearLayout(ctx)
@@ -251,7 +258,7 @@ class OptimizerUI(private val ctx: Context) {
         btnTurbo.setTextColor(Color.WHITE)
         btnTurbo.textSize = 14f
         btnTurbo.gravity = Gravity.CENTER
-        btnTurbo.background = buttonTurboBlue()
+        btnTurbo.background = turboBlueBg()
         btnTurbo.setOnClickListener { animateButton(btnTurbo); onTurboToggle?.invoke() }
         bottomRow.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(72), 0.3f).apply { marginEnd = dp(8) })
 
@@ -260,7 +267,7 @@ class OptimizerUI(private val ctx: Context) {
         btnOpt.setTextColor(Color.WHITE)
         btnOpt.textSize = 18f
         btnOpt.gravity = Gravity.CENTER
-        btnOpt.background = buttonBlue()
+        btnOpt.background = blueBg()
         btnOpt.setOnClickListener { animateButton(btnOpt); onToggle?.invoke() }
         bottomRow.addView(btnOpt, LinearLayout.LayoutParams(0, dp(72), 0.7f))
 
@@ -270,11 +277,11 @@ class OptimizerUI(private val ctx: Context) {
     fun setMode(mode: Int) {
         currentMode = mode
         if (mode == 0) {
-            btnModePerf.background = blueBg
-            btnModeBal.background = unselBg
+            btnModePerf.background = blueBg()
+            btnModeBal.background = unselBg()
         } else {
-            btnModePerf.background = unselBg
-            btnModeBal.background = blueBg
+            btnModePerf.background = unselBg()
+            btnModeBal.background = blueBg()
         }
     }
 
@@ -284,19 +291,19 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setActive(active: Boolean) {
         btnOpt.text = if (active) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
-        btnOpt.background = if (active) redBg else blueBg
+        btnOpt.background = if (active) redBg() else blueBg()
     }
 
     fun setTurboState(active: Boolean) {
-        btnTurbo.background = if (active) turboGreenBg else turboBlueBg
+        btnTurbo.background = if (active) turboGreenBg() else turboBlueBg()
     }
 
     fun setGpuBoostState(active: Boolean) {
-        btnGpuBoost.background = if (active) blueBg else unselBg
+        btnGpuBoost.background = if (active) blueBg() else unselBg()
     }
 
     fun setBgLimitState(active: Boolean) {
-        btnBgLimit.background = if (active) blueBg else unselBg
+        btnBgLimit.background = if (active) blueBg() else unselBg()
     }
 
     fun setBatteryLowBlock(block: Boolean) { btnOpt.alpha = if (block) 0.4f else 1f; btnTurbo.alpha = if (block) 0.4f else 1f }
@@ -304,14 +311,14 @@ class OptimizerUI(private val ctx: Context) {
     private fun updateSenseSelection() {
         for (i in 0 until senseRow.childCount) {
             val v = senseRow.getChildAt(i) as TextView
-            v.background = if (i == currentSense) blueBg else unselBg
+            v.background = if (i == currentSense) blueBg() else unselBg()
         }
     }
 
     private fun updateThermalSelection() {
         for (i in 0 until thermalRow.childCount) {
             val v = thermalRow.getChildAt(i) as TextView
-            v.background = if (i == currentThermal) blueBg else unselBg
+            v.background = if (i == currentThermal) blueBg() else unselBg()
         }
     }
 
@@ -327,7 +334,7 @@ class OptimizerUI(private val ctx: Context) {
         tv.setTextColor(Color.WHITE)
         tv.textSize = 12f
         tv.gravity = Gravity.CENTER
-        tv.background = buttonUnselected()
+        tv.background = unselBg()
         return tv
     }
 
@@ -338,7 +345,7 @@ class OptimizerUI(private val ctx: Context) {
         tv.textSize = 14f
         tv.gravity = Gravity.CENTER_VERTICAL
         tv.setPadding(dp(18), dp(14), dp(18), dp(14))
-        tv.background = cardBg()
+        tv.background = cardBgCopy()
         return tv
     }
 
