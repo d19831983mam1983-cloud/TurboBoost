@@ -1,10 +1,13 @@
 package com.example.turboboost
 
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -213,6 +216,7 @@ class MainActivity : AppCompatActivity() {
                     ui.statusResult.text = result
                     busy = false
                     startKeepAliveService()
+                    startSidePanel()
                     refresh()
                 }
             }
@@ -227,6 +231,7 @@ class MainActivity : AppCompatActivity() {
                     ui.statusResult.text = result
                     busy = false
                     stopKeepAliveService()
+                    stopSidePanel()
                     refresh()
                 }
             }
@@ -234,7 +239,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun startKeepAliveService() {
-        val intent = android.content.Intent(this, KeepAliveService::class.java)
+        val intent = Intent(this, KeepAliveService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             ContextCompat.startForegroundService(this, intent)
         } else {
@@ -243,7 +248,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun stopKeepAliveService() {
-        val intent = android.content.Intent(this, KeepAliveService::class.java)
+        val intent = Intent(this, KeepAliveService::class.java)
+        stopService(intent)
+    }
+
+    fun startSidePanel() {
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivity(intent)
+            Toast.makeText(this, "Разрешите наложение поверх других окон", Toast.LENGTH_LONG).show()
+            return
+        }
+        val intent = Intent(this, SidePanelService::class.java)
+        startService(intent)
+    }
+
+    fun stopSidePanel() {
+        val intent = Intent(this, SidePanelService::class.java)
         stopService(intent)
     }
 
@@ -283,6 +304,7 @@ class MainActivity : AppCompatActivity() {
                             ui.statusResult.text = "Автоотключение: батарея ≤ 10%"
                             busy = false
                             stopKeepAliveService()
+                            stopSidePanel()
                         }
                     }
                 }
