@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     var busy = false
     var uiBuilt = false
     var bootTime = 0L
+    var bootChecked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -304,9 +305,6 @@ class MainActivity : AppCompatActivity() {
         ui.setTurboState(prefs.isTurboActive())
         if (prefs.isActive()) startKeepAliveService()
 
-        val storedBoot = prefs.getLastCacheTrim()
-        if (storedBoot == 0L) prefs.setLastCacheTrim(0L)
-
         refresh()
         startLoop()
     }
@@ -413,8 +411,9 @@ class MainActivity : AppCompatActivity() {
 
     fun refresh() {
         if (!uiBuilt) return
-        val now = SystemClock.elapsedRealtime()
-        if (now < bootTime) {
+
+        if (!bootChecked) {
+            bootChecked = true
             executor.execute {
                 val real = info.checkSystemState()
                 main.post {
@@ -424,10 +423,10 @@ class MainActivity : AppCompatActivity() {
                         ui.setActive(false)
                         ui.setTurboState(false)
                         ui.statusResult.text = "Состояние сброшено после перезагрузки"
+                        stopKeepAliveService()
                     }
                 }
             }
-            bootTime = now
         }
 
         executor.execute {
