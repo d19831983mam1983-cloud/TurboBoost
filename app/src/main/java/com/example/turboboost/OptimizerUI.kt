@@ -120,7 +120,6 @@ class OptimizerUI(private val ctx: Context) {
         buildPage1()
         buildPage2()
         setupSwipe()
-
         animateIn()
         return root
     }
@@ -215,7 +214,36 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
         pkgInput.background = unselBg()
         page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
-    }    private fun buildPage2() {
+
+        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(20)))
+
+        val bottom = LinearLayout(ctx)
+        bottom.orientation = LinearLayout.HORIZONTAL
+        bottom.gravity = Gravity.CENTER_VERTICAL
+        page1.addView(bottom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        btnTurbo = TextView(ctx).apply {
+            text = "TURBO"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            background = tBlueBg()
+            attachGlassTouch(this) { onTurboToggle?.invoke() }
+        }
+        bottom.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(76), 0.3f).apply { marginEnd = dp(8) })
+
+        btnOpt = TextView(ctx).apply {
+            text = "ОПТИМИЗИРОВАТЬ"
+            setTextColor(Color.WHITE)
+            textSize = 17f
+            gravity = Gravity.CENTER
+            background = blueBg()
+            attachGlassTouch(this) { onToggle?.invoke() }
+        }
+        bottom.addView(btnOpt, LinearLayout.LayoutParams(0, dp(76), 0.7f))
+    }
+
+    private fun buildPage2() {
         val header2 = LinearLayout(ctx)
         header2.orientation = LinearLayout.HORIZONTAL
         header2.gravity = Gravity.CENTER_VERTICAL
@@ -271,39 +299,12 @@ class OptimizerUI(private val ctx: Context) {
 
         btnDevOptions = btnGlass("Настройки для разработчиков") { onDevOptions?.invoke() }
         page2.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-
-        page2.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
-
-        val bottom = LinearLayout(ctx)
-        bottom.orientation = LinearLayout.HORIZONTAL
-        bottom.gravity = Gravity.CENTER_VERTICAL
-        page2.addView(bottom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-
-        btnTurbo = TextView(ctx).apply {
-            text = "TURBO"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            gravity = Gravity.CENTER
-            background = tBlueBg()
-            attachGlassTouch(this) { onTurboToggle?.invoke() }
-        }
-        bottom.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(76), 0.3f).apply { marginEnd = dp(8) })
-
-        btnOpt = TextView(ctx).apply {
-            text = "ОПТИМИЗИРОВАТЬ"
-            setTextColor(Color.WHITE)
-            textSize = 17f
-            gravity = Gravity.CENTER
-            background = blueBg()
-            attachGlassTouch(this) { onToggle?.invoke() }
-        }
-        bottom.addView(btnOpt, LinearLayout.LayoutParams(0, dp(76), 0.7f))
     }
 
     private fun setupSwipe() {
         val gd = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent?, vx: Float, vy: Float): Boolean {
-                if (e1 == null || e2 == null) return false
+            override fun onDown(e: MotionEvent): Boolean = true
+            override fun onFling(e1: MotionEvent, e2: MotionEvent, vx: Float, vy: Float): Boolean {
                 val dx = e2.x - e1.x
                 val dy = e2.y - e1.y
                 if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > dp(80)) {
@@ -453,7 +454,7 @@ class OptimizerUI(private val ctx: Context) {
         parent.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
     }
 
-    private fun label(text: String, size: Float): TextView {
+        private fun label(text: String, size: Float): TextView {
         val tv = TextView(ctx)
         tv.text = text
         tv.setTextColor(Color.WHITE)
