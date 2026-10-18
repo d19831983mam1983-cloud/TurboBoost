@@ -41,9 +41,12 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var cardTemp: TextView
     lateinit var cardFps: TextView
     lateinit var cardPing: TextView
+    lateinit var cardApplied: TextView
     lateinit var statusResult: TextView
     lateinit var senseRow: LinearLayout
     lateinit var thermalRow: LinearLayout
+    lateinit var presetRow: LinearLayout
+    lateinit var hzRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null
     var onTurboToggle: (() -> Unit)? = null
@@ -59,10 +62,14 @@ class OptimizerUI(private val ctx: Context) {
     var onShowProfiles: (() -> Unit)? = null
     var onTrimCaches: (() -> Unit)? = null
     var onPing: (() -> Unit)? = null
+    var onPresetSelected: ((Int) -> Unit)? = null
+    var onHzSelected: ((Int) -> Unit)? = null
 
     var currentSense: Int = -1
     var currentThermal: Int = -1
     var currentMode: Int = 0
+    var currentPreset: Int = -1
+    var currentHz: Int = 120
 
     private val blueState by lazy { buttonBlue().constantState }
     private val redState by lazy { buttonRed().constantState }
@@ -119,6 +126,44 @@ class OptimizerUI(private val ctx: Context) {
         btnModeBal.setOnClickListener { animateButton(btnModeBal); onModeSelected?.invoke(1); setMode(1) }
         modeRow.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(40), 1f))
 
+        val presetLabel = TextView(ctx)
+        presetLabel.text = "Пресет:"
+        presetLabel.setTextColor(Color.WHITE)
+        presetLabel.textSize = 14f
+        presetLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        content.addView(presetLabel)
+
+        presetRow = LinearLayout(ctx)
+        presetRow.orientation = LinearLayout.HORIZONTAL
+        presetRow.gravity = Gravity.CENTER_VERTICAL
+        content.addView(presetRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val presets = listOf("Стандарт", "Агрессивный", "Максимум")
+        for ((i, name) in presets.withIndex()) {
+            val b = smallButton(name)
+            b.setOnClickListener { animateButton(b); currentPreset = i; onPresetSelected?.invoke(i); updatePresetSelection() }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f); lp.marginEnd = dp(6); presetRow.addView(b, lp)
+        }
+
+        val hzLabel = TextView(ctx)
+        hzLabel.text = "Частота экрана (Гц):"
+        hzLabel.setTextColor(Color.WHITE)
+        hzLabel.textSize = 14f
+        hzLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        content.addView(hzLabel)
+
+        hzRow = LinearLayout(ctx)
+        hzRow.orientation = LinearLayout.HORIZONTAL
+        hzRow.gravity = Gravity.CENTER_VERTICAL
+        content.addView(hzRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val hzs = listOf("60", "90", "120", "144")
+        for ((i, name) in hzs.withIndex()) {
+            val b = smallButton(name)
+            b.setOnClickListener { animateButton(b); currentHz = name.toInt(); onHzSelected?.invoke(currentHz); updateHzSelection() }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f); lp.marginEnd = dp(6); hzRow.addView(b, lp)
+        }
+
         cardChip = card("Чип: —")
         content.addView(cardChip, cardLp())
         cardGpu = card("GPU: —")
@@ -133,6 +178,8 @@ class OptimizerUI(private val ctx: Context) {
         content.addView(cardFps, cardLp())
         cardPing = card("Пинг: —")
         content.addView(cardPing, cardLp())
+        cardApplied = card("Применено: —")
+        content.addView(cardApplied, cardLp())
 
         val extraRow = LinearLayout(ctx)
         extraRow.orientation = LinearLayout.HORIZONTAL
@@ -285,6 +332,16 @@ class OptimizerUI(private val ctx: Context) {
         }
     }
 
+    fun setPreset(preset: Int) {
+        currentPreset = preset
+        updatePresetSelection()
+    }
+
+    fun setHz(hz: Int) {
+        currentHz = hz
+        updateHzSelection()
+    }
+
     fun setPackageText(text: String) { if (text.isNotEmpty()) pkgInput.setText(text) }
     fun setSenseLevel(level: Int) { currentSense = level; updateSenseSelection() }
     fun setThermalLevel(level: Int) { currentThermal = level; updateThermalSelection() }
@@ -306,7 +363,38 @@ class OptimizerUI(private val ctx: Context) {
         btnBgLimit.background = if (active) blueBg() else unselBg()
     }
 
+    fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
+        if (!active) {
+            cardApplied.text = "Применено: —"
+            return
+        }
+        var count = 0
+        if (gov) count++
+        if (dns) count++
+        if (bbr) count++
+        val parts = mutableListOf<String>()
+        parts.add(if (gov) "Governor ✓" else "Governor ✗")
+        parts.add(if (dns) "DNS ✓" else "DNS ✗")
+        parts.add(if (bbr) "BBR ✓" else "BBR ✗")
+        cardApplied.text = "Применено: $count/3 | ${parts.joinToString(" | ")}"
+    }
+
     fun setBatteryLowBlock(block: Boolean) { btnOpt.alpha = if (block) 0.4f else 1f; btnTurbo.alpha = if (block) 0.4f else 1f }
+
+    private fun updatePresetSelection() {
+        for (i in 0 until presetRow.childCount) {
+            val v = presetRow.getChildAt(i) as TextView
+            v.background = if (i == currentPreset) blueBg() else unselBg()
+        }
+    }
+
+    private fun updateHzSelection() {
+        val map = listOf(60, 90, 120, 144)
+        for (i in 0 until hzRow.childCount) {
+            val v = hzRow.getChildAt(i) as TextView
+            v.background = if (map[i] == currentHz) blueBg() else unselBg()
+        }
+    }
 
     private fun updateSenseSelection() {
         for (i in 0 until senseRow.childCount) {
@@ -371,17 +459,4 @@ class OptimizerUI(private val ctx: Context) {
     private fun buttonBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#5B8DEF"), Color.parseColor("#7BA7F5"), Color.parseColor("#5B8DEF")), "#CCFFFFFF")
     private fun buttonRed(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#EF4444"), Color.parseColor("#F87171"), Color.parseColor("#EF4444")), "#CCFFFFFF")
     private fun buttonUnselected(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"), Color.parseColor("#33FFFFFF")), "#55FFFFFF")
-    private fun buttonTurboBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#3B82F6"), Color.parseColor("#60A5FA"), Color.parseColor("#3B82F6")), "#CCFFFFFF")
-    private fun buttonTurboGreen(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#22C55E"), Color.parseColor("#4ADE80"), Color.parseColor("#22C55E")), "#CCFFFFFF")
-
-    private fun btnBase(colors: IntArray, stroke: String): GradientDrawable {
-        val g = GradientDrawable()
-        g.shape = GradientDrawable.RECTANGLE
-        g.cornerRadius = dp(18).toFloat()
-        g.colors = colors
-        g.gradientType = GradientDrawable.LINEAR_GRADIENT
-        g.orientation = GradientDrawable.Orientation.LEFT_RIGHT
-        g.setStroke(dp(1), Color.parseColor(stroke))
-        return g
-    }
-}
+    private fun buttonTurboBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#3B82F6"), Color.parseColor("#60A5FA"), Color.parseC
