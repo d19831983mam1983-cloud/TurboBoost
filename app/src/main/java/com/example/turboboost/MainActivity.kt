@@ -297,12 +297,18 @@ class MainActivity : AppCompatActivity() {
             val gov = if (active) info.checkSystemState() else false
             val dns = if (active) info.verifyDnsPublic() else false
             val bbr = if (active) info.verifyBbrPublic() else false
+            val charging = info.isCharging()
+            val thermalLevel = prefs.getThermalLevel()
+            if (active && thermalLevel > 0) {
+                val target = if (charging) (thermalLevel * 10 + 40 + 10).coerceAtMost(70) else (thermalLevel * 10 + 40)
+                info.setThermalLimit(target)
+            }
             main.post {
                 if (!uiBuilt) return@post
                 ui.cardChip.text = "Чип: $chip"
                 ui.cardGpu.text = "GPU: $gpu"
                 ui.cardScreen.text = "Частота: ${prefs.getTargetHz()} Гц"
-                ui.cardBattery.text = "Батарея: $bat%"
+                ui.cardBattery.text = if (charging) "Батарея: $bat% ⚡" else "Батарея: $bat%"
                 ui.cardTemp.text = "Температура: ${"%.0f".format(temp)}°C"
                 if (fps > 0) { ui.cardFps.text = "FPS: $fps"; prefs.setLastFps(fps) }
                 else if (prefs.getLastFps() > 0) ui.cardFps.text = "FPS: ${prefs.getLastFps()}"
