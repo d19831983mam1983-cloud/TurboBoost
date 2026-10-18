@@ -5,7 +5,9 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.TransitionDrawable
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -68,6 +70,7 @@ class OptimizerUI(private val ctx: Context) {
     var onPing: (() -> Unit)? = null
     var onPresetSelected: ((Int) -> Unit)? = null
     var onHzSelected: ((Int) -> Unit)? = null
+    var onPackageChanged: ((String) -> Unit)? = null
 
     var currentSense = -1
     var currentThermal = -1
@@ -160,6 +163,13 @@ class OptimizerUI(private val ctx: Context) {
             inputType = InputType.TYPE_CLASS_TEXT
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = unsel()
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    onPackageChanged?.invoke(s?.toString()?.trim() ?: "")
+                }
+            })
         }
         page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
