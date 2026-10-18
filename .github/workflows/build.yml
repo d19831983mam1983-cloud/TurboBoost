@@ -15,7 +15,9 @@ jobs:
         with:
           gradle-version: 8.7
       - run: gradle assembleDebug --no-daemon
+      - name: Rename APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/TurboBoost.apk
       - uses: actions/upload-artifact@v4
         with:
           name: TurboBoost-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/TurboBoost.apk
