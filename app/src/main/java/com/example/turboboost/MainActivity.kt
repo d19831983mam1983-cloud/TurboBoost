@@ -95,6 +95,7 @@ class MainActivity : AppCompatActivity() {
         uiBuilt = true
         setContentView(ui.build())
         ui.setPackageText(prefs.getLastPackage())
+        ui.onPackageChanged = { pkg -> prefs.setLastPackage(pkg) }
         ui.setMode(prefs.getPerfMode())
         ui.setHz(prefs.getTargetHz())
         if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
