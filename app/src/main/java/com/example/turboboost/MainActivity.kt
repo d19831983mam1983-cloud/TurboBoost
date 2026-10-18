@@ -110,7 +110,23 @@ class MainActivity : AppCompatActivity() {
         val savedThermal = prefs.getThermalLevel()
         if (savedThermal >= 0) ui.setThermalLevel(savedThermal)
 
+        executor.execute {
+            val vulkan = info.isVulkanSupported()
+            val openGl = info.isOpenGlSupported()
+            main.post { ui.setRendererSupport(vulkan, openGl) }
+        }
+
         ui.onDevOptions = { info.openDeveloperOptions() }
+
+        ui.onRendererSelected = { vulkan ->
+            executor.execute {
+                val res = info.switchRenderer(vulkan)
+                main.post {
+                    Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
+                    ui.statusResult.text = res
+                }
+            }
+        }
 
         ui.onUnlock90 = {
             val pkg = prefs.getLastPackage()
