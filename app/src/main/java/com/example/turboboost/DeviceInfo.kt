@@ -54,6 +54,9 @@ class DeviceInfo(private val ctx: Context) {
         return true
     }
 
+    fun verifyDnsPublic(): Boolean = verifyDnsApplied()
+    fun verifyBbrPublic(): Boolean = verifyBbrApplied()
+
     fun detectGpu(): String {
         if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
@@ -139,15 +142,9 @@ class DeviceInfo(private val ctx: Context) {
         val little = clusters.filter { it.second == "little" }.map { it.first }
         val mid = clusters.filter { it.second == "mid" }.map { it.first }
 
-        if (little.isNotEmpty()) {
-            sb.append("for i in ${little.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-        }
-        if (mid.isNotEmpty()) {
-            sb.append("for i in ${mid.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-        }
-        if (big.isNotEmpty()) {
-            sb.append("for i in ${big.joinToString(" ")}; do echo performance > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; m=\$(cat $cpuBase/cpu\$i/cpufreq/cpuinfo_max_freq 2>/dev/null); if [ -n \"\$m\" ]; then echo \$m > $cpuBase/cpu\$i/cpufreq/scaling_max_freq 2>/dev/null; fi; done; ")
-        }
+        if (little.isNotEmpty()) sb.append("for i in ${little.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
+        if (mid.isNotEmpty()) sb.append("for i in ${mid.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
+        if (big.isNotEmpty()) sb.append("for i in ${big.joinToString(" ")}; do echo performance > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; m=\$(cat $cpuBase/cpu\$i/cpufreq/cpuinfo_max_freq 2>/dev/null); if [ -n \"\$m\" ]; then echo \$m > $cpuBase/cpu\$i/cpufreq/scaling_max_freq 2>/dev/null; fi; done; ")
 
         if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
@@ -156,9 +153,7 @@ class DeviceInfo(private val ctx: Context) {
             if (gpuBoost) sb.append("echo 10000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
         } else if (gpuCache.contains("Mali", true)) {
             val maliPath = "/sys/class/misc/mali0/device/devfreq"
-            if (SystemReader.testWrite("$maliPath/governor")) {
-                sb.append("echo performance > $maliPath/governor 2>/dev/null; ")
-            }
+            if (SystemReader.testWrite("$maliPath/governor")) sb.append("echo performance > $maliPath/governor 2>/dev/null; ")
         }
 
         sb.append("settings put global low_power 0; ")
@@ -167,10 +162,8 @@ class DeviceInfo(private val ctx: Context) {
 
         SystemReader.read(sb.toString())
 
-        val verifyGov = checkGovernorApplied()
-        val verifyDns = verifyDnsApplied()
-        val govText = if (verifyGov) "Governor: ✓" else "Governor: ✗"
-        return "Режим: ${if (mode == 0) "Производительность" else "Сбалансированный"} | $govText"
+        val gov = if (checkGovernorApplied()) "Governor: ✓" else "Governor: ✗"
+        return "Режим: ${if (mode == 0) "Производительность" else "Сбалансированный"} | $gov"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -184,7 +177,6 @@ class DeviceInfo(private val ctx: Context) {
         sb.append("settings put global transition_animation_scale 1.0; ")
         sb.append("settings put global animator_duration_scale 1.0; ")
         sb.append("for i in 0 1 2 3 4 5 6 7; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-
         if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
             sb.append("echo 5000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
@@ -192,7 +184,6 @@ class DeviceInfo(private val ctx: Context) {
         sb.append("settings delete global low_power; ")
         sb.append("settings put global private_dns_mode off; ")
         sb.append("settings delete global private_dns_specifier")
-
         SystemReader.read(sb.toString())
         return "Настройки возвращены"
     }
@@ -210,8 +201,7 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     private fun checkGovernorApplied(): Boolean {
-        val clusters = clustersCache
-        for ((idx, label) in clusters) {
+        for ((idx, label) in clustersCache) {
             if (label != "big") continue
             val g = SystemReader.read("cat $cpuBase/cpu$idx/cpufreq/scaling_governor")
             if (g != "performance") return false
@@ -328,9 +318,6 @@ class DeviceInfo(private val ctx: Context) {
             }
         }
         if (lastFrame == 0L) return 0
-        val now = System.nanoTime() / 1_000_000L
-        val diff = now - lastFrame
-        if (diff <= 0L) return 0
         return 0
     }
 
@@ -350,8 +337,7 @@ class DeviceInfo(private val ctx: Context) {
         val result = mutableListOf<Pair<String, String>>()
         for (a in apps) {
             if (a.flags and ApplicationInfo.FLAG_SYSTEM != 0) continue
-            val isGame = a.category == ApplicationInfo.CATEGORY_GAME
-            if (!isGame) continue
+            if (a.category != ApplicationInfo.CATEGORY_GAME) continue
             result.add(a.packageName to pm.getApplicationLabel(a).toString())
         }
         return result.sortedBy { it.second.lowercase() }
