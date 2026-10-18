@@ -22,7 +22,6 @@ class MainActivity : AppCompatActivity() {
     val main = Handler(Looper.getMainLooper())
     var busy = false
     var uiBuilt = false
-    var bootTime = 0L
     var bootChecked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,7 +32,6 @@ class MainActivity : AppCompatActivity() {
         info = DeviceInfo(this)
         prefs = AppPrefs(this)
         ui = OptimizerUI(this)
-        bootTime = SystemClock.elapsedRealtime()
 
         ShizukuHelper.init(this)
         ShizukuHelper.onPermissionResult = { granted ->
@@ -238,65 +236,23 @@ class MainActivity : AppCompatActivity() {
                 main.post {
                     if (games.isEmpty()) {
                         Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show()
-                        return@post
+                    } else {
+                        val names = games.map { it.second }.toTypedArray()
+                        AlertDialog.Builder(this)
+                            .setTitle("Выберите игру")
+                            .setItems(names) { _, which ->
+                                val pkg = games[which].first
+                                ui.setPackageText(pkg)
+                                prefs.setLastPackage(pkg)
+                            }
+                            .show()
                     }
-                    val names = games.map { it.second }.toTypedArray()
-                    AlertDialog.Builder(this)
-                        .setTitle("Выберите игру")
-                        .setItems(names) { _, which ->
-                            val pkg = games[which].first
-                            ui.setPackageText(pkg)
-                            prefs.setLastPackage(pkg)
-                        }
-                        .show()
                 }
             }
         }
 
         ui.onShowProfiles = {
-            val pkg = prefs.getLastPackage()
-            if (pkg.isBlank()) {
-                Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show()
-                return@
-            }
-            val profiles = prefs.getProfiles()
-            val names = mutableListOf<String>()
-            names.add("Сохранить профиль для текущей игры")
-            if (profiles.isNotEmpty()) {
-                names.add("Удалить профиль текущей игры")
-                names.add("—— Профили ——")
-                names.addAll(profiles.map { it.pkg })
-            }
-            AlertDialog.Builder(this)
-                .setTitle("Профили")
-                .setItems(names.toTypedArray()) { _, which ->
-                    val choice = names[which]
-                    when {
-                        choice.startsWith("Сохранить") -> {
-                            prefs.saveProfile(
-                                GameProfile(
-                                    pkg,
-                                    prefs.getPerfMode(),
-                                    prefs.getSenseLevel(),
-                                    prefs.getThermalLevel(),
-                                    prefs.isTurboActive(),
-                                    prefs.getTargetHz()
-                                )
-                            )
-                            Toast.makeText(this, "Профиль сохранён", Toast.LENGTH_SHORT).show()
-                        }
-                        choice.startsWith("Удалить") -> {
-                            prefs.deleteProfile(pkg)
-                            Toast.makeText(this, "Профиль удалён", Toast.LENGTH_SHORT).show()
-                        }
-                        choice.startsWith("——") -> {}
-                        else -> {
-                            val p = profiles.firstOrNull { it.pkg == choice }
-                            if (p != null) applyProfile(p)
-                        }
-                    }
-                }
-                .show()
+            showProfilesDialog()
         }
 
         ui.onToggle = { if (!busy) toggle() }
@@ -307,6 +263,52 @@ class MainActivity : AppCompatActivity() {
 
         refresh()
         startLoop()
+    }
+
+    private fun showProfilesDialog() {
+        val pkg = prefs.getLastPackage()
+        if (pkg.isBlank()) {
+            Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val profiles = prefs.getProfiles()
+        val names = mutableListOf<String>()
+        names.add("Сохранить профиль для текущей игры")
+        if (profiles.isNotEmpty()) {
+            names.add("Удалить профиль текущей игры")
+            names.add("—— Профили ——")
+            names.addAll(profiles.map { it.pkg })
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Профили")
+            .setItems(names.toTypedArray()) { _, which ->
+                val choice = names[which]
+                when {
+                    choice.startsWith("Сохранить") -> {
+                        prefs.saveProfile(
+                            GameProfile(
+                                pkg,
+                                prefs.getPerfMode(),
+                                prefs.getSenseLevel(),
+                                prefs.getThermalLevel(),
+                                prefs.isTurboActive(),
+                                prefs.getTargetHz()
+                            )
+                        )
+                        Toast.makeText(this, "Профиль сохранён", Toast.LENGTH_SHORT).show()
+                    }
+                    choice.startsWith("Удалить") -> {
+                        prefs.deleteProfile(pkg)
+                        Toast.makeText(this, "Профиль удалён", Toast.LENGTH_SHORT).show()
+                    }
+                    choice.startsWith("——") -> {}
+                    else -> {
+                        val p = profiles.firstOrNull { it.pkg == choice }
+                        if (p != null) applyProfile(p)
+                    }
+                }
+            }
+            .show()
     }
 
     private fun applyProfile(p: GameProfile) {
