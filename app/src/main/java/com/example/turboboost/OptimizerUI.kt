@@ -143,4 +143,172 @@ class OptimizerUI(private val ctx: Context) {
         pkgLabel.text = "Пакет игры:"
         pkgLabel.setTextColor(Color.WHITE)
         pkgLabel.textSize = 13f
-        pkgLabel
+        pkgLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        content.addView(pkgLabel)
+
+        pkgInput = EditText(ctx)
+        pkgInput.hint = "com.axlebolt.standoff2"
+        pkgInput.setHintTextColor(Color.parseColor("#66FFFFFF"))
+        pkgInput.setTextColor(Color.WHITE)
+        pkgInput.textSize = 14f
+        pkgInput.setSingleLine()
+        pkgInput.inputType = InputType.TYPE_CLASS_TEXT
+        pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
+        pkgInput.background = buttonUnselected()
+        content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
+
+        val actionRow = LinearLayout(ctx)
+        actionRow.orientation = LinearLayout.HORIZONTAL
+        content.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+
+        btnCompile = smallButton("Ускорить запуск")
+        btnCompile.setOnClickListener { animateButton(btnCompile); onCompile?.invoke(pkgInput.text.toString().trim()) }
+        actionRow.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+
+        btnKeep = smallButton("Держать в памяти")
+        btnKeep.setOnClickListener { animateButton(btnKeep); onKeep?.invoke(pkgInput.text.toString().trim()) }
+        actionRow.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        btnDevOptions = smallButton("Настройки для разработчиков")
+        btnDevOptions.setOnClickListener { animateButton(btnDevOptions); onDevOptions?.invoke() }
+        content.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+
+        cardBattery = card("Батарея: —")
+        content.addView(cardBattery, cardLp())
+        cardTemp = card("Температура: —")
+        content.addView(cardTemp, cardLp())
+        statusResult = card("Нажмите кнопку")
+        content.addView(statusResult, cardLp())
+
+        val spacer = View(ctx)
+        content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
+
+        val bottomRow = LinearLayout(ctx)
+        bottomRow.orientation = LinearLayout.HORIZONTAL
+        bottomRow.gravity = Gravity.CENTER_VERTICAL
+        content.addView(bottomRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        btnTurbo = TextView(ctx)
+        btnTurbo.text = "TURBO"
+        btnTurbo.setTextColor(Color.WHITE)
+        btnTurbo.textSize = 14f
+        btnTurbo.gravity = Gravity.CENTER
+        btnTurbo.background = buttonTurboBlue()
+        btnTurbo.setOnClickListener { animateButton(btnTurbo); onTurboToggle?.invoke() }
+        bottomRow.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(72), 0.3f).apply { marginEnd = dp(8) })
+
+        btnOpt = TextView(ctx)
+        btnOpt.text = "ОПТИМИЗИРОВАТЬ"
+        btnOpt.setTextColor(Color.WHITE)
+        btnOpt.textSize = 18f
+        btnOpt.gravity = Gravity.CENTER
+        btnOpt.background = buttonBlue()
+        btnOpt.setOnClickListener { animateButton(btnOpt); onToggle?.invoke() }
+        bottomRow.addView(btnOpt, LinearLayout.LayoutParams(0, dp(72), 0.7f))
+
+        return root
+    }
+
+    fun setMode(mode: Int) {
+        currentMode = mode
+        if (mode == 0) {
+            btnModePerf.background = blueBg
+            btnModeBal.background = unselBg
+        } else {
+            btnModePerf.background = unselBg
+            btnModeBal.background = blueBg
+        }
+    }
+
+    fun setPackageText(text: String) { if (text.isNotEmpty()) pkgInput.setText(text) }
+    fun setSenseLevel(level: Int) { currentSense = level; updateSenseSelection() }
+    fun setThermalLevel(level: Int) { currentThermal = level; updateThermalSelection() }
+
+    fun setActive(active: Boolean) {
+        btnOpt.text = if (active) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
+        btnOpt.background = if (active) redBg else blueBg
+    }
+
+    fun setTurboState(active: Boolean) {
+        btnTurbo.background = if (active) turboGreenBg else turboBlueBg
+    }
+
+    fun setBatteryLowBlock(block: Boolean) { btnOpt.alpha = if (block) 0.4f else 1f; btnTurbo.alpha = if (block) 0.4f else 1f }
+
+    private fun updateSenseSelection() {
+        for (i in 0 until senseRow.childCount) {
+            val v = senseRow.getChildAt(i) as TextView
+            v.background = if (i == currentSense) blueBg else unselBg
+        }
+    }
+
+    private fun updateThermalSelection() {
+        for (i in 0 until thermalRow.childCount) {
+            val v = thermalRow.getChildAt(i) as TextView
+            v.background = if (i == currentThermal) blueBg else unselBg
+        }
+    }
+
+    private fun animateButton(v: View) {
+        v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(60).withEndAction {
+            v.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator()).start()
+        }.start()
+    }
+
+    private fun smallButton(text: String): TextView {
+        val tv = TextView(ctx)
+        tv.text = text
+        tv.setTextColor(Color.WHITE)
+        tv.textSize = 12f
+        tv.gravity = Gravity.CENTER
+        tv.background = buttonUnselected()
+        return tv
+    }
+
+    private fun card(text: String): TextView {
+        val tv = TextView(ctx)
+        tv.text = text
+        tv.setTextColor(Color.WHITE)
+        tv.textSize = 14f
+        tv.gravity = Gravity.CENTER_VERTICAL
+        tv.setPadding(dp(18), dp(14), dp(18), dp(14))
+        tv.background = cardBg()
+        return tv
+    }
+
+    private fun cardLp(): LinearLayout.LayoutParams {
+        val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        lp.topMargin = dp(8)
+        return lp
+    }
+
+    private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
+
+    private fun cardBg(): GradientDrawable {
+        val g = GradientDrawable()
+        g.shape = GradientDrawable.RECTANGLE
+        g.cornerRadius = dp(22).toFloat()
+        g.colors = intArrayOf(Color.parseColor("#66FFFFFF"), Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"))
+        g.gradientType = GradientDrawable.LINEAR_GRADIENT
+        g.orientation = GradientDrawable.Orientation.TL_BR
+        g.setStroke(dp(1), Color.parseColor("#88FFFFFF"))
+        return g
+    }
+
+    private fun buttonBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#5B8DEF"), Color.parseColor("#7BA7F5"), Color.parseColor("#5B8DEF")), "#CCFFFFFF")
+    private fun buttonRed(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#EF4444"), Color.parseColor("#F87171"), Color.parseColor("#EF4444")), "#CCFFFFFF")
+    private fun buttonUnselected(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"), Color.parseColor("#33FFFFFF")), "#55FFFFFF")
+    private fun buttonTurboBlue(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#3B82F6"), Color.parseColor("#60A5FA"), Color.parseColor("#3B82F6")), "#CCFFFFFF")
+    private fun buttonTurboGreen(): GradientDrawable = btnBase(intArrayOf(Color.parseColor("#22C55E"), Color.parseColor("#4ADE80"), Color.parseColor("#22C55E")), "#CCFFFFFF")
+
+    private fun btnBase(colors: IntArray, stroke: String): GradientDrawable {
+        val g = GradientDrawable()
+        g.shape = GradientDrawable.RECTANGLE
+        g.cornerRadius = dp(18).toFloat()
+        g.colors = colors
+        g.gradientType = GradientDrawable.LINEAR_GRADIENT
+        g.orientation = GradientDrawable.Orientation.LEFT_RIGHT
+        g.setStroke(dp(1), Color.parseColor(stroke))
+        return g
+    }
+}
