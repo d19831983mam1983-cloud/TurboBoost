@@ -39,6 +39,12 @@ class DeviceInfo(private val ctx: Context) {
         return level * 100 / scale
     }
 
+    fun isCharging(): Boolean {
+        val i = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return false
+        val status = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+    }
+
     fun chipName(): String = chipCache
     fun gpuName(): String = gpuCache
     fun cpuClusters(): List<Pair<Int, String>> = clustersCache
