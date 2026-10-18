@@ -10,6 +10,7 @@ import android.provider.Settings
 class DeviceInfo(private val ctx: Context) {
 
     private val cpuBase = "/sys/devices/system/cpu"
+    private val chipCache: String by lazy { Build.SOC_MODEL.ifBlank { Build.HARDWARE } }
 
     fun cpuTemp(): Float {
         val out = SystemReader.read(
@@ -33,7 +34,7 @@ class DeviceInfo(private val ctx: Context) {
         return level * 100 / scale
     }
 
-    fun chipName(): String = Build.SOC_MODEL.ifBlank { Build.HARDWARE }
+    fun chipName(): String = chipCache
 
     fun checkSystemState(): Boolean {
         if (!ShizukuHelper.hasPermission()) return false
@@ -58,81 +59,61 @@ class DeviceInfo(private val ctx: Context) {
 
     fun activateMaxPerformance(hz: Int, mode: Int): String {
         val bgLimit = if (mode == 0) "64" else "32"
-        SystemReader.read("settings put global activity_manager_constants max_cached_processes=$bgLimit")
-
         val sched = if (mode == 0) "noop" else "deadline"
-        SystemReader.read("echo $sched > /sys/block/sda/queue/scheduler")
-        SystemReader.read("echo $sched > /sys/block/sdb/queue/scheduler")
 
-        SystemReader.read("settings put system peak_refresh_rate $hz")
-        SystemReader.read("settings put system min_refresh_rate $hz")
-        SystemReader.read("settings put global window_animation_scale 0.0")
-        SystemReader.read("settings put global transition_animation_scale 0.0")
-        SystemReader.read("settings put global animator_duration_scale 0.0")
+        val script = StringBuilder()
+        script.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
+        script.append("echo $sched > /sys/block/sda/queue/scheduler 2>/dev/null; ")
+        script.append("echo $sched > /sys/block/sdb/queue/scheduler 2>/dev/null; ")
+        script.append("settings put system peak_refresh_rate $hz; ")
+        script.append("settings put system min_refresh_rate $hz; ")
+        script.append("settings put global window_animation_scale 0.0; ")
+        script.append("settings put global transition_animation_scale 0.0; ")
+        script.append("settings put global animator_duration_scale 0.5; ")
+        script.append("for i in 0 1 2 3; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
+        script.append("for i in 4 5 6 7; do echo performance > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; ")
+        script.append("m=\$(cat $cpuBase/cpu\$i/cpufreq/cpuinfo_max_freq 2>/dev/null); ")
+        script.append("if [ -n \"\$m\" ]; then echo \$m > $cpuBase/cpu\$i/cpufreq/scaling_max_freq 2>/dev/null; fi; done; ")
+        script.append("if [ -d /sys/class/kgsl/kgsl-3d0 ]; then ")
+        script.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
+        script.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
+        script.append("echo 3 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; fi; ")
+        script.append("settings put global low_power 0; ")
+        script.append("am kill-all; ")
+        script.append("echo 1 > /proc/sys/vm/drop_caches")
 
-        for (i in 0 until 8) {
-            SystemReader.read("echo performance > $cpuBase/cpu$i/cpufreq/scaling_governor")
-            val max = SystemReader.read("cat $cpuBase/cpu$i/cpufreq/cpuinfo_max_freq").toLongOrNull() ?: 0L
-            if (max > 0L) {
-                SystemReader.read("echo $max > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
-                SystemReader.read("echo $max > $cpuBase/cpu$i/cpufreq/scaling_max_freq")
-            }
-        }
-
-        val gpuPath = "/sys/class/kgsl/kgsl-3d0"
-        if (SystemReader.test(gpuPath)) {
-            SystemReader.read("echo performance > $gpuPath/devfreq/governor")
-            SystemReader.read("echo 0 > $gpuPath/min_pwrlevel")
-            SystemReader.read("echo 0 > $gpuPath/max_pwrlevel")
-        }
-
-        SystemReader.read("settings put global low_power 0")
-        SystemReader.read("dumpsys deviceidle disable")
-        
-        SystemReader.read("am kill-all")
-        SystemReader.read("echo 1 > /proc/sys/vm/drop_caches")
+        SystemReader.read(script.toString())
 
         return "Режим: ${if (mode == 0) "Производительность" else "Сбалансированный"}"
     }
 
     fun deactivateMaxPerformance(): String {
-        SystemReader.read("settings delete global activity_manager_constants")
-        SystemReader.read("echo deadline > /sys/block/sda/queue/scheduler")
-        SystemReader.read("echo deadline > /sys/block/sdb/queue/scheduler")
+        val script = StringBuilder()
+        script.append("settings delete global activity_manager_constants; ")
+        script.append("echo deadline > /sys/block/sda/queue/scheduler 2>/dev/null; ")
+        script.append("echo deadline > /sys/block/sdb/queue/scheduler 2>/dev/null; ")
+        script.append("settings delete system peak_refresh_rate; ")
+        script.append("settings delete system min_refresh_rate; ")
+        script.append("settings put global window_animation_scale 1.0; ")
+        script.append("settings put global transition_animation_scale 1.0; ")
+        script.append("settings put global animator_duration_scale 1.0; ")
+        script.append("for i in 0 1 2 3 4 5 6 7; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
+        script.append("if [ -d /sys/class/kgsl/kgsl-3d0 ]; then ")
+        script.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; fi; ")
+        script.append("settings delete global low_power; ")
+        script.append("settings put global private_dns_mode off; ")
+        script.append("settings delete global private_dns_specifier")
 
-        SystemReader.read("settings delete system peak_refresh_rate")
-        SystemReader.read("settings delete system min_refresh_rate")
-        SystemReader.read("settings put global window_animation_scale 1.0")
-        SystemReader.read("settings put global transition_animation_scale 1.0")
-        SystemReader.read("settings put global animator_duration_scale 1.0")
-
-        for (i in 0 until 8) {
-            SystemReader.read("echo schedutil > $cpuBase/cpu$i/cpufreq/scaling_governor")
-            val min = SystemReader.read("cat $cpuBase/cpu$i/cpufreq/cpuinfo_min_freq").toLongOrNull() ?: 0L
-            if (min > 0L) SystemReader.read("echo $min > $cpuBase/cpu$i/cpufreq/scaling_min_freq")
-        }
-
-        val gpuPath = "/sys/class/kgsl/kgsl-3d0"
-        if (SystemReader.test(gpuPath)) SystemReader.read("echo msm-adreno-tz > $gpuPath/devfreq/governor")
-
-        SystemReader.read("settings delete global low_power")
-        SystemReader.read("dumpsys deviceidle enable")
-        SystemReader.read("settings put global private_dns_mode off")
-        SystemReader.read("settings delete global private_dns_specifier")
+        SystemReader.read(script.toString())
         return "Настройки возвращены"
     }
 
     fun toggleTurbo(enable: Boolean): String {
         if (enable) {
-            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=bbr")
-            SystemReader.read("sysctl -w net.core.default_qdisc=fq_codel")
-            SystemReader.read("settings put global private_dns_mode hostname")
-            SystemReader.read("settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
+            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=bbr; sysctl -w net.core.default_qdisc=fq_codel; settings put global private_dns_mode hostname; settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
             return "Сетевой Turbo: ВКЛ"
         } else {
-            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=cubic")
-            SystemReader.read("settings put global private_dns_mode off")
-            SystemReader.read("settings delete global private_dns_specifier")
+            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=cubic; settings put global private_dns_mode off; settings delete global private_dns_specifier")
             return "Сетевой Turbo: ВЫКЛ"
         }
     }
@@ -140,8 +121,7 @@ class DeviceInfo(private val ctx: Context) {
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
         val safeHz = when { hz >= 144 -> 144; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
-        SystemReader.read("cmd game mode performance $pkg")
-        SystemReader.read("cmd game set --fps $safeHz $pkg")
+        SystemReader.read("cmd game mode performance $pkg; cmd game set --fps $safeHz $pkg")
         return "Игра $pkg: FPS $safeHz"
     }
 
@@ -159,26 +139,14 @@ class DeviceInfo(private val ctx: Context) {
             2 -> { slop = 4; longPress = 200; multiPress = 200; pointer = 7; pressure = "0.001" }
             else -> { slop = 2; longPress = 120; multiPress = 120; pointer = 10; pressure = "0.0001" }
         }
-        SystemReader.read("settings put secure touch_slop $slop")
-        SystemReader.read("settings put secure long_press_timeout $longPress")
-        SystemReader.read("settings put secure multi_press_timeout $multiPress")
-        SystemReader.read("settings put secure pointer_speed $pointer")
-        SystemReader.read("settings put system pointer_speed $pointer")
-        SystemReader.read("settings put system touch.pressure.scale $pressure")
+        SystemReader.read("settings put secure touch_slop $slop; settings put secure long_press_timeout $longPress; settings put secure multi_press_timeout $multiPress; settings put secure pointer_speed $pointer; settings put system pointer_speed $pointer; settings put system touch.pressure.scale $pressure")
         return "Сенса: ${arrayOf("Средний", "Сильный", "Эксп.", "Макс")[level]}"
     }
 
     fun setThermalLimit(temp: Int): String {
         if (temp <= 0) { SystemReader.read("dumpsys thermalservice override-status 0"); return "Троттлинг: выкл" }
         val milli = temp * 1000
-        val zones = SystemReader.read("ls /sys/class/thermal/thermal_zone*").split("\n")
-        var count = 0
-        for (z in zones) {
-            if (z.isBlank()) continue
-            if (SystemReader.read("test -w $z/trip_point_0_temp && echo ok").contains("ok")) {
-                SystemReader.read("echo $milli > $z/trip_point_0_temp"); count++
-            }
-        }
+        SystemReader.read("for z in /sys/class/thermal/thermal_zone*; do if [ -w \$z/trip_point_0_temp ]; then echo $milli > \$z/trip_point_0_temp 2>/dev/null; fi; done")
         return "Троттлинг: $temp°C"
     }
 
@@ -195,9 +163,7 @@ class DeviceInfo(private val ctx: Context) {
 
     fun tryKeepAlive(pkg: String): String {
         if (pkg.isBlank()) return "Введите пакет"
-        SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow")
-        SystemReader.read("appops set $pkg KEEP_ALIVE allow")
-        SystemReader.read("cmd deviceidle whitelist +$pkg")
+        SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow; appops set $pkg KEEP_ALIVE allow; cmd deviceidle whitelist +$pkg")
         return "Удержание: $pkg"
     }
 
