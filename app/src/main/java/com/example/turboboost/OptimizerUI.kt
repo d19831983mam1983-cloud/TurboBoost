@@ -23,11 +23,7 @@ class OptimizerUI(private val ctx: Context) {
 
     lateinit var root: FrameLayout
     lateinit var scroll1: ScrollView
-    lateinit var scroll2: ScrollView
     lateinit var page1: LinearLayout
-    lateinit var page2: LinearLayout
-    lateinit var btnTabOpt: TextView
-    lateinit var btnTabMon: TextView
     lateinit var btnOpt: TextView
     lateinit var btnTurbo: TextView
     lateinit var btnDevOptions: TextView
@@ -78,7 +74,6 @@ class OptimizerUI(private val ctx: Context) {
     var currentMode = 0
     var currentPreset = -1
     var currentHz = 120
-    private var page = 0
 
     private val blueS by lazy { gb(intArrayOf(0xFF5B8DEF.toInt(), 0xFF7BA7F5.toInt(), 0xFF5B8DEF.toInt()), 0xCCFFFFFF.toInt()).constantState }
     private val redS by lazy { gb(intArrayOf(0xFFEF4444.toInt(), 0xFFF87171.toInt(), 0xFFEF4444.toInt()), 0xCCFFFFFF.toInt()).constantState }
@@ -98,14 +93,10 @@ class OptimizerUI(private val ctx: Context) {
         root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#0B0F1A"))
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(20), dp(18), dp(20)) }
-        page2 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(20), dp(18), dp(20)) }
         scroll1 = ScrollView(ctx).apply { isFillViewport = true; addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
-        scroll2 = ScrollView(ctx).apply { isFillViewport = true; addView(page2, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)); translationX = ctx.resources.displayMetrics.widthPixels.toFloat() }
         root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        root.addView(scroll2, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         header()
-        buildPage1()
-        buildPage2()
+        buildMain()
         animateIn()
         return root
     }
@@ -120,32 +111,9 @@ class OptimizerUI(private val ctx: Context) {
         col.addView(tv("TurboBoost", 24f, Color.WHITE))
         col.addView(tv("ZNAK", 11f, Color.parseColor("#66FFFFFF")).apply { letterSpacing = 0.3f })
         page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(6) })
-
-        val tabs = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        page1.addView(tabs, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
-
-        btnTabOpt = TextView(ctx).apply {
-            text = "Оптимизация"
-            setTextColor(Color.WHITE)
-            textSize = 13f
-            gravity = Gravity.CENTER
-            background = blue()
-            setOnClickListener { goPage(0) }
-        }
-        tabs.addView(btnTabOpt, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) })
-
-        btnTabMon = TextView(ctx).apply {
-            text = "Мониторинг"
-            setTextColor(Color.WHITE)
-            textSize = 13f
-            gravity = Gravity.CENTER
-            background = unsel()
-            setOnClickListener { goPage(1) }
-        }
-        tabs.addView(btnTabMon, LinearLayout.LayoutParams(0, dp(40), 1f))
     }
 
-    private fun buildPage1() {
+    private fun buildMain() {
         val mr = row(page1)
         btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
         mr.addView(btnModePerf, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
@@ -195,7 +163,38 @@ class OptimizerUI(private val ctx: Context) {
         }
         page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
-        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(20)))
+        val r1 = row(page1)
+        btnGames = glass("Выбрать игру") { onShowGames?.invoke() }
+        r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
+        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        val r2 = row(page1)
+        btnCompile = glass("Ускорить запуск") { onCompile?.invoke(pkgInput.text.toString().trim()) }
+        r2.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnKeep = glass("Держать в памяти") { onKeep?.invoke(pkgInput.text.toString().trim()) }
+        r2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        val r3 = row(page1)
+        btnCache = glass("Очистить кэш") { onTrimCaches?.invoke() }
+        r3.addView(btnCache, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnPing = glass("Проверить пинг") { onPing?.invoke() }
+        r3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        btnDevOptions = glass("Настройки для разработчиков") { onDevOptions?.invoke() }
+        page1.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+
+        cardChip = card("Чип: —"); addCard(page1, cardChip)
+        cardGpu = card("GPU: —"); addCard(page1, cardGpu)
+        cardScreen = card("Частота: —"); addCard(page1, cardScreen)
+        cardBattery = card("Батарея: —"); addCard(page1, cardBattery)
+        cardTemp = card("Температура: —"); addCard(page1, cardTemp)
+        cardFps = card("FPS: —"); addCard(page1, cardFps)
+        cardPing = card("Пинг: —"); addCard(page1, cardPing)
+        cardApplied = card("Применено: —"); addCard(page1, cardApplied)
+        statusResult = card("Нажмите кнопку"); addCard(page1, statusResult)
+
+        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
 
         val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         page1.addView(br, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -203,66 +202,6 @@ class OptimizerUI(private val ctx: Context) {
         br.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(76), 0.3f).apply { marginEnd = dp(8) })
         btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 17f, blue()) { onToggle?.invoke() }
         br.addView(btnOpt, LinearLayout.LayoutParams(0, dp(76), 0.7f))
-    }
-
-    private fun buildPage2() {
-        val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        page2.addView(h, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        h.addView(tv("Мониторинг", 24f, Color.WHITE), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        h.addView(tv("← Оптимизация", 12f, Color.parseColor("#88FFFFFF")).apply { setOnClickListener { goPage(0) } })
-        page2.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(6) })
-
-        cardChip = card("Чип: —"); addCard(page2, cardChip)
-        cardGpu = card("GPU: —"); addCard(page2, cardGpu)
-        cardScreen = card("Частота: —"); addCard(page2, cardScreen)
-        cardBattery = card("Батарея: —"); addCard(page2, cardBattery)
-        cardTemp = card("Температура: —"); addCard(page2, cardTemp)
-        cardFps = card("FPS: —"); addCard(page2, cardFps)
-        cardPing = card("Пинг: —"); addCard(page2, cardPing)
-        cardApplied = card("Применено: —"); addCard(page2, cardApplied)
-        statusResult = card("Нажмите кнопку"); addCard(page2, statusResult)
-
-        page2.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(16)))
-
-        val r1 = row(page2)
-        btnGames = glass("Выбрать игру") { onShowGames?.invoke() }
-        r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
-        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(48), 1f))
-
-        val r2 = row(page2)
-        btnCompile = glass("Ускорить запуск") { onCompile?.invoke(pkgInput.text.toString().trim()) }
-        r2.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnKeep = glass("Держать в памяти") { onKeep?.invoke(pkgInput.text.toString().trim()) }
-        r2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
-
-        val r3 = row(page2)
-        btnCache = glass("Очистить кэш") { onTrimCaches?.invoke() }
-        r3.addView(btnCache, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnPing = glass("Проверить пинг") { onPing?.invoke() }
-        r3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
-
-        btnDevOptions = glass("Настройки для разработчиков") { onDevOptions?.invoke() }
-        page2.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-    }
-
-    private fun goPage(p: Int) {
-        if (p == page) return
-        page = p
-        val w = ctx.resources.displayMetrics.widthPixels.toFloat()
-        if (p == 1) {
-            scroll2.translationX = w
-            scroll2.animate().translationX(0f).setDuration(280).start()
-            scroll1.animate().translationX(-w * 0.3f).alpha(0.5f).setDuration(280).start()
-            fade(btnTabOpt, unsel())
-            fade(btnTabMon, blue())
-        } else {
-            scroll1.translationX = -w * 0.3f; scroll1.alpha = 0.5f
-            scroll1.animate().translationX(0f).alpha(1f).setDuration(280).start()
-            scroll2.animate().translationX(w).setDuration(280).start()
-            fade(btnTabOpt, blue())
-            fade(btnTabMon, unsel())
-        }
     }
 
     private fun animateIn() {
