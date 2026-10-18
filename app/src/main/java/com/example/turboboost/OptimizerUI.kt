@@ -11,7 +11,6 @@ import android.graphics.drawable.LayerDrawable
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.DecelerateInterpolator
@@ -32,6 +31,8 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnDevOptions: TextView
     lateinit var btnCompile: TextView
     lateinit var btnKeep: TextView
+    lateinit var btnOpenGl: TextView
+    lateinit var btnVulkan: TextView
     lateinit var pkgInput: EditText
     lateinit var cardChip: TextView
     lateinit var cardScreen: TextView
@@ -51,9 +52,12 @@ class OptimizerUI(private val ctx: Context) {
     var onSenseSelected: ((Int) -> Unit)? = null
     var onThermalSelected: ((Int) -> Unit)? = null
     var onUnlock90: (() -> Unit)? = null
+    var onRendererSelected: ((Boolean) -> Unit)? = null
     var currentHz: Int = 120
     var currentSense: Int = -1
     var currentThermal: Int = -1
+    var vulkanSupported = false
+    var openGlSupported = false
 
     private var tapCount = 0
     private var lastTapTime = 0L
@@ -82,10 +86,7 @@ class OptimizerUI(private val ctx: Context) {
             if (now - lastTapTime > 500) tapCount = 0
             lastTapTime = now
             tapCount++
-            if (tapCount >= 5) {
-                tapCount = 0
-                showSecretScreen()
-            }
+            if (tapCount >= 5) { tapCount = 0; showSecretScreen() }
         }
         mainContent.addView(secretLabel, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
@@ -110,6 +111,26 @@ class OptimizerUI(private val ctx: Context) {
         cardScreen = card("Экран: —")
         mainContent.addView(cardScreen, cardLp())
 
+        val rendererLabel = TextView(ctx)
+        rendererLabel.text = "Рендерер (HWUI):"
+        rendererLabel.setTextColor(Color.WHITE)
+        rendererLabel.textSize = 14f
+        rendererLabel.setPadding(dp(8), dp(12), 0, dp(4))
+        mainContent.addView(rendererLabel)
+
+        val rendererRow = LinearLayout(ctx)
+        rendererRow.orientation = LinearLayout.HORIZONTAL
+        rendererRow.gravity = Gravity.CENTER_VERTICAL
+        mainContent.addView(rendererRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        btnOpenGl = smallButton("OpenGL")
+        btnOpenGl.setOnClickListener { if (openGlSupported) onRendererSelected?.invoke(false) }
+        rendererRow.addView(btnOpenGl, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+
+        btnVulkan = smallButton("Vulkan")
+        btnVulkan.setOnClickListener { if (vulkanSupported) onRendererSelected?.invoke(true) }
+        rendererRow.addView(btnVulkan, LinearLayout.LayoutParams(0, dp(44), 1f))
+
         val hzLabel = TextView(ctx)
         hzLabel.text = "Частота экрана (Гц):"
         hzLabel.setTextColor(Color.WHITE)
@@ -125,18 +146,12 @@ class OptimizerUI(private val ctx: Context) {
         val rates = listOf(60, 90, 120, 144)
         for (r in rates) {
             val b = hzButton("$r")
-            b.setOnClickListener {
-                currentHz = r
-                onHzSelected?.invoke(r)
-                updateHzSelection()
-            }
-            val lp = LinearLayout.LayoutParams(0, dp(44), 1f)
-            lp.marginEnd = dp(6)
-            hzRow.addView(b, lp)
+            b.setOnClickListener { currentHz = r; onHzSelected?.invoke(r); updateHzSelection() }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f); lp.marginEnd = dp(6); hzRow.addView(b, lp)
         }
 
         val senseLabel = TextView(ctx)
-        senseLabel.text = "Сенса (чувствительность):"
+        senseLabel.text = "Сенса:"
         senseLabel.setTextColor(Color.WHITE)
         senseLabel.textSize = 14f
         senseLabel.setPadding(dp(8), dp(12), 0, dp(4))
@@ -150,18 +165,12 @@ class OptimizerUI(private val ctx: Context) {
         val senses = listOf("Средний", "Сильный", "Эксп.", "Макс")
         for ((i, name) in senses.withIndex()) {
             val b = smallButton(name)
-            b.setOnClickListener {
-                currentSense = i
-                onSenseSelected?.invoke(i)
-                updateSenseSelection()
-            }
-            val lp = LinearLayout.LayoutParams(0, dp(44), 1f)
-            lp.marginEnd = dp(6)
-            senseRow.addView(b, lp)
+            b.setOnClickListener { currentSense = i; onSenseSelected?.invoke(i); updateSenseSelection() }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f); lp.marginEnd = dp(6); senseRow.addView(b, lp)
         }
 
         val thermalLabel = TextView(ctx)
-        thermalLabel.text = "Троттлинг (порог °C):"
+        thermalLabel.text = "Троттлинг (°C):"
         thermalLabel.setTextColor(Color.WHITE)
         thermalLabel.textSize = 14f
         thermalLabel.setPadding(dp(8), dp(12), 0, dp(4))
@@ -175,14 +184,8 @@ class OptimizerUI(private val ctx: Context) {
         val thermals = listOf("Авто", "50", "60", "70")
         for ((i, name) in thermals.withIndex()) {
             val b = smallButton(name)
-            b.setOnClickListener {
-                currentThermal = i
-                onThermalSelected?.invoke(i)
-                updateThermalSelection()
-            }
-            val lp = LinearLayout.LayoutParams(0, dp(44), 1f)
-            lp.marginEnd = dp(6)
-            thermalRow.addView(b, lp)
+            b.setOnClickListener { currentThermal = i; onThermalSelected?.invoke(i); updateThermalSelection() }
+            val lp = LinearLayout.LayoutParams(0, dp(44), 1f); lp.marginEnd = dp(6); thermalRow.addView(b, lp)
         }
 
         val pkgLabel = TextView(ctx)
@@ -201,15 +204,11 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.inputType = InputType.TYPE_CLASS_TEXT
         pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
         pkgInput.background = buttonUnselected()
-        mainContent.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply {
-            topMargin = dp(4)
-        })
+        mainContent.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
         val actionRow = LinearLayout(ctx)
         actionRow.orientation = LinearLayout.HORIZONTAL
-        mainContent.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
-            topMargin = dp(8)
-        })
+        mainContent.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
 
         btnCompile = smallButton("Ускорить запуск")
         btnCompile.setOnClickListener { onCompile?.invoke(pkgInput.text.toString().trim()) }
@@ -240,14 +239,18 @@ class OptimizerUI(private val ctx: Context) {
         btnToggle.gravity = Gravity.CENTER
         btnToggle.background = buttonBlue()
         btnToggle.elevation = dp(12).toFloat()
-        btnToggle.setOnClickListener {
-            animateButton(btnToggle)
-            onToggle?.invoke()
-        }
+        btnToggle.setOnClickListener { animateButton(btnToggle); onToggle?.invoke() }
         mainContent.addView(btnToggle, LinearLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
         buildSecretScreen()
         return root
+    }
+
+    fun setRendererSupport(vulkan: Boolean, openGl: Boolean) {
+        vulkanSupported = vulkan
+        openGlSupported = openGl
+        btnVulkan.alpha = if (vulkan) 1f else 0.3f
+        btnOpenGl.alpha = if (openGl) 1f else 0.3f
     }
 
     private fun buildSecretScreen() {
@@ -270,7 +273,7 @@ class OptimizerUI(private val ctx: Context) {
         content.addView(header, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val desc = TextView(ctx)
-        desc.text = "Разблокировка 90 Гц для Realme\n\n1. Нажмите кнопку ниже.\n2. Перейдите в Настройки телефона.\n3. Экран и яркость.\n4. Выберите 90 Гц."
+        desc.text = "Разблокировка FPS для Realme\n\n1. Нажмите кнопку ниже.\n2. Перейдите в Настройки телефона.\n3. Экран и яркость.\n4. Выберите 90 Гц."
         desc.setTextColor(Color.parseColor("#AAFFFFFF"))
         desc.textSize = 15f
         desc.gravity = Gravity.CENTER
@@ -284,13 +287,8 @@ class OptimizerUI(private val ctx: Context) {
         btnUnlock.gravity = Gravity.CENTER
         btnUnlock.background = buttonBlue()
         btnUnlock.elevation = dp(10).toFloat()
-        btnUnlock.setOnClickListener {
-            animateButton(btnUnlock)
-            onUnlock90?.invoke()
-        }
-        content.addView(btnUnlock, LinearLayout.LayoutParams(MATCH_PARENT, dp(64)).apply {
-            topMargin = dp(20)
-        })
+        btnUnlock.setOnClickListener { animateButton(btnUnlock); onUnlock90?.invoke() }
+        content.addView(btnUnlock, LinearLayout.LayoutParams(MATCH_PARENT, dp(64)).apply { topMargin = dp(20) })
 
         val btnBack = TextView(ctx)
         btnBack.text = "НАЗАД"
@@ -299,9 +297,7 @@ class OptimizerUI(private val ctx: Context) {
         btnBack.gravity = Gravity.CENTER
         btnBack.background = buttonUnselected()
         btnBack.setOnClickListener { hideSecretScreen() }
-        content.addView(btnBack, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply {
-            topMargin = dp(30)
-        })
+        content.addView(btnBack, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).apply { topMargin = dp(30) })
     }
 
     private fun showSecretScreen() {
@@ -318,19 +314,9 @@ class OptimizerUI(private val ctx: Context) {
         }.start()
     }
 
-    fun setPackageText(text: String) {
-        if (text.isNotEmpty()) pkgInput.setText(text)
-    }
-
-    fun setSenseLevel(level: Int) {
-        currentSense = level
-        updateSenseSelection()
-    }
-
-    fun setThermalLevel(level: Int) {
-        currentThermal = level
-        updateThermalSelection()
-    }
+    fun setPackageText(text: String) { if (text.isNotEmpty()) pkgInput.setText(text) }
+    fun setSenseLevel(level: Int) { currentSense = level; updateSenseSelection() }
+    fun setThermalLevel(level: Int) { currentThermal = level; updateThermalSelection() }
 
     private fun animateButton(v: View) {
         v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(60).withEndAction {
@@ -362,57 +348,42 @@ class OptimizerUI(private val ctx: Context) {
     fun updateHzSelection() {
         for (i in 0 until hzRow.childCount) {
             val v = hzRow.getChildAt(i) as TextView
-            if (v.text.toString() == currentHz.toString()) v.background = buttonBlue()
-            else v.background = buttonUnselected()
+            v.background = if (v.text.toString() == currentHz.toString()) buttonBlue() else buttonUnselected()
         }
     }
 
     fun updateSenseSelection() {
         for (i in 0 until senseRow.childCount) {
             val v = senseRow.getChildAt(i) as TextView
-            if (i == currentSense) v.background = buttonBlue()
-            else v.background = buttonUnselected()
+            v.background = if (i == currentSense) buttonBlue() else buttonUnselected()
         }
     }
 
     fun updateThermalSelection() {
         for (i in 0 until thermalRow.childCount) {
             val v = thermalRow.getChildAt(i) as TextView
-            if (i == currentThermal) v.background = buttonBlue()
-            else v.background = buttonUnselected()
+            v.background = if (i == currentThermal) buttonBlue() else buttonUnselected()
         }
     }
 
     fun setActive(active: Boolean) {
-        if (active) {
-            btnToggle.text = "ВЕРНУТЬ АВТО"
-            btnToggle.background = buttonRed()
-        } else {
-            btnToggle.text = "ОПТИМИЗИРОВАТЬ"
-            btnToggle.background = buttonBlue()
-        }
+        if (active) { btnToggle.text = "ВЕРНУТЬ АВТО"; btnToggle.background = buttonRed() }
+        else { btnToggle.text = "ОПТИМИЗИРОВАТЬ"; btnToggle.background = buttonBlue() }
     }
 
-    fun setBatteryLowBlock(block: Boolean) {
-        btnToggle.alpha = if (block) 0.4f else 1f
-    }
+    fun setBatteryLowBlock(block: Boolean) { btnToggle.alpha = if (block) 0.4f else 1f }
 
     private fun card(text: String): TextView {
         val tv = TextView(ctx)
-        tv.text = text
-        tv.setTextColor(Color.WHITE)
-        tv.textSize = 14f
+        tv.text = text; tv.setTextColor(Color.WHITE); tv.textSize = 14f
         tv.gravity = Gravity.CENTER_VERTICAL
         tv.setPadding(dp(18), dp(14), dp(18), dp(14))
-        tv.background = cardBg()
-        tv.elevation = dp(6).toFloat()
+        tv.background = cardBg(); tv.elevation = dp(6).toFloat()
         return tv
     }
 
     private fun cardLp(): LinearLayout.LayoutParams {
-        val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-        lp.topMargin = dp(8)
-        return lp
+        val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT); lp.topMargin = dp(8); return lp
     }
 
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
@@ -425,17 +396,14 @@ class OptimizerUI(private val ctx: Context) {
         g.gradientType = GradientDrawable.LINEAR_GRADIENT
         g.orientation = GradientDrawable.Orientation.TL_BR
         g.setStroke(dp(1), Color.parseColor("#88FFFFFF"))
-
         val edge = object : GradientDrawable() {
             override fun draw(canvas: Canvas) {
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
-                val w = bounds.width().toFloat()
-                val h = bounds.height().toFloat()
+                val w = bounds.width().toFloat(); val h = bounds.height().toFloat()
                 val shader = LinearGradient(0f, 0f, w, 0f,
                     intArrayOf(Color.parseColor("#55FFFFFF"), Color.parseColor("#00FFFFFF"), Color.parseColor("#00FFFFFF"), Color.parseColor("#55FFFFFF")),
                     floatArrayOf(0f, 0.15f, 0.85f, 1f), Shader.TileMode.CLAMP)
-                p.shader = shader
-                canvas.drawRoundRect(0f, 0f, w, h, dp(22).toFloat(), dp(22).toFloat(), p)
+                p.shader = shader; canvas.drawRoundRect(0f, 0f, w, h, dp(22).toFloat(), dp(22).toFloat(), p)
             }
         }
         edge.shape = GradientDrawable.RECTANGLE
