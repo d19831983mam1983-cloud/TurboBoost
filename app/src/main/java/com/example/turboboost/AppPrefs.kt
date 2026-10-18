@@ -27,7 +27,7 @@ class AppPrefs(ctx: Context) {
     fun setTargetHz(hz: Int) = prefs.edit().putInt("target_hz", hz).apply()
 
     fun getLastPackage(): String = prefs.getString("last_pkg", "") ?: ""
-    fun setLastPackage(pkg: String) = prefs.edit().putString("last_pkg", pkg).apply()
+    fun setLastPackage(pkg: String) { prefs.edit().putString("last_pkg", pkg).commit() }
 
     fun getSenseLevel(): Int = prefs.getInt("sense_level", -1)
     fun setSenseLevel(level: Int) = prefs.edit().putInt("sense_level", level).apply()
