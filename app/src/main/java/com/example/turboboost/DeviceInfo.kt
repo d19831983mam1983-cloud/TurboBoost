@@ -50,6 +50,39 @@ class DeviceInfo(private val ctx: Context) {
         return gov == "performance"
     }
 
+    fun isVulkanSupported(): Boolean {
+        val out = SystemReader.read("dumpsys SurfaceFlinger | grep -i vulkan")
+        return out.isNotBlank()
+    }
+
+    fun isOpenGlSupported(): Boolean {
+        val out = SystemReader.read("dumpsys SurfaceFlinger | grep -i opengl")
+        return out.isNotBlank()
+    }
+
+    fun switchRenderer(vulkan: Boolean): String {
+        return if (vulkan) {
+            SystemReader.read("setprop debug.hwui.renderer skiavk")
+            SystemReader.read("am crash com.android.systemui")
+            SystemReader.read("am force-stop com.android.settings")
+            "Рендерер: Vulkan (интерфейс)"
+        } else {
+            SystemReader.read("setprop debug.hwui.renderer skiagl")
+            SystemReader.read("am crash com.android.systemui")
+            SystemReader.read("am force-stop com.android.settings")
+            "Рендерер: OpenGL (интерфейс)"
+        }
+    }
+
+    fun getCurrentRenderer(): String {
+        val out = SystemReader.read("getprop debug.hwui.renderer")
+        return when {
+            out.contains("skiavk") -> "Vulkan"
+            out.contains("skiagl") -> "OpenGL"
+            else -> "Стандарт"
+        }
+    }
+
     fun activateMaxPerformance(hz: Int): String {
         SystemReader.read("settings put system peak_refresh_rate $hz")
         SystemReader.read("settings put system min_refresh_rate $hz")
@@ -131,17 +164,9 @@ class DeviceInfo(private val ctx: Context) {
 
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
-        
-        val safeHz = when {
-            hz >= 144 -> 144
-            hz >= 120 -> 120
-            hz >= 90 -> 90
-            else -> 60
-        }
-        
+        val safeHz = when { hz >= 144 -> 144; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
         SystemReader.read("cmd game mode performance $pkg")
         SystemReader.read("cmd game set --fps $safeHz $pkg")
-        
         return "Игра $pkg: performance, FPS $safeHz"
     }
 
@@ -152,28 +177,20 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun applySense(level: Int): String {
-        val slop: Int
-        val longPress: Int
-        val multiPress: Int
-        val pointer: Int
-        val pressure: String
-
+        val slop: Int; val longPress: Int; val multiPress: Int; val pointer: Int; val pressure: String
         when (level) {
             0 -> { slop = 8; longPress = 400; multiPress = 300; pointer = 1; pressure = "1" }
             1 -> { slop = 6; longPress = 300; multiPress = 250; pointer = 4; pressure = "0.1" }
             2 -> { slop = 4; longPress = 200; multiPress = 200; pointer = 7; pressure = "0.001" }
             else -> { slop = 2; longPress = 120; multiPress = 120; pointer = 10; pressure = "0.0001" }
         }
-
         SystemReader.read("settings put secure touch_slop $slop")
         SystemReader.read("settings put secure long_press_timeout $longPress")
         SystemReader.read("settings put secure multi_press_timeout $multiPress")
         SystemReader.read("settings put secure pointer_speed $pointer")
         SystemReader.read("settings put system pointer_speed $pointer")
         SystemReader.read("settings put system touch.pressure.scale $pressure")
-
-        val names = arrayOf("Средний", "Сильный", "Экспериментальный", "Максимальный")
-        return "Сенса: ${names[level]}"
+        return "Сенса: ${arrayOf("Средний", "Сильный", "Эксп.", "Макс")[level]}"
     }
 
     fun resetSense(): String {
@@ -187,23 +204,17 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun setThermalLimit(temp: Int): String {
-        if (temp <= 0) {
-            SystemReader.read("dumpsys thermalservice override-status 0")
-            return "Троттлинг: выкл (опасно)"
-        }
-
+        if (temp <= 0) { SystemReader.read("dumpsys thermalservice override-status 0"); return "Троттлинг: выкл" }
         val milli = temp * 1000
         val zones = SystemReader.read("ls /sys/class/thermal/thermal_zone*").split("\n")
         var count = 0
         for (z in zones) {
             if (z.isBlank()) continue
-            val code = SystemReader.read("test -w $z/trip_point_0_temp && echo ok")
-            if (code.contains("ok")) {
-                SystemReader.read("echo $milli > $z/trip_point_0_temp")
-                count++
+            if (SystemReader.read("test -w $z/trip_point_0_temp && echo ok").contains("ok")) {
+                SystemReader.read("echo $milli > $z/trip_point_0_temp"); count++
             }
         }
-        return "Троттлинг: порог $temp°C (зон: $count)"
+        return "Троттлинг: $temp°C (зон: $count)"
     }
 
     fun resetThermal(): String {
