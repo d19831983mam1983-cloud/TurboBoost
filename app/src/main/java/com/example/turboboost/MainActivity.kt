@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -31,11 +30,19 @@ class MainActivity : AppCompatActivity() {
         prefs = AppPrefs(this)
         ui = OptimizerUI(this)
 
-        ShizukuHelper.init()
+        ShizukuHelper.init(this)
         ShizukuHelper.onPermissionResult = { granted ->
             main.post {
-                if (granted) buildMainUI()
-                else showBlockedScreen()
+                if (granted) {
+                    ShizukuHelper.onServiceReady = { ready ->
+                        main.post {
+                            if (ready) buildMainUI() else showBlockedScreen()
+                        }
+                    }
+                    ShizukuHelper.bindService()
+                } else {
+                    showBlockedScreen()
+                }
             }
         }
 
@@ -45,7 +52,12 @@ class MainActivity : AppCompatActivity() {
     private fun checkAccess() {
         if (!ShizukuHelper.isAvailable()) { showBlockedScreen(); return }
         if (!ShizukuHelper.hasPermission()) { ShizukuHelper.requestPermission(); showBlockedScreen(); return }
-        buildMainUI()
+        ShizukuHelper.onServiceReady = { ready ->
+            main.post {
+                if (ready) buildMainUI() else showBlockedScreen()
+            }
+        }
+        ShizukuHelper.bindService()
     }
 
     private fun showBlockedScreen() {
