@@ -24,7 +24,6 @@ class MainActivity : AppCompatActivity() {
     val main = Handler(Looper.getMainLooper())
     var busy = false
     var uiBuilt = false
-    var bootChecked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,9 +36,7 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2001)
         }
         ShizukuHelper.init(this)
-        ShizukuHelper.onPermissionResult = { granted ->
-            main.post { if (granted) bindAndBuild() else showBlockedScreen() }
-        }
+        ShizukuHelper.onPermissionResult = { g -> main.post { if (g) bindAndBuild() else showBlockedScreen() } }
         checkAccess()
     }
 
@@ -50,7 +47,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindAndBuild() {
-        ShizukuHelper.onServiceReady = { ready -> main.post { if (ready) buildMainUI() else showBlockedScreen() } }
+        ShizukuHelper.onServiceReady = { r -> main.post { if (r) buildMainUI() else showBlockedScreen() } }
         ShizukuHelper.bindService()
     }
 
@@ -111,11 +108,11 @@ class MainActivity : AppCompatActivity() {
 
         ui.onModeSelected = { mode ->
             prefs.setPerfMode(mode)
-            if (prefs.isActive()) run { executor.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), mode, prefs.isGpuBoost()); main.post { ui.statusResult.text = r } } }
+            if (prefs.isActive()) executor.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), mode, prefs.isGpuBoost()); main.post { ui.statusResult.text = r } }
         }
         ui.onHzSelected = { hz ->
             prefs.setTargetHz(hz); ui.setHz(hz)
-            if (prefs.isActive()) run { executor.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.statusResult.text = r } } }
+            if (prefs.isActive()) executor.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.statusResult.text = r } }
         }
         ui.onPresetSelected = { applyPreset(it) }
         ui.onCompile = { pkg -> prefs.setLastPackage(pkg); runAsync { info.compilePackage(pkg) } }
@@ -133,7 +130,7 @@ class MainActivity : AppCompatActivity() {
         }
         ui.onGpuBoostToggle = {
             val en = !prefs.isGpuBoost(); prefs.setGpuBoost(en); ui.setGpuBoostState(en)
-            if (prefs.isActive()) run { executor.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), en) } }
+            if (prefs.isActive()) executor.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), en) }
         }
         ui.onBgLimitToggle = {
             val en = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(en); ui.setBgLimitState(en)
@@ -289,20 +286,6 @@ class MainActivity : AppCompatActivity() {
 
     fun refresh() {
         if (!uiBuilt) return
-        if (!bootChecked) {
-            bootChecked = true
-            executor.execute {
-                val real = info.checkSystemState()
-                main.post {
-                    if (!real && prefs.isActive()) {
-                        prefs.setActive(false); prefs.setTurboActive(false)
-                        ui.setActive(false); ui.setTurboState(false)
-                        ui.statusResult.text = "Состояние сброшено после перезагрузки"
-                        stopKeepAliveService()
-                    }
-                }
-            }
-        }
         executor.execute {
             val bat = info.batteryLevel()
             val temp = info.cpuTemp()
