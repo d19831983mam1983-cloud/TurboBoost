@@ -1,16 +1,22 @@
 package com.example.turboboost
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.graphics.drawable.TransitionDrawable
 import android.text.InputType
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -71,12 +77,12 @@ class OptimizerUI(private val ctx: Context) {
     var currentPreset = -1
     var currentHz = 120
 
-    private val blueS by lazy { buttonBlue().constantState }
-    private val redS by lazy { buttonRed().constantState }
-    private val unselS by lazy { buttonUnselected().constantState }
-    private val tBlueS by lazy { buttonTurboBlue().constantState }
-    private val tGreenS by lazy { buttonTurboGreen().constantState }
-    private val cardS by lazy { cardBg().constantState }
+    private val blueS by lazy { btnBaseGlass(intArrayOf(0xFF5B8DEF.toInt(), 0xFF7BA7F5.toInt(), 0xFF5B8DEF.toInt()), 0xCCFFFFFF.toInt()).constantState }
+    private val redS by lazy { btnBaseGlass(intArrayOf(0xFFEF4444.toInt(), 0xFFF87171.toInt(), 0xFFEF4444.toInt()), 0xCCFFFFFF.toInt()).constantState }
+    private val unselS by lazy { btnBaseGlass(intArrayOf(0x33FFFFFF, 0x22FFFFFF, 0x33FFFFFF), 0x55FFFFFF.toInt()).constantState }
+    private val tBlueS by lazy { btnBaseGlass(intArrayOf(0xFF3B82F6.toInt(), 0xFF60A5FA.toInt(), 0xFF3B82F6.toInt()), 0xCCFFFFFF.toInt()).constantState }
+    private val tGreenS by lazy { btnBaseGlass(intArrayOf(0xFF22C55E.toInt(), 0xFF4ADE80.toInt(), 0xFF22C55E.toInt()), 0xCCFFFFFF.toInt()).constantState }
+    private val cardS by lazy { cardGlass().constantState }
 
     private fun blueBg() = blueS!!.newDrawable().mutate() as GradientDrawable
     private fun redBg() = redS!!.newDrawable().mutate() as GradientDrawable
@@ -93,68 +99,88 @@ class OptimizerUI(private val ctx: Context) {
         root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         content = LinearLayout(ctx)
         content.orientation = LinearLayout.VERTICAL
-        content.setPadding(dp(18), dp(44), dp(18), dp(20))
+        content.setPadding(dp(18), dp(20), dp(18), dp(20))
         scroll.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
-        content.addView(label("TurboBoost", 30f, Gravity.CENTER), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        val sub = label("Оптимизация для игр", 13f, Gravity.CENTER)
-        sub.setTextColor(Color.parseColor("#AAFFFFFF"))
-        content.addView(sub, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(2) })
+        val header = LinearLayout(ctx)
+        header.orientation = LinearLayout.HORIZONTAL
+        header.gravity = Gravity.CENTER_VERTICAL
+        content.addView(header, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        val icon = ImageView(ctx)
+        icon.setImageResource(R.drawable.ic_bolt)
+        header.addView(icon, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(10) })
+
+        val titleCol = LinearLayout(ctx)
+        titleCol.orientation = LinearLayout.VERTICAL
+        header.addView(titleCol, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+
+        val t1 = TextView(ctx)
+        t1.text = "TurboBoost"
+        t1.setTextColor(Color.WHITE)
+        t1.textSize = 24f
+        titleCol.addView(t1)
+
+        val t2 = TextView(ctx)
+        t2.text = "ZNAK"
+        t2.setTextColor(Color.parseColor("#66FFFFFF"))
+        t2.textSize = 11f
+        t2.letterSpacing = 0.3f
+        titleCol.addView(t2)
+
+        content.addView(divider(), LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(14); bottomMargin = dp(6) })
 
         val modeRow = row()
-        btnModePerf = btn("Производительность") { onModeSelected?.invoke(0); setMode(0) }
-        modeRow.addView(btnModePerf, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) })
-        btnModeBal = btn("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
-        modeRow.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(40), 1f))
+        btnModePerf = btnGlass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
+        modeRow.addView(btnModePerf, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
+        btnModeBal = btnGlass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
+        modeRow.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(42), 1f))
 
-        content.addView(label("Пресет:", 14f, Gravity.START).apply { setPadding(dp(8), dp(12), 0, dp(4)) })
+        content.addView(label("Пресет:", 13f).apply { setPadding(dp(8), dp(10), 0, dp(4)) })
         presetRow = row()
         val presets = listOf("Стандарт", "Агрессивный", "Максимум")
         presets.forEachIndexed { i, name ->
-            val b = btn(name) { currentPreset = i; onPresetSelected?.invoke(i); updatePreset() }
+            val b = btnGlass(name) { currentPreset = i; onPresetSelected?.invoke(i); updatePreset() }
             presetRow.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
         }
 
-        content.addView(label("Частота экрана (Гц):", 14f, Gravity.START).apply { setPadding(dp(8), dp(12), 0, dp(4)) })
+        content.addView(label("Частота экрана (Гц):", 13f).apply { setPadding(dp(8), dp(10), 0, dp(4)) })
         hzRow = row()
-        val hzs = listOf(60, 90, 120, 144)
-        hzs.forEach { hz ->
-            val b = btn(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updateHz() }
+        listOf(60, 90, 120, 144).forEach { hz ->
+            val b = btnGlass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updateHz() }
             hzRow.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
         }
 
-        cardChip = card("Чип: —"); content.addView(cardChip, cardLp())
-        cardGpu = card("GPU: —"); content.addView(cardGpu, cardLp())
-        cardScreen = card("Частота: —"); content.addView(cardScreen, cardLp())
-        cardBattery = card("Батарея: —"); content.addView(cardBattery, cardLp())
-        cardTemp = card("Температура: —"); content.addView(cardTemp, cardLp())
-        cardFps = card("FPS: —"); content.addView(cardFps, cardLp())
-        cardPing = card("Пинг: —"); content.addView(cardPing, cardLp())
-        cardApplied = card("Применено: —"); content.addView(cardApplied, cardLp())
+        cardChip = card("Чип: —"); addCard(cardChip)
+        cardGpu = card("GPU: —"); addCard(cardGpu)
+        cardScreen = card("Частота: —"); addCard(cardScreen)
+        cardBattery = card("Батарея: —"); addCard(cardBattery)
+        cardTemp = card("Температура: —"); addCard(cardTemp)
+        cardFps = card("FPS: —"); addCard(cardFps)
+        cardPing = card("Пинг: —"); addCard(cardPing)
+        cardApplied = card("Применено: —"); addCard(cardApplied)
 
         val extraRow = row()
-        btnGpuBoost = btn("GPU Boost") { onGpuBoostToggle?.invoke() }
+        btnGpuBoost = btnGlass("GPU Boost") { onGpuBoostToggle?.invoke() }
         extraRow.addView(btnGpuBoost, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
-        btnBgLimit = btn("Лимит фона") { onBgLimitToggle?.invoke() }
+        btnBgLimit = btnGlass("Лимит фона") { onBgLimitToggle?.invoke() }
         extraRow.addView(btnBgLimit, LinearLayout.LayoutParams(0, dp(44), 1f))
 
-        content.addView(label("Сенса:", 14f, Gravity.START).apply { setPadding(dp(8), dp(12), 0, dp(4)) })
+        content.addView(label("Сенса:", 13f).apply { setPadding(dp(8), dp(10), 0, dp(4)) })
         senseRow = row()
-        val senses = listOf("Средний", "Сильный", "Эксп.", "Макс")
-        senses.forEachIndexed { i, name ->
-            val b = btn(name) { currentSense = i; onSenseSelected?.invoke(i); updateSense() }
+        listOf("Средний", "Сильный", "Эксп.", "Макс").forEachIndexed { i, name ->
+            val b = btnGlass(name) { currentSense = i; onSenseSelected?.invoke(i); updateSense() }
             senseRow.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
         }
 
-        content.addView(label("Троттлинг (°C):", 14f, Gravity.START).apply { setPadding(dp(8), dp(12), 0, dp(4)) })
+        content.addView(label("Троттлинг (°C):", 13f).apply { setPadding(dp(8), dp(10), 0, dp(4)) })
         thermalRow = row()
-        val thermals = listOf("Авто", "50", "60", "70")
-        thermals.forEachIndexed { i, name ->
-            val b = btn(name) { currentThermal = i; onThermalSelected?.invoke(i); updateThermal() }
+        listOf("Авто", "50", "60", "70").forEachIndexed { i, name ->
+            val b = btnGlass(name) { currentThermal = i; onThermalSelected?.invoke(i); updateThermal() }
             thermalRow.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
         }
 
-        content.addView(label("Пакет игры:", 13f, Gravity.START).apply { setPadding(dp(8), dp(12), 0, dp(4)) })
+        content.addView(label("Пакет игры:", 13f).apply { setPadding(dp(8), dp(10), 0, dp(4)) })
         pkgInput = EditText(ctx)
         pkgInput.hint = "com.axlebolt.standoff2"
         pkgInput.setHintTextColor(Color.parseColor("#66FFFFFF"))
@@ -166,60 +192,75 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.background = unselBg()
         content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
-        val row1 = row()
-        btnGames = btn("Выбрать игру") { onShowGames?.invoke() }
-        row1.addView(btnGames, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnProfiles = btn("Профили") { onShowProfiles?.invoke() }
-        row1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val r1 = row()
+        btnGames = btnGlass("Выбрать игру") { onShowGames?.invoke() }
+        r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnProfiles = btnGlass("Профили") { onShowProfiles?.invoke() }
+        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(48), 1f))
 
-        val row2 = row()
-        btnCompile = btn("Ускорить запуск") { onCompile?.invoke(pkgInput.text.toString().trim()) }
-        row2.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnKeep = btn("Держать в памяти") { onKeep?.invoke(pkgInput.text.toString().trim()) }
-        row2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val r2 = row()
+        btnCompile = btnGlass("Ускорить запуск") { onCompile?.invoke(pkgInput.text.toString().trim()) }
+        r2.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnKeep = btnGlass("Держать в памяти") { onKeep?.invoke(pkgInput.text.toString().trim()) }
+        r2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
 
-        val row3 = row()
-        btnCache = btn("Очистить кэш") { onTrimCaches?.invoke() }
-        row3.addView(btnCache, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnPing = btn("Проверить пинг") { onPing?.invoke() }
-        row3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val r3 = row()
+        btnCache = btnGlass("Очистить кэш") { onTrimCaches?.invoke() }
+        r3.addView(btnCache, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnPing = btnGlass("Проверить пинг") { onPing?.invoke() }
+        r3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
 
-        btnDevOptions = btn("Настройки для разработчиков") { onDevOptions?.invoke() }
+        btnDevOptions = btnGlass("Настройки для разработчиков") { onDevOptions?.invoke() }
         content.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
         statusResult = card("Нажмите кнопку")
-        content.addView(statusResult, cardLp())
+        addCard(statusResult)
 
-        content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
+        content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
 
-        val bottom = row()
+        val bottom = LinearLayout(ctx)
+        bottom.orientation = LinearLayout.HORIZONTAL
+        bottom.gravity = Gravity.CENTER_VERTICAL
+        content.addView(bottom, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
         btnTurbo = TextView(ctx).apply {
             text = "TURBO"
             setTextColor(Color.WHITE)
             textSize = 14f
             gravity = Gravity.CENTER
             background = tBlueBg()
-            setOnClickListener { animate(this); onTurboToggle?.invoke() }
+            attachGlassTouch(this, { onTurboToggle?.invoke() })
         }
-        bottom.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(72), 0.3f).apply { marginEnd = dp(8) })
+        bottom.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(76), 0.3f).apply { marginEnd = dp(8) })
 
         btnOpt = TextView(ctx).apply {
             text = "ОПТИМИЗИРОВАТЬ"
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 17f
             gravity = Gravity.CENTER
             background = blueBg()
-            setOnClickListener { animate(this); onToggle?.invoke() }
+            attachGlassTouch(this, { onToggle?.invoke() })
         }
-        bottom.addView(btnOpt, LinearLayout.LayoutParams(0, dp(72), 0.7f))
+        bottom.addView(btnOpt, LinearLayout.LayoutParams(0, dp(76), 0.7f))
 
+        animateIn()
         return root
+    }
+
+    private fun animateIn() {
+        val kids = listOf<View>(content)
+        for (i in 0 until content.childCount) {
+            val v = content.getChildAt(i)
+            v.alpha = 0f
+            v.translationY = dp(20).toFloat()
+            v.animate().alpha(1f).translationY(0f).setStartDelay((i * 25).toLong()).setDuration(280).start()
+        }
     }
 
     fun setMode(mode: Int) {
         currentMode = mode
-        btnModePerf.background = if (mode == 0) blueBg() else unselBg()
-        btnModeBal.background = if (mode == 1) blueBg() else unselBg()
+        crossfade(btnModePerf, if (mode == 0) blueBg() else unselBg())
+        crossfade(btnModeBal, if (mode == 1) blueBg() else unselBg())
     }
 
     fun setPreset(p: Int) { currentPreset = p; updatePreset() }
@@ -230,12 +271,12 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setActive(a: Boolean) {
         btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
-        btnOpt.background = if (a) redBg() else blueBg()
+        crossfade(btnOpt, if (a) redBg() else blueBg())
     }
 
-    fun setTurboState(a: Boolean) { btnTurbo.background = if (a) tGreenBg() else tBlueBg() }
-    fun setGpuBoostState(a: Boolean) { btnGpuBoost.background = if (a) blueBg() else unselBg() }
-    fun setBgLimitState(a: Boolean) { btnBgLimit.background = if (a) blueBg() else unselBg() }
+    fun setTurboState(a: Boolean) { crossfade(btnTurbo, if (a) tGreenBg() else tBlueBg()) }
+    fun setGpuBoostState(a: Boolean) { crossfade(btnGpuBoost, if (a) blueBg() else unselBg()) }
+    fun setBgLimitState(a: Boolean) { crossfade(btnBgLimit, if (a) blueBg() else unselBg()) }
 
     fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
@@ -249,9 +290,19 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f; btnTurbo.alpha = if (b) 0.4f else 1f }
 
+    private fun crossfade(v: View, newBg: GradientDrawable) {
+        val old = v.background
+        if (old == null) { v.background = newBg; return }
+        val tr = TransitionDrawable(arrayOf(old, newBg))
+        tr.isCrossFadeEnabled = true
+        v.background = tr
+        tr.startTransition(180)
+    }
+
     private fun updatePreset() {
         for (i in 0 until presetRow.childCount) {
-            (presetRow.getChildAt(i) as TextView).background = if (i == currentPreset) blueBg() else unselBg()
+            val v = presetRow.getChildAt(i) as TextView
+            v.background = if (i == currentPreset) blueBg() else unselBg()
         }
     }
 
@@ -274,20 +325,33 @@ class OptimizerUI(private val ctx: Context) {
         }
     }
 
-    private fun animate(v: View) {
-        v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(60).withEndAction {
-            v.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator()).start()
-        }.start()
+    private fun attachGlassTouch(v: View, click: () -> Unit) {
+        v.setOnTouchListener { view, ev ->
+            when (ev.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    ObjectAnimator.ofFloat(view, "scaleX", 1f, 0.94f).setDuration(80).start()
+                    ObjectAnimator.ofFloat(view, "scaleY", 1f, 0.94f).setDuration(80).start()
+                    ObjectAnimator.ofFloat(view, "alpha", 1f, 0.85f).setDuration(80).start()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    ObjectAnimator.ofFloat(view, "scaleX", 0.94f, 1f).setDuration(240).apply { interpolator = OvershootInterpolator() }.start()
+                    ObjectAnimator.ofFloat(view, "scaleY", 0.94f, 1f).setDuration(240).apply { interpolator = OvershootInterpolator() }.start()
+                    ObjectAnimator.ofFloat(view, "alpha", 0.85f, 1f).setDuration(180).start()
+                }
+            }
+            false
+        }
+        v.setOnClickListener { click() }
     }
 
-    private fun btn(text: String, click: () -> Unit): TextView {
+    private fun btnGlass(text: String, click: () -> Unit): TextView {
         val tv = TextView(ctx)
         tv.text = text
         tv.setTextColor(Color.WHITE)
         tv.textSize = 12f
         tv.gravity = Gravity.CENTER
         tv.background = unselBg()
-        tv.setOnClickListener { animate(tv); click() }
+        attachGlassTouch(tv, click)
         return tv
     }
 
@@ -302,13 +366,22 @@ class OptimizerUI(private val ctx: Context) {
         return tv
     }
 
-    private fun label(text: String, size: Float, grav: Int): TextView {
+    private fun addCard(v: View) {
+        content.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+    }
+
+    private fun label(text: String, size: Float): TextView {
         val tv = TextView(ctx)
         tv.text = text
         tv.setTextColor(Color.WHITE)
         tv.textSize = size
-        tv.gravity = grav
         return tv
+    }
+
+    private fun divider(): View {
+        val v = View(ctx)
+        v.setBackgroundColor(Color.parseColor("#22FFFFFF"))
+        return v
     }
 
     private fun row(): LinearLayout {
@@ -319,37 +392,27 @@ class OptimizerUI(private val ctx: Context) {
         return r
     }
 
-    private fun cardLp(): LinearLayout.LayoutParams {
-        return LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }
-    }
-
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
-    private fun cardBg(): GradientDrawable {
+    private fun cardGlass(): GradientDrawable {
         val g = GradientDrawable()
         g.shape = GradientDrawable.RECTANGLE
         g.cornerRadius = dp(22).toFloat()
-        g.colors = intArrayOf(Color.parseColor("#66FFFFFF"), Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"))
+        g.colors = intArrayOf(0x66FFFFFF, 0x33FFFFFF, 0x22FFFFFF)
         g.gradientType = GradientDrawable.LINEAR_GRADIENT
         g.orientation = GradientDrawable.Orientation.TL_BR
-        g.setStroke(dp(1), Color.parseColor("#88FFFFFF"))
+        g.setStroke(dp(1), 0x88FFFFFF.toInt())
         return g
     }
 
-    private fun buttonBlue() = btnBase(intArrayOf(Color.parseColor("#5B8DEF"), Color.parseColor("#7BA7F5"), Color.parseColor("#5B8DEF")), "#CCFFFFFF")
-    private fun buttonRed() = btnBase(intArrayOf(Color.parseColor("#EF4444"), Color.parseColor("#F87171"), Color.parseColor("#EF4444")), "#CCFFFFFF")
-    private fun buttonUnselected() = btnBase(intArrayOf(Color.parseColor("#33FFFFFF"), Color.parseColor("#22FFFFFF"), Color.parseColor("#33FFFFFF")), "#55FFFFFF")
-    private fun buttonTurboBlue() = btnBase(intArrayOf(Color.parseColor("#3B82F6"), Color.parseColor("#60A5FA"), Color.parseColor("#3B82F6")), "#CCFFFFFF")
-    private fun buttonTurboGreen() = btnBase(intArrayOf(Color.parseColor("#22C55E"), Color.parseColor("#4ADE80"), Color.parseColor("#22C55E")), "#CCFFFFFF")
-
-    private fun btnBase(colors: IntArray, stroke: String): GradientDrawable {
+    private fun btnBaseGlass(colors: IntArray, stroke: Int): GradientDrawable {
         val g = GradientDrawable()
         g.shape = GradientDrawable.RECTANGLE
         g.cornerRadius = dp(18).toFloat()
         g.colors = colors
         g.gradientType = GradientDrawable.LINEAR_GRADIENT
         g.orientation = GradientDrawable.Orientation.LEFT_RIGHT
-        g.setStroke(dp(1), Color.parseColor(stroke))
+        g.setStroke(dp(1), stroke)
         return g
     }
 }
