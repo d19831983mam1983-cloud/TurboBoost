@@ -15,12 +15,15 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
 class OptimizerUI(private val ctx: Context) {
 
-    lateinit var root: LinearLayout
+    lateinit var root: FrameLayout
+    lateinit var content: LinearLayout
     lateinit var btnOpt: TextView
     lateinit var btnTurbo: TextView
     lateinit var btnDevOptions: TextView
@@ -50,18 +53,25 @@ class OptimizerUI(private val ctx: Context) {
     var currentThermal: Int = -1
     var currentMode: Int = 0
 
-    fun build(): LinearLayout {
-        root = LinearLayout(ctx)
-        root.orientation = LinearLayout.VERTICAL
+    fun build(): FrameLayout {
+        root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#0B0F1A"))
-        root.setPadding(dp(18), dp(44), dp(18), dp(20))
+
+        val scroll = ScrollView(ctx)
+        scroll.isFillViewport = true
+        root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        content = LinearLayout(ctx)
+        content.orientation = LinearLayout.VERTICAL
+        content.setPadding(dp(18), dp(44), dp(18), dp(20))
+        scroll.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val title = TextView(ctx)
         title.text = "TurboBoost"
         title.setTextColor(Color.WHITE)
         title.textSize = 30f
         title.gravity = Gravity.CENTER
-        root.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val sub = TextView(ctx)
         sub.text = "Оптимизация для игр"
@@ -70,11 +80,11 @@ class OptimizerUI(private val ctx: Context) {
         sub.gravity = Gravity.CENTER
         val subLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         subLp.topMargin = dp(2)
-        root.addView(sub, subLp)
+        content.addView(sub, subLp)
 
         val modeRow = LinearLayout(ctx)
         modeRow.orientation = LinearLayout.HORIZONTAL
-        root.addView(modeRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        content.addView(modeRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
 
         btnModePerf = smallButton("Производительность")
         btnModePerf.setOnClickListener { onModeSelected?.invoke(0); setMode(0) }
@@ -85,21 +95,21 @@ class OptimizerUI(private val ctx: Context) {
         modeRow.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(40), 1f))
 
         cardChip = card("Чип: —")
-        root.addView(cardChip, cardLp())
+        content.addView(cardChip, cardLp())
         cardScreen = card("Экран: —")
-        root.addView(cardScreen, cardLp())
+        content.addView(cardScreen, cardLp())
 
         val senseLabel = TextView(ctx)
         senseLabel.text = "Сенса:"
         senseLabel.setTextColor(Color.WHITE)
         senseLabel.textSize = 14f
         senseLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(senseLabel)
+        content.addView(senseLabel)
 
         senseRow = LinearLayout(ctx)
         senseRow.orientation = LinearLayout.HORIZONTAL
         senseRow.gravity = Gravity.CENTER_VERTICAL
-        root.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(senseRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val senses = listOf("Средний", "Сильный", "Эксп.", "Макс")
         for ((i, name) in senses.withIndex()) {
@@ -113,12 +123,12 @@ class OptimizerUI(private val ctx: Context) {
         thermalLabel.setTextColor(Color.WHITE)
         thermalLabel.textSize = 14f
         thermalLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(thermalLabel)
+        content.addView(thermalLabel)
 
         thermalRow = LinearLayout(ctx)
         thermalRow.orientation = LinearLayout.HORIZONTAL
         thermalRow.gravity = Gravity.CENTER_VERTICAL
-        root.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(thermalRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         val thermals = listOf("Авто", "50", "60", "70")
         for ((i, name) in thermals.withIndex()) {
@@ -132,7 +142,7 @@ class OptimizerUI(private val ctx: Context) {
         pkgLabel.setTextColor(Color.WHITE)
         pkgLabel.textSize = 13f
         pkgLabel.setPadding(dp(8), dp(12), 0, dp(4))
-        root.addView(pkgLabel)
+        content.addView(pkgLabel)
 
         pkgInput = EditText(ctx)
         pkgInput.hint = "com.axlebolt.standoff2"
@@ -143,11 +153,11 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.inputType = InputType.TYPE_CLASS_TEXT
         pkgInput.setPadding(dp(14), dp(10), dp(14), dp(10))
         pkgInput.background = buttonUnselected()
-        root.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
+        content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
         val actionRow = LinearLayout(ctx)
         actionRow.orientation = LinearLayout.HORIZONTAL
-        root.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+        content.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
 
         btnCompile = smallButton("Ускорить запуск")
         btnCompile.setOnClickListener { onCompile?.invoke(pkgInput.text.toString().trim()) }
@@ -159,22 +169,22 @@ class OptimizerUI(private val ctx: Context) {
 
         btnDevOptions = smallButton("Настройки для разработчиков")
         btnDevOptions.setOnClickListener { onDevOptions?.invoke() }
-        root.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        content.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
         cardBattery = card("Батарея: —")
-        root.addView(cardBattery, cardLp())
+        content.addView(cardBattery, cardLp())
         cardTemp = card("Температура: —")
-        root.addView(cardTemp, cardLp())
+        content.addView(cardTemp, cardLp())
         statusResult = card("Нажмите кнопку")
-        root.addView(statusResult, cardLp())
+        content.addView(statusResult, cardLp())
 
         val spacer = View(ctx)
-        root.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
+        content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, dp(30)))
 
         val bottomRow = LinearLayout(ctx)
         bottomRow.orientation = LinearLayout.HORIZONTAL
         bottomRow.gravity = Gravity.CENTER_VERTICAL
-        root.addView(bottomRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(bottomRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         btnTurbo = TextView(ctx)
         btnTurbo.text = "TURBO"
