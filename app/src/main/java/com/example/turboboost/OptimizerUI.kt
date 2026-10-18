@@ -18,6 +18,7 @@ import android.widget.TextView
 class OptimizerUI(private val ctx: Context) {
 
     lateinit var root: FrameLayout
+    lateinit var scroll: ScrollView
     lateinit var content: LinearLayout
     lateinit var btnOpt: TextView
     lateinit var btnTurbo: TextView
@@ -26,11 +27,20 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnKeep: TextView
     lateinit var btnModePerf: TextView
     lateinit var btnModeBal: TextView
+    lateinit var btnGpuBoost: TextView
+    lateinit var btnBgLimit: TextView
+    lateinit var btnGames: TextView
+    lateinit var btnProfiles: TextView
+    lateinit var btnCache: TextView
+    lateinit var btnPing: TextView
     lateinit var pkgInput: EditText
     lateinit var cardChip: TextView
+    lateinit var cardGpu: TextView
     lateinit var cardScreen: TextView
     lateinit var cardBattery: TextView
     lateinit var cardTemp: TextView
+    lateinit var cardFps: TextView
+    lateinit var cardPing: TextView
     lateinit var statusResult: TextView
     lateinit var senseRow: LinearLayout
     lateinit var thermalRow: LinearLayout
@@ -43,6 +53,12 @@ class OptimizerUI(private val ctx: Context) {
     var onSenseSelected: ((Int) -> Unit)? = null
     var onThermalSelected: ((Int) -> Unit)? = null
     var onModeSelected: ((Int) -> Unit)? = null
+    var onGpuBoostToggle: (() -> Unit)? = null
+    var onBgLimitToggle: (() -> Unit)? = null
+    var onShowGames: (() -> Unit)? = null
+    var onShowProfiles: (() -> Unit)? = null
+    var onTrimCaches: (() -> Unit)? = null
+    var onPing: (() -> Unit)? = null
 
     var currentSense: Int = -1
     var currentThermal: Int = -1
@@ -59,7 +75,7 @@ class OptimizerUI(private val ctx: Context) {
         root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#0B0F1A"))
 
-        val scroll = ScrollView(ctx)
+        scroll = ScrollView(ctx)
         scroll.isFillViewport = true
         root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
@@ -98,8 +114,30 @@ class OptimizerUI(private val ctx: Context) {
 
         cardChip = card("Чип: —")
         content.addView(cardChip, cardLp())
-        cardScreen = card("Экран: —")
+        cardGpu = card("GPU: —")
+        content.addView(cardGpu, cardLp())
+        cardScreen = card("Частота: —")
         content.addView(cardScreen, cardLp())
+        cardBattery = card("Батарея: —")
+        content.addView(cardBattery, cardLp())
+        cardTemp = card("Температура: —")
+        content.addView(cardTemp, cardLp())
+        cardFps = card("FPS: —")
+        content.addView(cardFps, cardLp())
+        cardPing = card("Пинг: —")
+        content.addView(cardPing, cardLp())
+
+        val extraRow = LinearLayout(ctx)
+        extraRow.orientation = LinearLayout.HORIZONTAL
+        content.addView(extraRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+
+        btnGpuBoost = smallButton("GPU Boost")
+        btnGpuBoost.setOnClickListener { animateButton(btnGpuBoost); onGpuBoostToggle?.invoke() }
+        extraRow.addView(btnGpuBoost, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+
+        btnBgLimit = smallButton("Лимит фона")
+        btnBgLimit.setOnClickListener { animateButton(btnBgLimit); onBgLimitToggle?.invoke() }
+        extraRow.addView(btnBgLimit, LinearLayout.LayoutParams(0, dp(44), 1f))
 
         val senseLabel = TextView(ctx)
         senseLabel.text = "Сенса:"
@@ -157,26 +195,46 @@ class OptimizerUI(private val ctx: Context) {
         pkgInput.background = buttonUnselected()
         content.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
 
-        val actionRow = LinearLayout(ctx)
-        actionRow.orientation = LinearLayout.HORIZONTAL
-        content.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+        val actionRow1 = LinearLayout(ctx)
+        actionRow1.orientation = LinearLayout.HORIZONTAL
+        content.addView(actionRow1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+
+        btnGames = smallButton("Выбрать игру")
+        btnGames.setOnClickListener { animateButton(btnGames); onShowGames?.invoke() }
+        actionRow1.addView(btnGames, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+
+        btnProfiles = smallButton("Профили")
+        btnProfiles.setOnClickListener { animateButton(btnProfiles); onShowProfiles?.invoke() }
+        actionRow1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        val actionRow2 = LinearLayout(ctx)
+        actionRow2.orientation = LinearLayout.HORIZONTAL
+        content.addView(actionRow2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
 
         btnCompile = smallButton("Ускорить запуск")
         btnCompile.setOnClickListener { animateButton(btnCompile); onCompile?.invoke(pkgInput.text.toString().trim()) }
-        actionRow.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        actionRow2.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
 
         btnKeep = smallButton("Держать в памяти")
         btnKeep.setOnClickListener { animateButton(btnKeep); onKeep?.invoke(pkgInput.text.toString().trim()) }
-        actionRow.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+        actionRow2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        val actionRow3 = LinearLayout(ctx)
+        actionRow3.orientation = LinearLayout.HORIZONTAL
+        content.addView(actionRow3, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+
+        btnCache = smallButton("Очистить кэш")
+        btnCache.setOnClickListener { animateButton(btnCache); onTrimCaches?.invoke() }
+        actionRow3.addView(btnCache, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+
+        btnPing = smallButton("Проверить пинг")
+        btnPing.setOnClickListener { animateButton(btnPing); onPing?.invoke() }
+        actionRow3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         btnDevOptions = smallButton("Настройки для разработчиков")
         btnDevOptions.setOnClickListener { animateButton(btnDevOptions); onDevOptions?.invoke() }
         content.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
-        cardBattery = card("Батарея: —")
-        content.addView(cardBattery, cardLp())
-        cardTemp = card("Температура: —")
-        content.addView(cardTemp, cardLp())
         statusResult = card("Нажмите кнопку")
         content.addView(statusResult, cardLp())
 
@@ -231,6 +289,14 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setTurboState(active: Boolean) {
         btnTurbo.background = if (active) turboGreenBg else turboBlueBg
+    }
+
+    fun setGpuBoostState(active: Boolean) {
+        btnGpuBoost.background = if (active) blueBg else unselBg
+    }
+
+    fun setBgLimitState(active: Boolean) {
+        btnBgLimit.background = if (active) blueBg else unselBg
     }
 
     fun setBatteryLowBlock(block: Boolean) { btnOpt.alpha = if (block) 0.4f else 1f; btnTurbo.alpha = if (block) 0.4f else 1f }
