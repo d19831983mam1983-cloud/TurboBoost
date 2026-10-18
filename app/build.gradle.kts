@@ -8,7 +8,7 @@ android {
     compileSdk = 34
     defaultConfig {
         applicationId = "com.example.turboboost"
-        minSdk = 24
+        minSdk = 31
         targetSdk = 34
         versionCode = 2
         versionName = "1.1"
