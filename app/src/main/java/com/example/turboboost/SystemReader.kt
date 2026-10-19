@@ -10,16 +10,21 @@ object SystemReader {
     @Volatile
     var service: IUserService? = null
 
+    @Volatile
+    var directMode: Boolean = false
+
     private const val TIMEOUT_MS = 5000L
-    private val executor = Executors.newSingleThreadExecutor()
+    private val executor = Executors.newCachedThreadPool()
 
     fun read(cmd: String): String {
+        if (directMode) {
+            return ShizukuHelper.execDirect(cmd)
+        }
         val s = service ?: return ""
         return try {
             val future = executor.submit(Callable { s.exec(cmd) })
             future.get(TIMEOUT_MS, TimeUnit.MILLISECONDS)
         } catch (e: Throwable) {
-            try { executor.shutdownNow() } catch (t: Throwable) {}
             ""
         }
     }
@@ -30,5 +35,5 @@ object SystemReader {
 
     fun testWrite(path: String): Boolean = read("test -w $path && echo ok").contains("ok")
 
-    fun isReady(): Boolean = service != null
+    fun isReady(): Boolean = service != null || directMode
 }
