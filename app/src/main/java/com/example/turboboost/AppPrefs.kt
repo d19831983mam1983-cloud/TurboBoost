@@ -10,7 +10,9 @@ data class GameProfile(
     val sense: Int,
     val thermal: Int,
     val turbo: Boolean,
-    val hz: Int
+    val hz: Int,
+    val gpuBoost: Boolean,
+    val bgLimit: Boolean
 )
 
 class AppPrefs(ctx: Context) {
@@ -77,7 +79,9 @@ class AppPrefs(ctx: Context) {
                         o.optInt("sense", 0),
                         o.optInt("thermal", 0),
                         o.optBoolean("turbo", false),
-                        o.optInt("hz", 120)
+                        o.optInt("hz", 120),
+                        o.optBoolean("gpuBoost", false),
+                        o.optBoolean("bgLimit", false)
                     )
                 )
             }
@@ -100,6 +104,8 @@ class AppPrefs(ctx: Context) {
             o.put("thermal", item.thermal)
             o.put("turbo", item.turbo)
             o.put("hz", item.hz)
+            o.put("gpuBoost", item.gpuBoost)
+            o.put("bgLimit", item.bgLimit)
             arr.put(o)
         }
         prefs.edit().putString("profiles", arr.toString()).commit()
@@ -116,6 +122,8 @@ class AppPrefs(ctx: Context) {
             o.put("thermal", item.thermal)
             o.put("turbo", item.turbo)
             o.put("hz", item.hz)
+            o.put("gpuBoost", item.gpuBoost)
+            o.put("bgLimit", item.bgLimit)
             arr.put(o)
         }
         prefs.edit().putString("profiles", arr.toString()).commit()
