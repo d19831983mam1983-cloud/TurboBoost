@@ -4,20 +4,23 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import rikka.shizuku.Shizuku
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 object ShizukuHelper {
 
     private const val REQUEST_CODE = 1001
-    private const val BIND_TIMEOUT_MS = 8000L
+    private const val BIND_TIMEOUT_MS = 10000L
     var onPermissionResult: ((Boolean) -> Unit)? = null
     var onServiceReady: ((Boolean) -> Unit)? = null
+    var onBindTimeout: (() -> Unit)? = null
 
     private var bound = false
     private var appContext: Context? = null
+    private var pendingTimeout: Runnable? = null
+    private val handler = Handler(Looper.getMainLooper())
 
     private val listener = Shizuku.OnRequestPermissionResultListener { code, result ->
         if (code == REQUEST_CODE) {
@@ -27,6 +30,7 @@ object ShizukuHelper {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            cancelTimeout()
             try {
                 SystemReader.service = IUserService.Stub.asInterface(binder)
                 bound = true
@@ -37,6 +41,7 @@ object ShizukuHelper {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
+            cancelTimeout()
             SystemReader.service = null
             bound = false
             onServiceReady?.invoke(false)
@@ -61,6 +66,7 @@ object ShizukuHelper {
     }
 
     fun destroy() {
+        cancelTimeout()
         try {
             Shizuku.removeRequestPermissionResultListener(listener)
         } catch (e: Throwable) {}
@@ -107,9 +113,11 @@ object ShizukuHelper {
             onServiceReady?.invoke(bound)
             return
         }
+        startTimeout()
         try {
             Shizuku.bindUserService(args(ctx), connection)
         } catch (e: Throwable) {
+            cancelTimeout()
             onServiceReady?.invoke(false)
         }
     }
@@ -122,5 +130,21 @@ object ShizukuHelper {
         } catch (e: Throwable) {}
         SystemReader.service = null
         bound = false
+    }
+
+    private fun startTimeout() {
+        cancelTimeout()
+        val r = Runnable {
+            if (!bound) {
+                onBindTimeout?.invoke()
+            }
+        }
+        pendingTimeout = r
+        handler.postDelayed(r, BIND_TIMEOUT_MS)
+    }
+
+    private fun cancelTimeout() {
+        pendingTimeout?.let { handler.removeCallbacks(it) }
+        pendingTimeout = null
     }
 }
