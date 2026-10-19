@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var ui: OptimizerUI
     lateinit var info: DeviceInfo
     lateinit var prefs: AppPrefs
-    val executor = Executors.newSingleThreadExecutor()
+    val executor = Executors.newFixedThreadPool(3)
     val main = Handler(Looper.getMainLooper())
     var busy = false
     var uiBuilt = false
@@ -170,8 +170,11 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this).setTitle("Профили").setItems(names.toTypedArray()) { _, w ->
             val c = names[w]
             when {
-                c.startsWith("Сохранить") -> { prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), prefs.getThermalLevel(), prefs.isTurboActive(), prefs.getTargetHz())); Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show() }
-                c.startsWith("Удалить") -> { prefs.deleteProfile(p); Toast.makeText(this, "Удалён", Toast.LENGTH_SHORT).show() }
+                c.startsWith("Сохранить") -> {
+                    prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), prefs.getThermalLevel(), prefs.isTurboActive(), prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
+                    Toast.makeText(this, "Профиль сохранён", Toast.LENGTH_SHORT).show()
+                }
+                c.startsWith("Удалить") -> { prefs.deleteProfile(p); Toast.makeText(this, "Профиль удалён", Toast.LENGTH_SHORT).show() }
                 c.startsWith("——") -> {}
                 else -> ps.firstOrNull { it.pkg == c }?.let { applyProfile(it) }
             }
@@ -180,12 +183,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyProfile(p: GameProfile) {
         prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setThermalLevel(p.thermal); prefs.setTargetHz(p.hz)
+        prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit)
         prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
-        ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); if (p.thermal >= 0) ui.setThermalLevel(p.thermal); ui.setHz(p.hz); ui.setPackageText(p.pkg)
+        ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); if (p.thermal >= 0) ui.setThermalLevel(p.thermal); ui.setHz(p.hz)
+        ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit)
+        ui.setPackageText(p.pkg)
         executor.execute {
             info.applySense(p.sense)
             if (p.thermal == 0) info.resetThermal() else info.setThermalLimit(p.thermal * 10 + 40)
-            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, prefs.isGpuBoost())
+            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost)
+            if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
             if (p.turbo != prefs.isTurboActive()) { val r = info.toggleTurbo(p.turbo); main.post { prefs.setTurboActive(p.turbo); ui.setTurboState(p.turbo); ui.statusResult.text = r } }
         }
     }
