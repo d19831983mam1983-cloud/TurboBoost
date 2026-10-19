@@ -95,7 +95,8 @@ class MainActivity : AppCompatActivity() {
         if (uiBuilt) return
         uiBuilt = true
         setContentView(ui.build())
-        ui.setPackageText(prefs.getLastPackage())
+        val activeProfile = prefs.getActiveProfilePkg()
+        ui.setPackageText(if (activeProfile.isNotBlank()) activeProfile else prefs.getLastPackage())
         ui.onPackageChanged = { pkg -> prefs.setLastPackage(pkg) }
         ui.setMode(prefs.getPerfMode())
         ui.setHz(prefs.getTargetHz())
@@ -262,7 +263,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyProfile(p: GameProfile) {
         prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setThermalLevel(p.thermal); prefs.setTargetHz(p.hz)
+        prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
         ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); if (p.thermal >= 0) ui.setThermalLevel(p.thermal); ui.setHz(p.hz)
+        ui.setPackageText(p.pkg)
         executor.execute {
             info.applySense(p.sense)
             if (p.thermal == 0) info.resetThermal() else info.setThermalLimit(p.thermal * 10 + 40)
