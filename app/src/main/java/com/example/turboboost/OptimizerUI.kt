@@ -29,6 +29,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnOpt: TextView
     lateinit var btnTurbo: TextView
     lateinit var btnDevOptions: TextView
+    lateinit var btnDiagnostics: TextView
     lateinit var btnCompile: TextView
     lateinit var btnKeep: TextView
     lateinit var btnModePerf: TextView
@@ -57,6 +58,7 @@ class OptimizerUI(private val ctx: Context) {
     var onToggle: (() -> Unit)? = null
     var onTurboToggle: (() -> Unit)? = null
     var onDevOptions: (() -> Unit)? = null
+    var onDiagnostics: (() -> Unit)? = null
     var onCompile: ((String) -> Unit)? = null
     var onKeep: ((String) -> Unit)? = null
     var onSenseSelected: ((Int) -> Unit)? = null
@@ -191,8 +193,11 @@ class OptimizerUI(private val ctx: Context) {
         btnPing = glass("Проверить пинг") { onPing?.invoke() }
         r3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
 
-        btnDevOptions = glass("Настройки для разработчиков") { onDevOptions?.invoke() }
-        page1.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        val r4 = row(page1)
+        btnDevOptions = glass("Для разработчиков") { onDevOptions?.invoke() }
+        r4.addView(btnDevOptions, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
+        r4.addView(btnDiagnostics, LinearLayout.LayoutParams(0, dp(48), 1f))
 
         cardChip = card("Чип: —"); addCard(page1, cardChip)
         cardGpu = card("GPU: —"); addCard(page1, cardGpu)
@@ -240,6 +245,18 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f; btnTurbo.alpha = if (b) 0.4f else 1f }
+
+    fun setOverheat(warn: Boolean, critical: Boolean) {
+        if (critical) {
+            cardTemp.text = cardTemp.text.toString().replace(" ⚠", "") + " ⚠"
+            statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — производительность снижена"
+        } else if (warn) {
+            cardTemp.text = cardTemp.text.toString().replace(" ⚠", "") + " ⚠"
+            statusResult.text = "Перегрев — рекомендуется снять троттлинг"
+        } else {
+            cardTemp.text = cardTemp.text.toString().replace(" ⚠", "")
+        }
+    }
 
     private fun fade(v: View, bg: GradientDrawable) {
         val o = v.background
