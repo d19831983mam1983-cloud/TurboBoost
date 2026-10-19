@@ -102,7 +102,7 @@ class AppPrefs(ctx: Context) {
             o.put("hz", item.hz)
             arr.put(o)
         }
-        prefs.edit().putString("profiles", arr.toString()).apply()
+        prefs.edit().putString("profiles", arr.toString()).commit()
     }
 
     fun deleteProfile(pkg: String) {
@@ -118,7 +118,7 @@ class AppPrefs(ctx: Context) {
             o.put("hz", item.hz)
             arr.put(o)
         }
-        prefs.edit().putString("profiles", arr.toString()).apply()
+        prefs.edit().putString("profiles", arr.toString()).commit()
     }
 
     fun findProfile(pkg: String): GameProfile? = getProfiles().firstOrNull { it.pkg == pkg }
