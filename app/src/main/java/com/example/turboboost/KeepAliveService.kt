@@ -25,8 +25,6 @@ class KeepAliveService : Service() {
             val prefs = AppPrefs(this)
             prefs.setActive(false)
             prefs.setTurboActive(false)
-            val stopIntent = Intent(this, SidePanelService::class.java)
-            stopService(stopIntent)
             stopSelf()
             return START_NOT_STICKY
         }
