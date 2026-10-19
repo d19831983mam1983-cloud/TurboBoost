@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
         }
         ShizukuHelper.init(this)
         ShizukuHelper.onPermissionResult = { g -> main.post { if (g) bindAndBuild() else showBlockedScreen() } }
+        ShizukuHelper.onBindTimeout = { main.post { if (!uiBuilt) showBlockedScreen() } }
         checkAccess()
     }
 
@@ -65,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         t.gravity = android.view.Gravity.CENTER
         box.addView(t)
         val m = android.widget.TextView(this)
-        m.text = "Для работы нужен Shizuku с разрешением."
+        m.text = "Для работы нужен Shizuku с разрешением.\nЕсли Shizuku запущен — нажмите «Проверить снова»."
         m.setTextColor(Color.parseColor("#AAFFFFFF"))
         m.textSize = 15f
         m.gravity = android.view.Gravity.CENTER
@@ -106,6 +107,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.getLastFps() > 0) ui.cardFps.text = "FPS: ${prefs.getLastFps()}"
 
         ui.onDevOptions = { info.openDeveloperOptions() }
+        ui.onDiagnostics = { showDiagnostics() }
 
         ui.onModeSelected = { mode ->
             prefs.setPerfMode(mode)
@@ -161,6 +163,45 @@ class MainActivity : AppCompatActivity() {
             ui.setPackageText(pkg)
             prefs.setLastPackage(pkg)
         }.show()
+    }
+
+    private fun showDiagnostics() {
+        executor.execute {
+            val shizuku = ShizukuHelper.isAvailable()
+            val perm = ShizukuHelper.hasPermission()
+            val service = SystemReader.isReady()
+            val active = prefs.isActive()
+            val gov = if (active) info.checkSystemState() else false
+            val dns = if (active) info.verifyDnsPublic() else false
+            val bbr = if (active) info.verifyBbrPublic() else false
+            val chip = info.chipName()
+            val gpu = info.gpuName()
+            val clusters = info.cpuClusters().joinToString(", ") { "cpu${it.first}:${it.second}" }
+            val temp = info.cpuTemp()
+            val bat = info.batteryLevel()
+            val charging = info.isCharging()
+            val text = buildString {
+                appendLine("Shizuku: ${if (shizuku) "✓" else "✗"}")
+                appendLine("Разрешение: ${if (perm) "✓" else "✗"}")
+                appendLine("UserService: ${if (service) "✓" else "✗"}")
+                appendLine("Оптимизация: ${if (active) "вкл" else "выкл"}")
+                appendLine("Governor: ${if (gov) "✓" else "✗"}")
+                appendLine("DNS: ${if (dns) "✓" else "✗"}")
+                appendLine("BBR: ${if (bbr) "✓" else "✗"}")
+                appendLine("Чип: $chip")
+                appendLine("GPU: $gpu")
+                appendLine("Кластеры: $clusters")
+                appendLine("Температура: ${"%.0f".format(temp)}°C")
+                appendLine("Батарея: $bat%${if (charging) " ⚡" else ""}")
+            }
+            main.post {
+                AlertDialog.Builder(this)
+                    .setTitle("Диагностика")
+                    .setMessage(text)
+                    .setPositiveButton("ОК", null)
+                    .show()
+            }
+        }
     }
 
     private fun checkReady(): Boolean {
@@ -300,10 +341,29 @@ class MainActivity : AppCompatActivity() {
             val bbr = if (active) info.verifyBbrPublic() else false
             val charging = info.isCharging()
             val thermalLevel = prefs.getThermalLevel()
+
+            if (temp > 80f && active) {
+                info.deactivateMaxPerformance()
+                prefs.setActive(false)
+                prefs.setTurboActive(false)
+                main.post {
+                    if (!uiBuilt) return@post
+                    ui.setActive(false)
+                    ui.setTurboState(false)
+                    ui.setAppliedState(false, false, false, false)
+                    ui.setOverheat(false, true)
+                    ui.cardTemp.text = "Температура: ${"%.0f".format(temp)}°C ⚠"
+                    busy = false
+                    stopKeepAliveService()
+                }
+                return@execute
+            }
+
             if (active && thermalLevel > 0) {
                 val target = if (charging) (thermalLevel * 10 + 40 + 10).coerceAtMost(70) else (thermalLevel * 10 + 40)
                 info.setThermalLimit(target)
             }
+
             main.post {
                 if (!uiBuilt) return@post
                 ui.cardChip.text = "Чип: $chip"
@@ -311,6 +371,7 @@ class MainActivity : AppCompatActivity() {
                 ui.cardScreen.text = "Частота: ${prefs.getTargetHz()} Гц"
                 ui.cardBattery.text = if (charging) "Батарея: $bat% ⚡" else "Батарея: $bat%"
                 ui.cardTemp.text = "Температура: ${"%.0f".format(temp)}°C"
+                ui.setOverheat(temp > 75f, false)
                 if (fps > 0) { ui.cardFps.text = "FPS: $fps"; prefs.setLastFps(fps) }
                 else if (prefs.getLastFps() > 0) ui.cardFps.text = "FPS: ${prefs.getLastFps()}"
                 else ui.cardFps.text = "FPS: —"
