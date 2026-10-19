@@ -8,6 +8,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import rikka.shizuku.Shizuku
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 object ShizukuHelper {
 
@@ -33,6 +35,7 @@ object ShizukuHelper {
             cancelTimeout()
             try {
                 SystemReader.service = IUserService.Stub.asInterface(binder)
+                SystemReader.directMode = false
                 bound = true
                 onServiceReady?.invoke(true)
             } catch (e: Throwable) {
@@ -118,7 +121,7 @@ object ShizukuHelper {
             Shizuku.bindUserService(args(ctx), connection)
         } catch (e: Throwable) {
             cancelTimeout()
-            onServiceReady?.invoke(false)
+            enableDirectMode()
         }
     }
 
@@ -132,10 +135,16 @@ object ShizukuHelper {
         bound = false
     }
 
+    private fun enableDirectMode() {
+        SystemReader.directMode = true
+        onServiceReady?.invoke(true)
+    }
+
     private fun startTimeout() {
         cancelTimeout()
         val r = Runnable {
             if (!bound) {
+                enableDirectMode()
                 onBindTimeout?.invoke()
             }
         }
@@ -146,5 +155,28 @@ object ShizukuHelper {
     private fun cancelTimeout() {
         pendingTimeout?.let { handler.removeCallbacks(it) }
         pendingTimeout = null
+    }
+
+    fun execDirect(cmd: String): String {
+        return try {
+            val method = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            method.isAccessible = true
+            val process = method.invoke(
+                null,
+                arrayOf("sh", "-c", cmd),
+                null,
+                null
+            ) as? Process ?: return ""
+            val out = BufferedReader(InputStreamReader(process.inputStream)).readText().trim()
+            process.waitFor()
+            out
+        } catch (e: Throwable) {
+            ""
+        }
     }
 }
