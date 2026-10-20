@@ -93,7 +93,7 @@ class MainActivity : AppCompatActivity() {
     private fun blockedDiag() {
         val avail = ShizukuHelper.isAvailable(); val perm = ShizukuHelper.hasPermission(); val ready = SystemReader.isReady()
         val ver = try { if (avail) rikka.shizuku.Shizuku.getVersion().toString() else "—" } catch (e: Throwable) { "—" }
-        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\nShizuku: ${if (avail) "✓" else "✗"}\nРазрешение: ${if (perm) "✓" else "✗"}\nUserService: ${if (ready) "✓" else "✗"}\nВерсия: $ver"
+        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\nShizuku: ${if (avail) "✓" else "✗"}\nРазрешение: ${if (perm) "✓" else "✗"}\nUserService/Direct: ${if (ready) "✓" else "✗"}\nВерсия: $ver"
         AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show()
     }
 
@@ -110,6 +110,17 @@ class MainActivity : AppCompatActivity() {
         ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
         ui.statusResult.text = prefs.getLastPing().ifBlank { "Нажмите кнопку" }
         if (prefs.getLastFps() > 0) ui.cardFps.text = "FPS: ${prefs.getLastFps()}"
+
+        if (info.hasJoyose()) {
+            ui.setJoyoseVisible(true)
+            ui.setJoyoseState(prefs.isJoyoseDisabled())
+            ui.onJoyoseToggle = {
+                val dis = !prefs.isJoyoseDisabled()
+                prefs.setJoyoseDisabled(dis)
+                ui.setJoyoseState(dis)
+                async { if (dis) info.disableJoyose() else info.enableJoyose() }
+            }
+        }
 
         ui.onDevOptions = { info.openDeveloperOptions() }
         ui.onDiagnostics = { diag() }
@@ -139,7 +150,10 @@ class MainActivity : AppCompatActivity() {
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
         AlertDialog.Builder(this).setTitle("Выберите игру").setItems(g.map { it.second }.toTypedArray()) { _, w ->
-            ui.setPackageText(g[w].first); prefs.setLastPackage(g[w].first)
+            val p = g[w].first
+            ui.setPackageText(p)
+            prefs.setLastPackage(p)
+            async { info.compilePackage(p) }
         }.show()
     }
 
@@ -148,7 +162,7 @@ class MainActivity : AppCompatActivity() {
             val a = prefs.isActive()
             val t = "Shizuku: ${if (ShizukuHelper.isAvailable()) "✓" else "✗"}\n" +
                 "Разрешение: ${if (ShizukuHelper.hasPermission()) "✓" else "✗"}\n" +
-                "UserService: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
+                "UserService/Direct: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
                 "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
                 "Governor: ${if (a && info.checkSystemState()) "✓" else "✗"}\n" +
                 "DNS: ${if (a && info.verifyDnsPublic()) "✓" else "✗"}\n" +
@@ -164,7 +178,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun ready(): Boolean {
         if (!ShizukuHelper.hasPermission()) { Toast.makeText(this, "Нет разрешения Shizuku", Toast.LENGTH_SHORT).show(); return false }
-        if (!SystemReader.isReady()) { Toast.makeText(this, "UserService не готов", Toast.LENGTH_SHORT).show(); return false }
+        if (!SystemReader.isReady()) { Toast.makeText(this, "Сервис не готов", Toast.LENGTH_SHORT).show(); return false }
         return true
     }
 
