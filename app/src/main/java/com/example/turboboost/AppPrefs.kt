@@ -67,6 +67,12 @@ class AppPrefs(ctx: Context) {
     fun isJoyoseDisabled(): Boolean = prefs.getBoolean("joyose_disabled", false)
     fun setJoyoseDisabled(v: Boolean) = prefs.edit().putBoolean("joyose_disabled", v).apply()
 
+    fun isDownscale(): Boolean = prefs.getBoolean("downscale", false)
+    fun setDownscale(v: Boolean) = prefs.edit().putBoolean("downscale", v).apply()
+
+    fun isThreadsBoost(): Boolean = prefs.getBoolean("threads_boost", false)
+    fun setThreadsBoost(v: Boolean) = prefs.edit().putBoolean("threads_boost", v).apply()
+
     fun getProfiles(): List<GameProfile> {
         val raw = prefs.getString("profiles", "") ?: ""
         if (raw.isBlank()) return emptyList()
