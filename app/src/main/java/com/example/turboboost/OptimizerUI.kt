@@ -30,6 +30,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnTurbo: TextView
     lateinit var btnDevOptions: TextView
     lateinit var btnDiagnostics: TextView
+    lateinit var btnJoyose: TextView
     lateinit var btnCompile: TextView
     lateinit var btnKeep: TextView
     lateinit var btnModePerf: TextView
@@ -59,6 +60,7 @@ class OptimizerUI(private val ctx: Context) {
     var onTurboToggle: (() -> Unit)? = null
     var onDevOptions: (() -> Unit)? = null
     var onDiagnostics: (() -> Unit)? = null
+    var onJoyoseToggle: (() -> Unit)? = null
     var onCompile: ((String) -> Unit)? = null
     var onKeep: ((String) -> Unit)? = null
     var onSenseSelected: ((Int) -> Unit)? = null
@@ -199,6 +201,10 @@ class OptimizerUI(private val ctx: Context) {
         btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
         r4.addView(btnDiagnostics, LinearLayout.LayoutParams(0, dp(48), 1f))
 
+        btnJoyose = glass("Xiaomi Boost (Joyose)") { onJoyoseToggle?.invoke() }
+        btnJoyose.visibility = View.GONE
+        page1.addView(btnJoyose, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+
         cardChip = card("Чип: —"); addCard(page1, cardChip)
         cardGpu = card("GPU: —"); addCard(page1, cardGpu)
         cardScreen = card("Частота: —"); addCard(page1, cardScreen)
@@ -237,6 +243,8 @@ class OptimizerUI(private val ctx: Context) {
     fun setTurboState(a: Boolean) { fade(btnTurbo, if (a) tGreen() else tBlue()) }
     fun setGpuBoostState(a: Boolean) { fade(btnGpuBoost, if (a) blue() else unsel()) }
     fun setBgLimitState(a: Boolean) { fade(btnBgLimit, if (a) blue() else unsel()) }
+    fun setJoyoseState(a: Boolean) { fade(btnJoyose, if (a) blue() else unsel()) }
+    fun setJoyoseVisible(visible: Boolean) { btnJoyose.visibility = if (visible) View.VISIBLE else View.GONE }
 
     fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
