@@ -1,10 +1,10 @@
 package com.example.turboboost
 
 import android.animation.ObjectAnimator
-import android.animation.PropertyValuesHolder
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.text.Editable
@@ -101,7 +101,7 @@ class OptimizerUI(private val ctx: Context) {
 
     fun build(): FrameLayout {
         root = FrameLayout(ctx)
-        root.setBackgroundColor(Color.parseColor("#070A12"))
+        root.setBackgroundColor(Color.parseColor("#05070A"))
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
         scroll1 = ScrollView(ctx).apply { isFillViewport = true; addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
         root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -124,19 +124,18 @@ class OptimizerUI(private val ctx: Context) {
             setTextColor(Color.WHITE)
             textSize = 26f
             letterSpacing = 0.05f
-            setShadowLayer(10f, 0f, 0f, Color.parseColor("#7BA7F5"))
         }
         col.addView(t1)
         
         val t2 = TextView(ctx).apply {
-            text = "ZNAK • PRO"
+            text = "ZNAK • LIQUID"
             setTextColor(Color.parseColor("#88AACCFF"))
             textSize = 11f
             letterSpacing = 0.3f
         }
         col.addView(t2)
         
-        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#11FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(16); bottomMargin = dp(10) })
+        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(16); bottomMargin = dp(10) })
     }
 
     private fun buildMain() {
@@ -186,6 +185,10 @@ class OptimizerUI(private val ctx: Context) {
             inputType = InputType.TYPE_CLASS_TEXT
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = unsel()
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+            }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -319,7 +322,12 @@ class OptimizerUI(private val ctx: Context) {
     private fun glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
         this.text = text; setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER
         setPadding(dp(4), 0, dp(4), 0)
-        background = unsel(); touch(this, click)
+        background = unsel(); 
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+        }
+        touch(this, click)
     }
 
     private fun bigBtn(text: String, size: Float, bg: GradientDrawable, click: () -> Unit): TextView = TextView(ctx).apply {
@@ -331,6 +339,10 @@ class OptimizerUI(private val ctx: Context) {
     private fun card(text: String): TextView = TextView(ctx).apply {
         this.text = text; setTextColor(Color.parseColor("#E0E0E0")); textSize = 13f; gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16), dp(12), dp(16), dp(12)); background = cardD()
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
+        }
     }
 
     private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
