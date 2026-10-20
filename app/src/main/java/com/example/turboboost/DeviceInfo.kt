@@ -16,6 +16,7 @@ class DeviceInfo(private val ctx: Context) {
     private val gpuCache: String by lazy { detectGpu() }
     private val clustersCache: List<Pair<Int, String>> by lazy { detectClusters() }
     private val ioCache: String? by lazy { detectIo() }
+    private val joyoseCache: Boolean by lazy { hasJoyoseInternal() }
 
     fun cpuTemp(): Float {
         val out = SystemReader.read(
@@ -48,6 +49,24 @@ class DeviceInfo(private val ctx: Context) {
     fun chipName(): String = chipCache
     fun gpuName(): String = gpuCache
     fun cpuClusters(): List<Pair<Int, String>> = clustersCache
+
+    fun hasJoyose(): Boolean = joyoseCache
+
+    private fun hasJoyoseInternal(): Boolean {
+        return SystemReader.read("pm list packages com.xiaomi.joyose").contains("com.xiaomi.joyose")
+    }
+
+    fun disableJoyose(): String {
+        if (!joyoseCache) return "Joyose не найден"
+        SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose")
+        return "Joyose отключён (перезагрузите телефон)"
+    }
+
+    fun enableJoyose(): String {
+        if (!joyoseCache) return "Joyose не найден"
+        SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
+        return "Joyose включён"
+    }
 
     fun checkSystemState(): Boolean {
         if (!ShizukuHelper.hasPermission()) return false
@@ -227,14 +246,18 @@ class DeviceInfo(private val ctx: Context) {
 
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
-        val safeHz = when { hz >= 144 -> 144; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
-        SystemReader.read("cmd game mode performance $pkg; cmd game set --fps $safeHz $pkg")
+        val safeHz = when { hz >= 144 -> 120; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
+        val sb = StringBuilder()
+        sb.append("cmd game mode performance $pkg; ")
+        sb.append("cmd game set --fps $safeHz $pkg; ")
+        sb.append("device_config put game_overlay $pkg mode=2,fps=$safeHz")
+        SystemReader.read(sb.toString())
         return "Игра $pkg: FPS $safeHz"
     }
 
     fun resetGameFps(pkg: String): String {
         if (pkg.isBlank()) return "Пакет не указан"
-        SystemReader.read("cmd game mode standard $pkg")
+        SystemReader.read("cmd game mode standard $pkg; device_config delete game_overlay $pkg")
         return "Игра $pkg: standard"
     }
 
