@@ -33,6 +33,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnJoyose: TextView
     lateinit var btnDownscale: TextView
     lateinit var btnThreads: TextView
+    lateinit var btnMglru: TextView
     lateinit var btnGameSpace: TextView
     lateinit var btnCompile: TextView
     lateinit var btnKeep: TextView
@@ -45,13 +46,6 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnCache: TextView
     lateinit var btnPing: TextView
     lateinit var pkgInput: EditText
-    lateinit var cardChip: TextView
-    lateinit var cardGpu: TextView
-    lateinit var cardScreen: TextView
-    lateinit var cardBattery: TextView
-    lateinit var cardTemp: TextView
-    lateinit var cardFps: TextView
-    lateinit var cardPing: TextView
     lateinit var cardApplied: TextView
     lateinit var statusResult: TextView
     lateinit var senseRow: LinearLayout
@@ -66,6 +60,7 @@ class OptimizerUI(private val ctx: Context) {
     var onJoyoseToggle: (() -> Unit)? = null
     var onDownscaleToggle: (() -> Unit)? = null
     var onThreadsToggle: (() -> Unit)? = null
+    var onMglruToggle: (() -> Unit)? = null
     var onGameSpace: (() -> Unit)? = null
     var onCompile: ((String) -> Unit)? = null
     var onKeep: ((String) -> Unit)? = null
@@ -105,7 +100,7 @@ class OptimizerUI(private val ctx: Context) {
     fun build(): FrameLayout {
         root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#0B0F1A"))
-        page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(20), dp(18), dp(20)) }
+        page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(16), dp(14), dp(16)) }
         scroll1 = ScrollView(ctx).apply { isFillViewport = true; addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
         root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         header()
@@ -118,49 +113,49 @@ class OptimizerUI(private val ctx: Context) {
         val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         page1.addView(h, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         val ic = ImageView(ctx).apply { setImageResource(R.drawable.ic_bolt) }
-        h.addView(ic, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(10) })
+        h.addView(ic, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(8) })
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        col.addView(tv("TurboBoost", 24f, Color.WHITE))
-        col.addView(tv("ZNAK", 11f, Color.parseColor("#66FFFFFF")).apply { letterSpacing = 0.3f })
-        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(6) })
+        col.addView(tv("TurboBoost", 22f, Color.WHITE))
+        col.addView(tv("ZNAK", 10f, Color.parseColor("#66FFFFFF")).apply { letterSpacing = 0.3f })
+        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#22FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(8); bottomMargin = dp(4) })
     }
 
     private fun buildMain() {
-        val mr = row(page1)
+        val mr = row(page1, 4)
         btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
-        mr.addView(btnModePerf, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
+        mr.addView(btnModePerf, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(4) })
         btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
-        mr.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(42), 1f))
+        mr.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(36), 1f))
 
         page1.addView(lbl("Пресет:"))
-        presetRow = row(page1)
+        presetRow = row(page1, 4)
         listOf("Стандарт", "Агрессивный", "Максимум").forEachIndexed { i, n ->
-            presetRow.addView(glass(n) { currentPreset = i; onPresetSelected?.invoke(i); updPreset() }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+            presetRow.addView(glass(n) { currentPreset = i; onPresetSelected?.invoke(i); updPreset() }, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(4) })
         }
 
-        page1.addView(lbl("Частота экрана (Гц):"))
-        hzRow = row(page1)
+        page1.addView(lbl("Частота:"))
+        hzRow = row(page1, 4)
         listOf(60, 90, 120, 144).forEach { hz ->
-            hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+            hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(4) })
         }
 
-        val er = row(page1)
+        val er = row(page1, 4)
         btnGpuBoost = glass("GPU Boost") { onGpuBoostToggle?.invoke() }
-        er.addView(btnGpuBoost, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+        er.addView(btnGpuBoost, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(4) })
         btnBgLimit = glass("Лимит фона") { onBgLimitToggle?.invoke() }
-        er.addView(btnBgLimit, LinearLayout.LayoutParams(0, dp(44), 1f))
+        er.addView(btnBgLimit, LinearLayout.LayoutParams(0, dp(36), 1f))
 
         page1.addView(lbl("Сенса:"))
-        senseRow = row(page1)
+        senseRow = row(page1, 4)
         listOf("Средний", "Сильный", "Эксп.", "Макс").forEachIndexed { i, n ->
-            senseRow.addView(glass(n) { currentSense = i; onSenseSelected?.invoke(i); updSense() }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+            senseRow.addView(glass(n) { currentSense = i; onSenseSelected?.invoke(i); updSense() }, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(4) })
         }
 
         page1.addView(lbl("Троттлинг (°C):"))
-        thermalRow = row(page1)
+        thermalRow = row(page1, 4)
         listOf("Авто", "50", "60", "70").forEachIndexed { i, n ->
-            thermalRow.addView(glass(n) { currentThermal = i; onThermalSelected?.invoke(i); updThermal() }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+            thermalRow.addView(glass(n) { currentThermal = i; onThermalSelected?.invoke(i); updThermal() }, LinearLayout.LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(4) })
         }
 
         page1.addView(lbl("Пакет игры:"))
@@ -168,10 +163,10 @@ class OptimizerUI(private val ctx: Context) {
             hint = "com.axlebolt.standoff2"
             setHintTextColor(Color.parseColor("#66FFFFFF"))
             setTextColor(Color.WHITE)
-            textSize = 14f
+            textSize = 13f
             setSingleLine()
             inputType = InputType.TYPE_CLASS_TEXT
-            setPadding(dp(14), dp(10), dp(14), dp(10))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
             background = unsel()
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -179,69 +174,61 @@ class OptimizerUI(private val ctx: Context) {
                 override fun afterTextChanged(s: Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
             })
         }
-        page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
-
-        val r1 = row(page1)
-        btnGames = glass("Выбрать игру") { onShowGames?.invoke() }
-        r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+        page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(40)).apply { topMargin = dp(4) })
+        val r1 = row(page1, 4)
+        btnGames = glass("Игры") { onShowGames?.invoke() }
+        r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
         btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
-        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(48), 1f))
+        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(40), 1f))
+        btnCompile = glass("Компиляция") { onCompile?.invoke(pkgInput.text.toString().trim()) }
+        r1.addView(btnCompile, LinearLayout.LayoutParams(0, dp(40), 1f))
 
-        val r2 = row(page1)
-        btnCompile = glass("Ускорить запуск") { onCompile?.invoke(pkgInput.text.toString().trim()) }
-        r2.addView(btnCompile, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnKeep = glass("Держать в памяти") { onKeep?.invoke(pkgInput.text.toString().trim()) }
-        r2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val r2 = row(page1, 4)
+        btnKeep = glass("В памяти") { onKeep?.invoke(pkgInput.text.toString().trim()) }
+        r2.addView(btnKeep, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
+        btnCache = glass("Кэш") { onTrimCaches?.invoke() }
+        r2.addView(btnCache, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
+        btnPing = glass("Пинг") { onPing?.invoke() }
+        r2.addView(btnPing, LinearLayout.LayoutParams(0, dp(40), 1f))
 
-        val r3 = row(page1)
-        btnCache = glass("Очистить кэш") { onTrimCaches?.invoke() }
-        r3.addView(btnCache, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnPing = glass("Проверить пинг") { onPing?.invoke() }
-        r3.addView(btnPing, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val r3 = row(page1, 4)
+        btnDownscale = glass("720p") { onDownscaleToggle?.invoke() }
+        r3.addView(btnDownscale, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
+        btnThreads = glass("Потоки") { onThreadsToggle?.invoke() }
+        r3.addView(btnThreads, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
+        btnMglru = glass("MGLRU") { onMglruToggle?.invoke() }
+        r3.addView(btnMglru, LinearLayout.LayoutParams(0, dp(40), 1f))
 
-        val r4 = row(page1)
-        btnDevOptions = glass("Для разработчиков") { onDevOptions?.invoke() }
-        r4.addView(btnDevOptions, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
-        btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
-        r4.addView(btnDiagnostics, LinearLayout.LayoutParams(0, dp(48), 1f))
-
-        btnJoyose = glass("Xiaomi Boost (Joyose)") { onJoyoseToggle?.invoke() }
+        val r4 = row(page1, 4)
+        btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }
+        r4.addView(btnGameSpace, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
+        btnJoyose = glass("Xiaomi") { onJoyoseToggle?.invoke() }
         btnJoyose.visibility = View.GONE
-        page1.addView(btnJoyose, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        r4.addView(btnJoyose, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(4) })
+        btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
+        r4.addView(btnDiagnostics, LinearLayout.LayoutParams(0, dp(40), 1f))
 
-        btnDownscale = glass("Понизить разрешение (80%)") { onDownscaleToggle?.invoke() }
-        page1.addView(btnDownscale, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        btnDevOptions = glass("Для разработчиков") { onDevOptions?.invoke() }
+        page1.addView(btnDevOptions, LinearLayout.LayoutParams(MATCH_PARENT, dp(40)).apply { topMargin = dp(4) })
 
-        btnThreads = glass("Приоритеты потоков") { onThreadsToggle?.invoke() }
-        page1.addView(btnThreads, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-
-        btnGameSpace = glass("Открыть Game Space (GT Mode)") { onGameSpace?.invoke() }
-        page1.addView(btnGameSpace, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
-        cardChip = card("Чип: —"); addCard(page1, cardChip)
-        cardGpu = card("GPU: —"); addCard(page1, cardGpu)
-        cardScreen = card("Частота: —"); addCard(page1, cardScreen)
-        cardBattery = card("Батарея: —"); addCard(page1, cardBattery)
-        cardTemp = card("Температура: —"); addCard(page1, cardTemp)
-        cardFps = card("FPS: —"); addCard(page1, cardFps)
-        cardPing = card("Пинг: —"); addCard(page1, cardPing)
         cardApplied = card("Применено: —"); addCard(page1, cardApplied)
-        statusResult = card("Нажмите кнопку"); addCard(page1, statusResult)
+        statusResult = card("Готово"); addCard(page1, statusResult)
 
-        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
+        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(12)))
 
         val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         page1.addView(br, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        btnTurbo = bigBtn("TURBO", 14f, tBlue()) { onTurboToggle?.invoke() }
-        br.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(76), 0.3f).apply { marginEnd = dp(8) })
-        btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 17f, blue()) { onToggle?.invoke() }
-        br.addView(btnOpt, LinearLayout.LayoutParams(0, dp(76), 0.7f))
+        btnTurbo = bigBtn("TURBO", 13f, tBlue()) { onTurboToggle?.invoke() }
+        br.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(60), 0.3f).apply { marginEnd = dp(6) })
+        btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 15f, blue()) { onToggle?.invoke() }
+        br.addView(btnOpt, LinearLayout.LayoutParams(0, dp(60), 0.7f))
     }
 
     private fun animateIn() {
         for (i in 0 until page1.childCount) {
             val v = page1.getChildAt(i)
-            v.alpha = 0f; v.translationY = dp(20).toFloat()
-            v.animate().alpha(1f).translationY(0f).setStartDelay((i * 25).toLong()).setDuration(280).start()
+            v.alpha = 0f; v.translationY = dp(15).toFloat()
+            v.animate().alpha(1f).translationY(0f).setStartDelay((i * 20).toLong()).setDuration(250).start()
         }
     }
 
@@ -256,28 +243,22 @@ class OptimizerUI(private val ctx: Context) {
     fun setGpuBoostState(a: Boolean) { fade(btnGpuBoost, if (a) blue() else unsel()) }
     fun setBgLimitState(a: Boolean) { fade(btnBgLimit, if (a) blue() else unsel()) }
     fun setJoyoseState(a: Boolean) { fade(btnJoyose, if (a) blue() else unsel()) }
-    fun setJoyoseVisible(visible: Boolean) { btnJoyose.visibility = if (visible) View.VISIBLE else View.GONE }
+    fun setJoyoseVisible(v: Boolean) { btnJoyose.visibility = if (v) View.VISIBLE else View.GONE }
     fun setDownscaleState(a: Boolean) { fade(btnDownscale, if (a) blue() else unsel()) }
     fun setThreadsState(a: Boolean) { fade(btnThreads, if (a) blue() else unsel()) }
+    fun setMglruState(a: Boolean) { fade(btnMglru, if (a) blue() else unsel()) }
 
     fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
         var n = 0; if (gov) n++; if (dns) n++; if (bbr) n++
-        cardApplied.text = "Применено: $n/3 | ${if (gov) "Governor ✓" else "Governor ✗"} | ${if (dns) "DNS ✓" else "DNS ✗"} | ${if (bbr) "BBR ✓" else "BBR ✗"}"
+        cardApplied.text = "Применено: $n/3 | ${if (gov) "Gov ✓" else "Gov ✗"} | ${if (dns) "DNS ✓" else "DNS ✗"} | ${if (bbr) "BBR ✓" else "BBR ✗"}"
     }
 
     fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f; btnTurbo.alpha = if (b) 0.4f else 1f }
 
     fun setOverheat(warn: Boolean, critical: Boolean) {
-        if (critical) {
-            cardTemp.text = cardTemp.text.toString().replace(" ⚠", "") + " ⚠"
-            statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — производительность снижена"
-        } else if (warn) {
-            cardTemp.text = cardTemp.text.toString().replace(" ⚠", "") + " ⚠"
-            statusResult.text = "Перегрев — рекомендуется снять троттлинг"
-        } else {
-            cardTemp.text = cardTemp.text.toString().replace(" ⚠", "")
-        }
+        if (critical) statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — оптимизация выключена"
+        else if (warn) statusResult.text = "Перегрев — рекомендуется снять троттлинг"
     }
 
     private fun fade(v: View, bg: GradientDrawable) {
@@ -286,7 +267,7 @@ class OptimizerUI(private val ctx: Context) {
         val t = TransitionDrawable(arrayOf(o, bg))
         t.isCrossFadeEnabled = true
         v.background = t
-        t.startTransition(180)
+        t.startTransition(150)
     }
 
     private fun updPreset() { for (i in 0 until presetRow.childCount) (presetRow.getChildAt(i) as TextView).background = if (i == currentPreset) blue() else unsel() }
@@ -298,14 +279,12 @@ class OptimizerUI(private val ctx: Context) {
         v.setOnTouchListener { view, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    ObjectAnimator.ofFloat(view, "scaleX", 1f, 0.94f).setDuration(80).start()
-                    ObjectAnimator.ofFloat(view, "scaleY", 1f, 0.94f).setDuration(80).start()
-                    ObjectAnimator.ofFloat(view, "alpha", 1f, 0.85f).setDuration(80).start()
+                    ObjectAnimator.ofFloat(view, "scaleX", 1f, 0.95f).setDuration(60).start()
+                    ObjectAnimator.ofFloat(view, "scaleY", 1f, 0.95f).setDuration(60).start()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    ObjectAnimator.ofFloat(view, "scaleX", 0.94f, 1f).setDuration(240).apply { interpolator = OvershootInterpolator() }.start()
-                    ObjectAnimator.ofFloat(view, "scaleY", 0.94f, 1f).setDuration(240).apply { interpolator = OvershootInterpolator() }.start()
-                    ObjectAnimator.ofFloat(view, "alpha", 0.85f, 1f).setDuration(180).start()
+                    ObjectAnimator.ofFloat(view, "scaleX", 0.95f, 1f).setDuration(200).apply { interpolator = OvershootInterpolator() }.start()
+                    ObjectAnimator.ofFloat(view, "scaleY", 0.95f, 1f).setDuration(200).apply { interpolator = OvershootInterpolator() }.start()
                 }
             }
             false
@@ -314,65 +293,45 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     private fun glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = 12f
-        gravity = Gravity.CENTER
-        background = unsel()
-        touch(this, click)
+        this.text = text; setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER
+        background = unsel(); touch(this, click)
     }
 
     private fun bigBtn(text: String, size: Float, bg: GradientDrawable, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = size
-        gravity = Gravity.CENTER
-        background = bg
-        touch(this, click)
+        this.text = text; setTextColor(Color.WHITE); textSize = size; gravity = Gravity.CENTER
+        background = bg; touch(this, click)
     }
 
     private fun card(text: String): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = 14f
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(18), dp(14), dp(18), dp(14))
-        background = cardD()
+        this.text = text; setTextColor(Color.WHITE); textSize = 13f; gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(14), dp(10), dp(14), dp(10)); background = cardD()
     }
 
-    private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
+    private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) }) }
 
     private fun tv(text: String, size: Float, color: Int): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(color)
-        textSize = size
+        this.text = text; setTextColor(color); textSize = size
     }
 
-    private fun lbl(text: String): TextView = tv(text, 13f, Color.WHITE).apply { setPadding(dp(8), dp(10), 0, dp(4)) }
+    private fun lbl(text: String): TextView = tv(text, 12f, Color.WHITE).apply { setPadding(dp(6), dp(6), 0, dp(2)) }
 
-    private fun row(p: LinearLayout): LinearLayout = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+    private fun row(p: LinearLayout, margin: Int): LinearLayout = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(margin) })
     }
 
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
     private fun cb(): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dp(22).toFloat()
+        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(18).toFloat()
         colors = intArrayOf(0x66FFFFFF, 0x33FFFFFF, 0x22FFFFFF)
-        gradientType = GradientDrawable.LINEAR_GRADIENT
-        orientation = GradientDrawable.Orientation.TL_BR
+        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR
         setStroke(dp(1), 0x88FFFFFF.toInt())
     }
 
     private fun gb(colors: IntArray, stroke: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dp(18).toFloat()
-        this.colors = colors
-        gradientType = GradientDrawable.LINEAR_GRADIENT
-        orientation = GradientDrawable.Orientation.LEFT_RIGHT
-        setStroke(dp(1), stroke)
+        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(14).toFloat()
+        this.colors = colors; gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.LEFT_RIGHT; setStroke(dp(1), stroke)
     }
-}
+}   
