@@ -55,10 +55,8 @@ class MainActivity : AppCompatActivity() {
     private fun blocked() {
         uiBuilt = false
         val box = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            gravity = android.view.Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#0B0F1A"))
-            setPadding(60, 60, 60, 60)
+            orientation = android.widget.LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#070A12")); setPadding(60, 60, 60, 60)
         }
         box.addView(android.widget.TextView(this).apply { text = "Доступ закрыт"; setTextColor(Color.WHITE); textSize = 28f; gravity = android.view.Gravity.CENTER })
         box.addView(android.widget.TextView(this).apply {
@@ -109,12 +107,12 @@ class MainActivity : AppCompatActivity() {
         if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
         if (prefs.getThermalLevel() >= 0) ui.setThermalLevel(prefs.getThermalLevel())
         ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
-        ui.statusResult.text = prefs.getLastPing().ifBlank { "Нажмите кнопку" }
+        ui.statusResult.text = prefs.getLastPing().ifBlank { "Готов к работе" }
         
-        ui.setDownscaleState(prefs.isDownscale()); ui.setThreadsState(prefs.isThreadsBoost())
+        ui.setDownscaleState(prefs.isDownscale()); ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
+        
         if (prefs.isDownscale()) ex.execute { info.applyDownscale(80) }
         if (prefs.isThreadsBoost()) ex.execute { info.boostThreadPriorities() }
-        ui.setMglruState(prefs.isMglru())
         if (prefs.isMglru()) ex.execute { info.toggleMglru(true) }
 
         ui.onDownscaleToggle = { val a = !prefs.isDownscale(); prefs.setDownscale(a); ui.setDownscaleState(a); async { if (a) info.applyDownscale(80) else info.applyDownscale(0) } }
@@ -289,15 +287,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (slow) {
-                    val chip = info.chipName(); val gpu = info.gpuName(); val pkg = prefs.getLastPackage()
-                    val fps = if (prefs.isFpsMonitor() && pkg.isNotBlank()) info.currentFps(pkg) else 0
+                    val pkg = prefs.getLastPackage()
                     val gov = if (active) info.checkSystemState() else false; val dns = if (active) info.verifyDnsPublic() else false; val bbr = if (active) info.verifyBbrPublic() else false
                     main.post {
-                        try {
-                            if (!uiBuilt) return@post
-                            if (fps > 0) prefs.setLastFps(fps)
-                            ui.setAppliedState(active, gov, dns, bbr)
-                        } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) }
+                        try { if (uiBuilt) ui.setAppliedState(active, gov, dns, bbr) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) }
                     }
                 }
 
