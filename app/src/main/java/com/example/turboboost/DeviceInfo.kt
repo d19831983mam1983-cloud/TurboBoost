@@ -372,6 +372,65 @@ class DeviceInfo(private val ctx: Context) {
         return result.sortedBy { it.second.lowercase() }
     }
 
+    fun applyDownscale(percent: Int): String {
+        if (percent <= 0) {
+            SystemReader.read("wm size reset")
+            return "Разрешение: сброшено"
+        }
+        val dm = ctx.resources.displayMetrics
+        val w = dm.widthPixels
+        val h = dm.heightPixels
+        val newW = (w * percent / 100)
+        val newH = (h * percent / 100)
+        SystemReader.read("wm size ${newW}x$newH")
+        return "Разрешение: $percent% (${newW}x$newH)"
+    }
+
+    fun boostThreadPriorities(): String {
+        val sb = StringBuilder()
+        val surface = SystemReader.read("pidof surfaceflinger")
+        if (surface.isNotBlank()) {
+            sb.append("renice -n -20 -p $surface 2>/dev/null; ")
+        }
+        val sys = SystemReader.read("pidof system_server")
+        if (sys.isNotBlank()) {
+            sb.append("renice -n -10 -p $sys 2>/dev/null; ")
+        }
+        SystemReader.read(sb.toString())
+        return "Приоритеты: применены (SurfaceFlinger)"
+    }
+
+    fun resetThreadPriorities(): String {
+        val surface = SystemReader.read("pidof surfaceflinger")
+        if (surface.isNotBlank()) {
+            SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
+        }
+        val sys = SystemReader.read("pidof system_server")
+        if (sys.isNotBlank()) {
+            SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
+        }
+        return "Приоритеты: сброшены"
+    }
+
+    fun openGameSpace(): String {
+        val pkgs = listOf(
+            "com.coloros.gamespace",
+            "com.oppo.gamespace",
+            "com.realme.gamespace"
+        )
+        for (pkg in pkgs) {
+            try {
+                val i = ctx.packageManager.getLaunchIntentForPackage(pkg)
+                if (i != null) {
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    ctx.startActivity(i)
+                    return "Game Space открыт"
+                }
+            } catch (e: Throwable) {}
+        }
+        return "Game Space не найден"
+    }
+
     fun openDeveloperOptions() {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
