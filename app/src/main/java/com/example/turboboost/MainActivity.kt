@@ -18,7 +18,6 @@ import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
-
     lateinit var ui: OptimizerUI
     lateinit var info: DeviceInfo
     lateinit var prefs: AppPrefs
@@ -56,27 +55,47 @@ class MainActivity : AppCompatActivity() {
     private fun blocked() {
         uiBuilt = false
         val box = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#0B0F1A")); setPadding(60, 60, 60, 60)
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#0B0F1A"))
+            setPadding(60, 60, 60, 60)
         }
-        box.addView(android.widget.TextView(this).apply { text = "Доступ закрыт"; setTextColor(Color.WHITE); textSize = 28f; gravity = android.view.Gravity.CENTER })
+        box.addView(android.widget.TextView(this).apply {
+            text = "Доступ закрыт"
+            setTextColor(Color.WHITE)
+            textSize = 28f
+            gravity = android.view.Gravity.CENTER
+        })
         box.addView(android.widget.TextView(this).apply {
             text = "Shizuku не запущен или нет разрешения.\n\nЗапустите Shizuku, выдайте разрешение и нажмите «Проверить снова»."
-            setTextColor(Color.parseColor("#AAFFFFFF")); textSize = 15f; gravity = android.view.Gravity.CENTER
+            setTextColor(Color.parseColor("#AAFFFFFF"))
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
         }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
         box.addView(makeBtn("ОТКРЫТЬ SHIZUKU", "#7BA7F5") { openShizuku() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
         box.addView(makeBtn("ПРОВЕРИТЬ СНОВА", "#5B8DEF") { check() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
         box.addView(android.widget.TextView(this).apply {
-            text = "ДИАГНОСТИКА"; setTextColor(Color.parseColor("#CCFFFFFF")); textSize = 14f; gravity = android.view.Gravity.CENTER
-            setPadding(40, 20, 40, 20); setOnClickListener { blockedDiag() }
+            text = "ДИАГНОСТИКА"
+            setTextColor(Color.parseColor("#CCFFFFFF"))
+            textSize = 14f
+            gravity = android.view.Gravity.CENTER
+            setPadding(40, 20, 40, 20)
+            setOnClickListener { blockedDiag() }
         }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
         setContentView(box)
     }
 
     private fun makeBtn(t: String, c: String, cl: () -> Unit) = android.widget.TextView(this).apply {
-        text = t; setTextColor(Color.WHITE); textSize = 16f; gravity = android.view.Gravity.CENTER
+        text = t
+        setTextColor(Color.WHITE)
+        textSize = 16f
+        gravity = android.view.Gravity.CENTER
         setPadding(40, 28, 40, 28)
-        background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.RECTANGLE; cornerRadius = 24f; setColor(Color.parseColor(c)) }
+        background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+            cornerRadius = 24f
+            setColor(Color.parseColor(c))
+        }
         setOnClickListener { cl() }
     }
 
@@ -86,17 +105,24 @@ class MainActivity : AppCompatActivity() {
             val i = packageManager.getLaunchIntentForPackage(pkg)
             startActivity(i ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg")))
         } catch (e: Throwable) {
-            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/RikkaApps/Shizuku/releases"))) } catch (t: Throwable) {}
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/RikkaApps/Shizuku/releases")))
+            } catch (t: Throwable) {}
         }
     }
 
     private fun blockedDiag() {
-        val avail = ShizukuHelper.isAvailable(); val perm = ShizukuHelper.hasPermission(); val ready = SystemReader.isReady()
+        val avail = ShizukuHelper.isAvailable()
+        val perm = ShizukuHelper.hasPermission()
+        val ready = SystemReader.isReady()
         val ver = try { if (avail) rikka.shizuku.Shizuku.getVersion().toString() else "—" } catch (e: Throwable) { "—" }
-        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\nShizuku: ${if (avail) "✓" else "✗"}\nРазрешение: ${if (perm) "✓" else "✗"}\nUserService/Direct: ${if (ready) "✓" else "✗"}\nВерсия: $ver"
+        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
+                "Shizuku: ${if (avail) "✓" else "✗"}\n" +
+                "Разрешение: ${if (perm) "✓" else "✗"}\n" +
+                "UserService/Direct: ${if (ready) "✓" else "✗"}\n" +
+                "Версия: $ver"
         AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show()
     }
-
     private fun buildMain() {
         if (uiBuilt) return
         uiBuilt = true
@@ -111,14 +137,27 @@ class MainActivity : AppCompatActivity() {
         ui.statusResult.text = prefs.getLastPing().ifBlank { "Нажмите кнопку" }
         if (prefs.getLastFps() > 0) ui.cardFps.text = "FPS: ${prefs.getLastFps()}"
 
+        ui.setDownscaleState(prefs.isDownscale()); ui.setThreadsState(prefs.isThreadsBoost())
+        if (prefs.isDownscale()) ex.execute { info.applyDownscale(80) }
+        if (prefs.isThreadsBoost()) ex.execute { info.boostThreadPriorities() }
+
+        ui.onDownscaleToggle = {
+            val a = !prefs.isDownscale(); prefs.setDownscale(a); ui.setDownscaleState(a)
+            async { if (a) info.applyDownscale(80) else info.applyDownscale(0) }
+        }
+        ui.onThreadsToggle = {
+            val a = !prefs.isThreadsBoost(); prefs.setThreadsBoost(a); ui.setThreadsState(a)
+            async { if (a) info.boostThreadPriorities() else info.resetThreadPriorities() }
+        }
+        ui.onGameSpace = {
+            if (info.openGameSpace() == "Game Space не найден") Toast.makeText(this, "Game Space не найден", Toast.LENGTH_LONG).show()
+        }
+
         if (info.hasJoyose()) {
-            ui.setJoyoseVisible(true)
-            ui.setJoyoseState(prefs.isJoyoseDisabled())
+            ui.setJoyoseVisible(true); ui.setJoyoseState(prefs.isJoyoseDisabled())
             ui.onJoyoseToggle = {
-                val dis = !prefs.isJoyoseDisabled()
-                prefs.setJoyoseDisabled(dis)
-                ui.setJoyoseState(dis)
-                async { if (dis) info.disableJoyose() else info.enableJoyose() }
+                val d = !prefs.isJoyoseDisabled(); prefs.setJoyoseDisabled(d); ui.setJoyoseState(d)
+                async { if (d) info.disableJoyose() else info.enableJoyose() }
             }
         }
 
@@ -150,10 +189,7 @@ class MainActivity : AppCompatActivity() {
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
         AlertDialog.Builder(this).setTitle("Выберите игру").setItems(g.map { it.second }.toTypedArray()) { _, w ->
-            val p = g[w].first
-            ui.setPackageText(p)
-            prefs.setLastPackage(p)
-            async { info.compilePackage(p) }
+            val p = g[w].first; ui.setPackageText(p); prefs.setLastPackage(p); async { info.compilePackage(p) }
         }.show()
     }
 
