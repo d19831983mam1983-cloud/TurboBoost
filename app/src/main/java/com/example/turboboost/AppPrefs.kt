@@ -73,6 +73,9 @@ class AppPrefs(ctx: Context) {
     fun isThreadsBoost(): Boolean = prefs.getBoolean("threads_boost", false)
     fun setThreadsBoost(v: Boolean) = prefs.edit().putBoolean("threads_boost", v).apply()
 
+    fun isMglru(): Boolean = prefs.getBoolean("mglru", false)
+    fun setMglru(v: Boolean) = prefs.edit().putBoolean("mglru", v).apply()
+
     fun getProfiles(): List<GameProfile> {
         val raw = prefs.getString("profiles", "") ?: ""
         if (raw.isBlank()) return emptyList()
