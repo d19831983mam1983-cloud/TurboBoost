@@ -64,6 +64,9 @@ class AppPrefs(ctx: Context) {
     fun getUiScrollY(): Int = prefs.getInt("ui_scroll_y", 0)
     fun setUiScrollY(y: Int) = prefs.edit().putInt("ui_scroll_y", y).apply()
 
+    fun isJoyoseDisabled(): Boolean = prefs.getBoolean("joyose_disabled", false)
+    fun setJoyoseDisabled(v: Boolean) = prefs.edit().putBoolean("joyose_disabled", v).apply()
+
     fun getProfiles(): List<GameProfile> {
         val raw = prefs.getString("profiles", "") ?: ""
         if (raw.isBlank()) return emptyList()
