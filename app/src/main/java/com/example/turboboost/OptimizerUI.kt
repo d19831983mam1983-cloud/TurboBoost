@@ -31,6 +31,9 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnDevOptions: TextView
     lateinit var btnDiagnostics: TextView
     lateinit var btnJoyose: TextView
+    lateinit var btnDownscale: TextView
+    lateinit var btnThreads: TextView
+    lateinit var btnGameSpace: TextView
     lateinit var btnCompile: TextView
     lateinit var btnKeep: TextView
     lateinit var btnModePerf: TextView
@@ -61,6 +64,9 @@ class OptimizerUI(private val ctx: Context) {
     var onDevOptions: (() -> Unit)? = null
     var onDiagnostics: (() -> Unit)? = null
     var onJoyoseToggle: (() -> Unit)? = null
+    var onDownscaleToggle: (() -> Unit)? = null
+    var onThreadsToggle: (() -> Unit)? = null
+    var onGameSpace: (() -> Unit)? = null
     var onCompile: ((String) -> Unit)? = null
     var onKeep: ((String) -> Unit)? = null
     var onSenseSelected: ((Int) -> Unit)? = null
@@ -170,9 +176,7 @@ class OptimizerUI(private val ctx: Context) {
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) {
-                    onPackageChanged?.invoke(s?.toString()?.trim() ?: "")
-                }
+                override fun afterTextChanged(s: Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
             })
         }
         page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(4) })
@@ -205,6 +209,14 @@ class OptimizerUI(private val ctx: Context) {
         btnJoyose.visibility = View.GONE
         page1.addView(btnJoyose, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
 
+        btnDownscale = glass("Понизить разрешение (80%)") { onDownscaleToggle?.invoke() }
+        page1.addView(btnDownscale, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+
+        btnThreads = glass("Приоритеты потоков") { onThreadsToggle?.invoke() }
+        page1.addView(btnThreads, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+
+        btnGameSpace = glass("Открыть Game Space (GT Mode)") { onGameSpace?.invoke() }
+        page1.addView(btnGameSpace, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
         cardChip = card("Чип: —"); addCard(page1, cardChip)
         cardGpu = card("GPU: —"); addCard(page1, cardGpu)
         cardScreen = card("Частота: —"); addCard(page1, cardScreen)
@@ -245,6 +257,8 @@ class OptimizerUI(private val ctx: Context) {
     fun setBgLimitState(a: Boolean) { fade(btnBgLimit, if (a) blue() else unsel()) }
     fun setJoyoseState(a: Boolean) { fade(btnJoyose, if (a) blue() else unsel()) }
     fun setJoyoseVisible(visible: Boolean) { btnJoyose.visibility = if (visible) View.VISIBLE else View.GONE }
+    fun setDownscaleState(a: Boolean) { fade(btnDownscale, if (a) blue() else unsel()) }
+    fun setThreadsState(a: Boolean) { fade(btnThreads, if (a) blue() else unsel()) }
 
     fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
