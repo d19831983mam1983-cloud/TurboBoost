@@ -2,7 +2,6 @@ package com.example.turboboost
 
 import android.app.Dialog
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -49,7 +48,6 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var snowView: SnowView
     lateinit var fxView: FXView
     lateinit var btnOpt: TextView
-    lateinit var btnTurbo: TextView
     lateinit var btnDiagnostics: TextView
     lateinit var btnJoyose: TextView
     lateinit var btnThreads: TextView
@@ -70,7 +68,6 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var hzRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null
-    var onTurboToggle: (() -> Unit)? = null
     var onDiagnostics: (() -> Unit)? = null
     var onJoyoseToggle: (() -> Unit)? = null
     var onThreadsToggle: (() -> Unit)? = null
@@ -96,14 +93,10 @@ class OptimizerUI(private val ctx: Context) {
     private val blueS by lazy { gb(intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt(), 0xFF4F46E5.toInt()), 0xCCFFFFFF.toInt()).constantState }
     private val redS by lazy { gb(intArrayOf(0xFFDC2626.toInt(), 0xFFF87171.toInt(), 0xFFDC2626.toInt()), 0xCCFFFFFF.toInt()).constantState }
     private val unselS by lazy { gb(intArrayOf(0x22FFFFFF, 0x11FFFFFF, 0x22FFFFFF), 0x55FFFFFF.toInt()).constantState }
-    private val tBlueS by lazy { gb(intArrayOf(0xFF2563EB.toInt(), 0xFF60A5FA.toInt(), 0xFF2563EB.toInt()), 0xCCFFFFFF.toInt()).constantState }
-    private val tGreenS by lazy { gb(intArrayOf(0xFF16A34A.toInt(), 0xFF4ADE80.toInt(), 0xFF16A34A.toInt()), 0xCCFFFFFF.toInt()).constantState }
 
     private fun blue() = blueS!!.newDrawable().mutate() as GradientDrawable
     private fun red() = redS!!.newDrawable().mutate() as GradientDrawable
     private fun unsel() = unselS!!.newDrawable().mutate() as GradientDrawable
-    private fun tBlue() = tBlueS!!.newDrawable().mutate() as GradientDrawable
-    private fun tGreen() = tGreenS!!.newDrawable().mutate() as GradientDrawable
 
     fun build(): FrameLayout {
         root = FrameLayout(ctx)
@@ -233,10 +226,8 @@ class OptimizerUI(private val ctx: Context) {
 
         val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         page1.addView(br, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        btnTurbo = bigBtn("TURBO", 15f, tBlue()) { onTurboToggle?.invoke() }
-        br.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(68), 0.32f).apply { marginEnd = dp(8) })
         btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, blue()) { onToggle?.invoke() }
-        br.addView(btnOpt, LinearLayout.LayoutParams(0, dp(68), 0.68f))
+        br.addView(btnOpt, LinearLayout.LayoutParams(MATCH_PARENT, dp(68)))
     }
 
     private fun animateIn() {
@@ -350,11 +341,6 @@ class OptimizerUI(private val ctx: Context) {
         if (a) pulse(btnOpt) else stopPulse(btnOpt)
     }
     
-    fun setTurboState(a: Boolean) { 
-        fade(btnTurbo, if (a) tGreen() else tBlue())
-        if (a) pulse(btnTurbo) else stopPulse(btnTurbo)
-    }
-    
     fun setGpuBoostState(a: Boolean) { fade(btnGpuBoost, if (a) blue() else unsel()) }
     fun setBgLimitState(a: Boolean) { fade(btnBgLimit, if (a) blue() else unsel()) }
     fun setJoyoseState(a: Boolean) { fade(btnJoyose, if (a) blue() else unsel()) }
@@ -362,13 +348,12 @@ class OptimizerUI(private val ctx: Context) {
     fun setThreadsState(a: Boolean) { fade(btnThreads, if (a) blue() else unsel()) }
     fun setMglruState(a: Boolean) { fade(btnMglru, if (a) blue() else unsel()) }
 
-    fun setAppliedState(active: Boolean, gov: Boolean, dns: Boolean, bbr: Boolean) {
+    fun setAppliedState(active: Boolean, gov: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
-        var n = 0; if (gov) n++; if (dns) n++; if (bbr) n++
-        cardApplied.text = "Применено: $n/3 | ${if (gov) "Gov ✓" else "Gov ✗"} | ${if (dns) "DNS ✓" else "DNS ✗"} | ${if (bbr) "BBR ✓" else "BBR ✗"}"
+        cardApplied.text = "Применено: Governor ${if (gov) "✓" else "✗"}"
     }
 
-    fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f; btnTurbo.alpha = if (b) 0.4f else 1f }
+    fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f }
     fun setOverheat(warn: Boolean, critical: Boolean) { if (critical) statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — выключено"; else if (warn) statusResult.text = "Перегрев — снизьте троттлинг" }
 
     private fun pulse(v: View) {
