@@ -107,7 +107,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
         if (prefs.getThermalLevel() >= 0) ui.setThermalLevel(prefs.getThermalLevel())
         ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
-        ui.statusResult.text = "Готов к работе"
+        ui.setStatus("Готов к работе")
         
         ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
         
@@ -124,8 +124,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.onDiagnostics = { diag() }
-        ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost()); main.post { ui.statusResult.text = r } } }
-        ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.statusResult.text = r } } }
+        ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost()); main.post { ui.setStatus(r) } } }
+        ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.setStatus(r) } } }
         ui.onPresetSelected = { preset(it) }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
         ui.onThermalSelected = { prefs.setThermalLevel(it); async { if (it == 0) info.resetThermal() else info.setThermalLimit(it * 10 + 40) } }
@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         ui.setActive(prefs.isActive())
         if (prefs.isActive()) alive(true)
         refresh(); loop()
-    }    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.statusResult.text = r } } }
+    }    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
 
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
@@ -185,9 +185,9 @@ class MainActivity : AppCompatActivity() {
                 info.applySense(s)
                 if (t == 0) info.resetThermal() else info.setThermalLimit(t * 10 + 40)
                 if (b) info.restrictBackground() else info.restoreBackground()
-                main.post { ui.statusResult.text = "Пресет применён: $r" }
+                main.post { ui.setStatus("Пресет применён: $r") }
             }
-        } else ui.statusResult.text = "Пресет выбран, нажмите ОПТИМИЗИРОВАТЬ"
+        } else ui.setStatus("Пресет выбран, нажмите ОПТИМИЗИРОВАТЬ")
     }
 
     private fun profiles() {
@@ -236,24 +236,24 @@ class MainActivity : AppCompatActivity() {
         if (!prefs.isActive() && info.batteryLevel() <= 10) { Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show(); busy = false; return }
         val on = !prefs.isActive(); val p = prefs.getLastPackage(); val m = prefs.getPerfMode(); val hz = prefs.getTargetHz()
         if (on) {
-            ui.statusResult.text = "Оптимизация..."
+            ui.setStatus("Оптимизация...")
             ex.execute {
                 val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost())
                 if (p.isNotBlank()) info.unlockGameFps(p, hz)
                 if (prefs.isBackgroundLimit()) info.restrictBackground()
                 info.applySurfaceFlingerBoost(true)
                 info.applyMemoryTweaks(true)
-                main.post { prefs.setActive(true); ui.setActive(true); ui.statusResult.text = r; busy = false; alive(true); refresh() }
+                main.post { prefs.setActive(true); ui.setActive(true); ui.setStatus(r); busy = false; alive(true); refresh() }
             }
         } else {
-            ui.statusResult.text = "Отключение..."
+            ui.setStatus("Отключение...")
             ex.execute {
                 val r = info.deactivateMaxPerformance()
                 if (p.isNotBlank()) info.resetGameFps(p)
                 if (prefs.isBackgroundLimit()) info.restoreBackground()
                 info.applySurfaceFlingerBoost(false)
                 info.applyMemoryTweaks(false)
-                main.post { prefs.setActive(false); ui.setActive(false); ui.statusResult.text = r; busy = false; alive(false); refresh() }
+                main.post { prefs.setActive(false); ui.setActive(false); ui.setStatus(r); busy = false; alive(false); refresh() }
             }
         }
     }
@@ -280,7 +280,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (temp > 80f && active) {
                     info.deactivateMaxPerformance(); prefs.setActive(false)
-                    main.post { if (uiBuilt) { ui.setActive(false); ui.setAppliedState(false, false); ui.setOverheat(false, true); ui.statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — оптимизация выключена"; busy = false; alive(false) } }
+                    main.post { if (uiBuilt) { ui.setActive(false); ui.setAppliedState(false, false); ui.setOverheat(false, true); ui.setStatus("КРИТИЧЕСКИЙ ПЕРЕГРЕВ — оптимизация выключена"); busy = false; alive(false) } }
                     return@execute
                 }
 
@@ -303,7 +303,7 @@ class MainActivity : AppCompatActivity() {
                             busy = true
                             ex.execute {
                                 info.deactivateMaxPerformance()
-                                main.post { prefs.setActive(false); ui.setActive(false); ui.setAppliedState(false, false); ui.statusResult.text = "Автоотключение: батарея ≤ 10%"; busy = false; alive(false) }
+                                main.post { prefs.setActive(false); ui.setActive(false); ui.setAppliedState(false, false); ui.setStatus("Автоотключение: батарея ≤ 10%"); busy = false; alive(false) }
                             }
                         }
                     } catch (e: Throwable) { Log.e("TurboBoost", "ui", e) }
