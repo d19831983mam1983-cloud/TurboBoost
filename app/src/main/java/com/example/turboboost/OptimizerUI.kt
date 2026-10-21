@@ -121,7 +121,7 @@ class OptimizerUI(private val ctx: Context) {
         page1.addView(lbl("Пресеты:"))
         presetRow = row(page1, 6)
         listOf("Стандарт", "Агрессивный", "Максимум").forEachIndexed { i, n ->
-            presetRow.addView(glass(n) { currentPreset = i; onPresetSelected?.invoke(i); updPreset() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
+            presetRow.addView(glass(n) { currentPreset = i; onPresetSelected?.invoke(i); updPreset() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { if (i < 2) marginEnd = dp(6) })
         }
 
         page1.addView(lbl("Частота экрана:"))
@@ -159,7 +159,9 @@ class OptimizerUI(private val ctx: Context) {
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = unsel()
             setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-            if (android.os.Build.VERSION.SDK_INT >= 31) setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+            }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -172,7 +174,7 @@ class OptimizerUI(private val ctx: Context) {
         btnGames = glass("Игры") { onShowGames?.invoke() }
         r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
         btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
-        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(42), 1f))
+        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
         btnThreads = glass("Потоки CPU") { onThreadsToggle?.invoke() }
         r1.addView(btnThreads, LinearLayout.LayoutParams(0, dp(42), 1f))
 
@@ -258,7 +260,9 @@ class OptimizerUI(private val ctx: Context) {
     private fun glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
         this.text = text; setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), 0)
         background = unsel(); setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-        if (android.os.Build.VERSION.SDK_INT >= 31) setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+        }
         touch(this, click)
     }
 
@@ -271,7 +275,9 @@ class OptimizerUI(private val ctx: Context) {
         this.text = text; setTextColor(Color.parseColor("#E0E0E0")); textSize = 13f; gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16), dp(12), dp(16), dp(12)); background = cardD()
         setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-        if (android.os.Build.VERSION.SDK_INT >= 31) setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
+        }
     }
 
     private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
@@ -281,12 +287,12 @@ class OptimizerUI(private val ctx: Context) {
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
     private fun cb(): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(20).toFloat(); colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x0DFFFFFF)
-        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR; setStroke(dp(1), 0x44FFFFFF.toInt())
+        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(16).toFloat(); colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x0DFFFFFF)
+        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR; setStroke(1, 0x44FFFFFF.toInt())
     }
 
     private fun gb(colors: IntArray, stroke: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(16).toFloat(); this.colors = colors
-        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.LEFT_RIGHT; setStroke(dp(1), stroke)
+        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(12).toFloat(); this.colors = colors
+        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.LEFT_RIGHT; setStroke(1, stroke)
     }
 }
