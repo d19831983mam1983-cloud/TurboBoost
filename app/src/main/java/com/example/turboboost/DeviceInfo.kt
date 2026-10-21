@@ -187,11 +187,37 @@ class DeviceInfo(private val ctx: Context) {
         return "Настройки возвращены"
     }
 
+    fun pickFastestDns(): String {
+        val dnsList = listOf(
+            "1.1.1.1" to "one.one.one.one",
+            "8.8.8.8" to "dns.google",
+            "9.9.9.9" to "dns.quad9.net",
+            "94.140.14.14" to "dns.adguard.com",
+            "76.76.2.0" to "dns.nextdns.io",
+            "208.67.222.222" to "doh.opendns.com",
+            "77.88.8.8" to "dns.yandex.com",
+            "223.5.5.5" to "dns.alidns.com",
+            "119.29.29.29" to "dot.pub"
+        )
+        var bestHost = "one.one.one.one"
+        var bestPing = Int.MAX_VALUE
+        for ((ip, host) in dnsList) {
+            val out = SystemReader.read("ping -c 2 -W 2 $ip")
+            val avg = parsePingAvg(out)
+            if (avg in 0 until bestPing) {
+                bestPing = avg
+                bestHost = host
+            }
+        }
+        return bestHost
+    }
+
     fun toggleTurbo(enable: Boolean): String {
         return if (enable) {
-            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=bbr; sysctl -w net.core.default_qdisc=fq_codel; sysctl -w net.ipv4.tcp_fastopen=3; settings put global private_dns_mode hostname; settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
+            val bestDns = pickFastestDns()
+            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=bbr; sysctl -w net.core.default_qdisc=fq_codel; sysctl -w net.ipv4.tcp_fastopen=3; settings put global private_dns_mode hostname; settings put global private_dns_specifier $bestDns")
             val bbr = verifyBbrApplied(); val dns = verifyDnsApplied()
-            "Turbo: BBR ${if (bbr) "✓" else "✗"} | DNS ${if (dns) "✓" else "✗"}"
+            "Turbo: BBR ${if (bbr) "✓" else "✗"} | DNS $bestDns ${if (dns) "✓" else "✗"}"
         } else {
             SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=cubic; sysctl -w net.ipv4.tcp_fastopen=0; settings put global private_dns_mode off; settings delete global private_dns_specifier")
             "Turbo: ВЫКЛ"
@@ -206,7 +232,7 @@ class DeviceInfo(private val ctx: Context) {
         return true
     }
 
-    private fun verifyDnsApplied(): Boolean = SystemReader.read("settings get global private_dns_specifier").contains("cloudflare", true)
+    private fun verifyDnsApplied(): Boolean = SystemReader.read("settings get global private_dns_specifier").isNotBlank()
     private fun verifyBbrApplied(): Boolean = SystemReader.read("sysctl net.ipv4.tcp_congestion_control").contains("bbr", true)
 
     fun unlockGameFps(pkg: String, hz: Int): String {
