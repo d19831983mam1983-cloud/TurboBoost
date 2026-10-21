@@ -19,9 +19,11 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.13
 
       - name: Generate Gradle Wrapper
-        run: gradle wrapper
+        run: gradle wrapper --gradle-version 8.13
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -29,7 +31,6 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.jks
-          echo "KEYSTORE_FILE=${{ github.workspace }}/release.jks" >> $GITHUB_ENV
 
       - name: Build signed APK
         env:
