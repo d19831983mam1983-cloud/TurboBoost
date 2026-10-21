@@ -85,9 +85,6 @@ class DeviceInfo(private val ctx: Context) {
         return true
     }
 
-    fun verifyDnsPublic(): Boolean = verifyDnsApplied()
-    fun verifyBbrPublic(): Boolean = verifyBbrApplied()
-
     fun detectGpu(): String {
         if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
@@ -182,46 +179,9 @@ class DeviceInfo(private val ctx: Context) {
         if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; echo 5000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
         }
-        sb.append("settings delete global low_power; settings put global private_dns_mode off; settings delete global private_dns_specifier")
+        sb.append("settings delete global low_power")
         SystemReader.read(sb.toString())
         return "Настройки возвращены"
-    }
-
-    fun pickFastestDns(): String {
-        val dnsList = listOf(
-            "1.1.1.1" to "one.one.one.one",
-            "8.8.8.8" to "dns.google",
-            "9.9.9.9" to "dns.quad9.net",
-            "94.140.14.14" to "dns.adguard.com",
-            "76.76.2.0" to "dns.nextdns.io",
-            "208.67.222.222" to "doh.opendns.com",
-            "77.88.8.8" to "dns.yandex.com",
-            "223.5.5.5" to "dns.alidns.com",
-            "119.29.29.29" to "dot.pub"
-        )
-        var bestHost = "one.one.one.one"
-        var bestPing = Int.MAX_VALUE
-        for ((ip, host) in dnsList) {
-            val out = SystemReader.read("ping -c 2 -W 2 $ip")
-            val avg = parsePingAvg(out)
-            if (avg in 0 until bestPing) {
-                bestPing = avg
-                bestHost = host
-            }
-        }
-        return bestHost
-    }
-
-    fun toggleTurbo(enable: Boolean): String {
-        return if (enable) {
-            val bestDns = pickFastestDns()
-            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=bbr; sysctl -w net.core.default_qdisc=fq_codel; sysctl -w net.ipv4.tcp_fastopen=3; settings put global private_dns_mode hostname; settings put global private_dns_specifier $bestDns")
-            val bbr = verifyBbrApplied(); val dns = verifyDnsApplied()
-            "Turbo: BBR ${if (bbr) "✓" else "✗"} | DNS $bestDns ${if (dns) "✓" else "✗"}"
-        } else {
-            SystemReader.read("sysctl -w net.ipv4.tcp_congestion_control=cubic; sysctl -w net.ipv4.tcp_fastopen=0; settings put global private_dns_mode off; settings delete global private_dns_specifier")
-            "Turbo: ВЫКЛ"
-        }
     }
 
     private fun checkGovernorApplied(): Boolean {
@@ -231,9 +191,6 @@ class DeviceInfo(private val ctx: Context) {
         }
         return true
     }
-
-    private fun verifyDnsApplied(): Boolean = SystemReader.read("settings get global private_dns_specifier").isNotBlank()
-    private fun verifyBbrApplied(): Boolean = SystemReader.read("sysctl net.ipv4.tcp_congestion_control").contains("bbr", true)
 
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
