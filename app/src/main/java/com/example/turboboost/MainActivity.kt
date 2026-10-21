@@ -107,15 +107,13 @@ class MainActivity : AppCompatActivity() {
         if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
         if (prefs.getThermalLevel() >= 0) ui.setThermalLevel(prefs.getThermalLevel())
         ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
-        ui.statusResult.text = prefs.getLastPing().ifBlank { "Готов к работе" }
+        ui.statusResult.text = "Готов к работе"
         
-        ui.setDownscaleState(prefs.isDownscale()); ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
+        ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
         
-        if (prefs.isDownscale()) ex.execute { info.applyDownscale(80) }
         if (prefs.isThreadsBoost()) ex.execute { info.boostThreadPriorities() }
         if (prefs.isMglru()) ex.execute { info.toggleMglru(true) }
 
-        ui.onDownscaleToggle = { val a = !prefs.isDownscale(); prefs.setDownscale(a); ui.setDownscaleState(a); async { if (a) info.applyDownscale(80) else info.applyDownscale(0) } }
         ui.onThreadsToggle = { val a = !prefs.isThreadsBoost(); prefs.setThreadsBoost(a); ui.setThreadsState(a); async { if (a) info.boostThreadPriorities() else info.resetThreadPriorities() } }
         ui.onMglruToggle = { val a = !prefs.isMglru(); prefs.setMglru(a); ui.setMglruState(a); async { info.toggleMglru(a) } }
         ui.onGameSpace = { if (info.openGameSpace() == "Game Space не найден") Toast.makeText(this, "Игровой режим не найден", Toast.LENGTH_LONG).show() }
@@ -125,20 +123,15 @@ class MainActivity : AppCompatActivity() {
             ui.onJoyoseToggle = { val d = !prefs.isJoyoseDisabled(); prefs.setJoyoseDisabled(d); ui.setJoyoseState(d); async { if (d) info.disableJoyose() else info.enableJoyose() } }
         }
 
-        ui.onDevOptions = { info.openDeveloperOptions() }
         ui.onDiagnostics = { diag() }
         ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost()); main.post { ui.statusResult.text = r } } }
         ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.statusResult.text = r } } }
         ui.onPresetSelected = { preset(it) }
-        ui.onCompile = { prefs.setLastPackage(it); async { info.compilePackage(it) } }
-        ui.onKeep = { prefs.setLastPackage(it); async { info.tryKeepAlive(it) } }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
         ui.onThermalSelected = { prefs.setThermalLevel(it); async { if (it == 0) info.resetThermal() else info.setThermalLimit(it * 10 + 40) } }
         ui.onTurboToggle = { if (!busy && ready()) { val e = !prefs.isTurboActive(); ex.execute { val r = info.toggleTurbo(e); main.post { prefs.setTurboActive(e); ui.setTurboState(e); ui.statusResult.text = r } } } }
         ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e) } }
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
-        ui.onTrimCaches = { ex.execute { val r = info.trimCaches(); main.post { prefs.setLastCacheTrim(System.currentTimeMillis()); ui.statusResult.text = r } } }
-        ui.onPing = { ex.execute { val r = info.ping(); main.post { prefs.setLastPing(r); ui.statusResult.text = r } } }
         ui.onShowGames = { ex.execute { val g = info.listGames(); main.post { games(g) } } }
         ui.onShowProfiles = { profiles() }
         ui.onToggle = { if (!busy) toggle() }
@@ -291,11 +284,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (slow) {
-                    val pkg = prefs.getLastPackage()
                     val gov = if (active) info.checkSystemState() else false; val dns = if (active) info.verifyDnsPublic() else false; val bbr = if (active) info.verifyBbrPublic() else false
-                    main.post {
-                        try { if (uiBuilt) ui.setAppliedState(active, gov, dns, bbr) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) }
-                    }
+                    main.post { try { if (uiBuilt) ui.setAppliedState(active, gov, dns, bbr) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
                 }
 
                 main.post {
