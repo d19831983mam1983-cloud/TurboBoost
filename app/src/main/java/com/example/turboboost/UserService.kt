@@ -2,12 +2,15 @@ package com.example.turboboost
 
 import android.content.Context
 import androidx.annotation.Keep
-import com.example.turboboost.IUserService
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
-class UserService() : IUserService.Stub() {
+@Keep
+class UserService : IUserService.Stub {
+
+    constructor() : super()
 
     @Keep
     constructor(context: Context) : this()
@@ -19,9 +22,12 @@ class UserService() : IUserService.Stub() {
     override fun exec(cmd: String): String {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
-            val out = BufferedReader(InputStreamReader(p.inputStream)).readText().trim()
-            p.waitFor()
-            out
+            p.redirectErrorStream(true)
+            val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText().trim() }
+            if (!p.waitFor(5, TimeUnit.SECONDS)) {
+                p.destroyForcibly()
+                out
+            } else out
         } catch (e: Throwable) {
             ""
         }
