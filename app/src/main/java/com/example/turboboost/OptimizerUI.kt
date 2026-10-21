@@ -8,7 +8,6 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RadialGradient
-import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -92,7 +91,7 @@ class OptimizerUI(private val ctx: Context) {
 
     private val blueS by lazy { gb(intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt(), 0xFF4F46E5.toInt()), 0xCCFFFFFF.toInt()).constantState }
     private val redS by lazy { gb(intArrayOf(0xFFDC2626.toInt(), 0xFFF87171.toInt(), 0xFFDC2626.toInt()), 0xCCFFFFFF.toInt()).constantState }
-    private val unselS by lazy { gb(intArrayOf(0x22FFFFFF, 0x11FFFFFF, 0x22FFFFFF), 0x55FFFFFF.toInt()).constantState }
+    private val unselS by lazy { gb(intArrayOf(0x44FFFFFF, 0x22FFFFFF, 0x33FFFFFF), 0x55FFFFFF.toInt()).constantState }
 
     private fun blue() = blueS!!.newDrawable().mutate() as GradientDrawable
     private fun red() = redS!!.newDrawable().mutate() as GradientDrawable
@@ -195,7 +194,6 @@ class OptimizerUI(private val ctx: Context) {
         }
         val pkgWrap = FrameLayout(ctx).apply {
             background = glassBgDrawable(14)
-            if (android.os.Build.VERSION.SDK_INT >= 31) setRenderEffect(RenderEffect.createBlurEffect(30f, 30f, Shader.TileMode.CLAMP))
             addView(pkgInput, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         }
         page1.addView(pkgWrap, LinearLayout.LayoutParams(MATCH_PARENT, dp(44)).apply { topMargin = dp(8) })
@@ -270,10 +268,10 @@ class OptimizerUI(private val ctx: Context) {
         val dlgBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(24).toFloat()
-            colors = intArrayOf(0x44FFFFFF, 0x11FFFFFF, 0x33FFFFFF)
+            colors = intArrayOf(0x66FFFFFF, 0x33FFFFFF, 0x44FFFFFF)
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.TL_BR
-            setStroke(dp(1), 0x88FFFFFF.toInt())
+            setStroke(dp(1), 0xCCFFFFFF.toInt())
         }
 
         items.forEachIndexed { i, item ->
@@ -291,10 +289,6 @@ class OptimizerUI(private val ctx: Context) {
                 }
             }
             container.addView(tv, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
-        }
-
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            root.setRenderEffect(RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP))
         }
         
         dialog.setContentView(root)
@@ -406,9 +400,6 @@ class OptimizerUI(private val ctx: Context) {
         textSize = 11f
         gravity = Gravity.CENTER
         setPadding(dp(4), 0, dp(4), 0)
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
-        }
         background = glassBgDrawable(12)
         touch(this, click)
     }
@@ -429,19 +420,16 @@ class OptimizerUI(private val ctx: Context) {
         textSize = 13f
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16), dp(14), dp(16), dp(14))
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
-        }
         background = glassBgDrawable(16)
     }
 
     private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dp(radius).toFloat()
-        colors = intArrayOf(0x55FFFFFF, 0x1AFFFFFF, 0x33FFFFFF)
+        colors = intArrayOf(0x66FFFFFF, 0x22FFFFFF, 0x44FFFFFF)
         gradientType = GradientDrawable.LINEAR_GRADIENT
         orientation = GradientDrawable.Orientation.TL_BR
-        setStroke(dp(1), 0xAAFFFFFF.toInt())
+        setStroke(dp(1), 0xCCFFFFFF.toInt())
     }
 
     private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
