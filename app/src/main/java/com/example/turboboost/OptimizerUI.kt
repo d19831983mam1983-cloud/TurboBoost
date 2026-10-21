@@ -11,6 +11,10 @@ import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.TransitionDrawable
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -28,7 +32,9 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -102,6 +108,7 @@ class OptimizerUI(private val ctx: Context) {
         root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#05070A"))
         snowView = SnowView(ctx)
+        snowView.onShake = { shakeUI() }
         root.addView(snowView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
         scroll1 = ScrollView(ctx).apply { isFillViewport = true; setBackgroundColor(Color.TRANSPARENT); addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
@@ -235,6 +242,28 @@ class OptimizerUI(private val ctx: Context) {
         }
     }
 
+    private fun shakeUI() {
+        if (!::scroll1.isInitialized) return
+        val animator = android.animation.ObjectAnimator.ofFloat(scroll1, "translationX", 0f, -25f, 25f, -20f, 20f, -15f, 15f, -10f, 10f, -5f, 5f, 0f)
+        animator.duration = 800
+        animator.interpolator = android.view.animation.DecelerateInterpolator()
+        animator.start()
+        
+        val animatorY = android.animation.ObjectAnimator.ofFloat(scroll1, "translationY", 0f, -15f, 15f, -10f, 10f, -5f, 5f, 0f)
+        animatorY.duration = 800
+        animatorY.interpolator = android.view.animation.DecelerateInterpolator()
+        animatorY.start()
+        
+        if (::pkgInput.isInitialized) {
+            pkgInput.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        }
+        if (::btnOpt.isInitialized) {
+            btnOpt.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).withEndAction {
+                btnOpt.animate().scaleX(1f).scaleY(1f).setDuration(300).setInterpolator(OvershootInterpolator(3f)).start()
+            }.start()
+        }
+    }
+
     fun setMode(m: Int) { currentMode = m; fade(btnModePerf, if (m == 0) blue() else unsel()); fade(btnModeBal, if (m == 1) blue() else unsel()) }
     fun setPreset(p: Int) { currentPreset = p; updPreset() }
     fun setHz(hz: Int) { currentHz = hz; updHz() }
@@ -363,17 +392,75 @@ class OptimizerUI(private val ctx: Context) {
         setStroke(dp(1), stroke)
     }
 
-    class SnowView(context: Context) : View(context) {
+    class SnowView(context: Context) : View(context), SensorEventListener {
         private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int)
         private val flakes = mutableListOf<Flake>()
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val rand = Random(System.currentTimeMillis())
-        private val mainHandler = Handler(Looper.getMainLooper())
         private var time = 0f
+        
+        private var sensorManager: SensorManager? = null
+        private var accelerometer: Sensor? = null
+        private var lastShakeTime = 0L
+        private var lastX = 0f
+        private var lastY = 0f
+        private var lastZ = 0f
+
+        var onShake: (() -> Unit)? = null
 
         init {
             bgPaint.shader = LinearGradient(0f, 0f, 0f, 2000f, intArrayOf(0xFF05070A.toInt(), 0xFF101A3A.toInt(), 0xFF2A1A4A.toInt(), 0xFF05070A.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
+            sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+            accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        }
+
+        override fun onAttachedToWindow() {
+            super.onAttachedToWindow()
+            sensorManager?.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+        }
+
+        override fun onDetachedFromWindow() {
+            super.onDetachedFromWindow()
+            sensorManager?.unregisterListener(this)
+        }
+
+        override fun onSensorChanged(event: SensorEvent) {
+            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                val x = event.values[0]
+                val y = event.values[1]
+                val z = event.values[2]
+
+                val deltaX = abs(x - lastX)
+                val deltaY = abs(y - lastY)
+                val deltaZ = abs(z - lastZ)
+                val speed = deltaX + deltaY + deltaZ
+
+                if (speed > 12f) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastShakeTime > 800) {
+                        lastShakeTime = now
+                        triggerShake(x, y)
+                    }
+                }
+                lastX = x; lastY = y; lastZ = z
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+        private fun triggerShake(velX: Float, velY: Float) {
+            val cx = width / 2f
+            val cy = height / 2f
+            for (f in flakes) {
+                val dx = f.x - cx
+                val dy = f.y - cy
+                val dist = hypot(dx, dy).coerceAtLeast(1f)
+                val force = (rand.nextFloat() * 20f + 15f)
+                f.x += (dx / dist) * force
+                f.y += (dy / dist) * force
+            }
+            post { onShake?.invoke() }
         }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
