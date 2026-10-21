@@ -30,11 +30,17 @@ object SystemReader {
         }
     }
 
-    fun readMulti(commands: List<String>): List<String> = commands.map { read(it) }
-
     fun test(path: String): Boolean = read("test -e $path && echo ok").contains("ok")
 
     fun testWrite(path: String): Boolean = read("test -w $path && echo ok").contains("ok")
+
+    fun tryWrite(path: String, value: String): Boolean {
+        if (!testWrite(path)) return false
+        read("echo $value > $path 2>/dev/null")
+        return true
+    }
+
+    fun readMulti(commands: List<String>): List<String> = commands.map { read(it) }
 
     fun isReady(): Boolean = service != null || (directMode && ShizukuHelper.isAvailable())
 }
