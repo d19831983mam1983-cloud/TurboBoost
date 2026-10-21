@@ -1,6 +1,5 @@
 package com.example.turboboost
 
-import android.animation.ValueAnimator
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Bitmap
@@ -27,6 +26,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.Window
+import android.view.WindowManager
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -125,7 +125,7 @@ class OptimizerUI(private val ctx: Context) {
             addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
                 val dir = if (scrollY > oldScrollY) 1f else -1f
-                fxView.spawnScrollDust(width / 2f, dir)
+                fxView.spawnScrollDust(scroll1.width / 2f, dir)
             }
         }
         root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -296,6 +296,7 @@ class OptimizerUI(private val ctx: Context) {
                 setPadding(dp(16), dp(14), dp(16), dp(14))
                 background = dlgBg
                 setOnClickListener {
+                    performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                     onClick(i)
                     dialog.dismiss()
                 }
@@ -308,6 +309,7 @@ class OptimizerUI(private val ctx: Context) {
         }
         
         dialog.setContentView(root)
+        dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
         dialog.window?.setLayout(MATCH_PARENT, WRAP_CONTENT)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.show()
@@ -326,7 +328,7 @@ class OptimizerUI(private val ctx: Context) {
         animatorY.start()
         
         if (::fxView.isInitialized) {
-            fxView.spawnBurst(width / 2f, height / 2f)
+            fxView.spawnBurst(root.width / 2f, root.height / 2f)
         }
         if (::pkgInput.isInitialized) {
             pkgInput.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
@@ -481,18 +483,18 @@ class OptimizerUI(private val ctx: Context) {
         private val rand = Random(System.currentTimeMillis())
 
         fun spawnBurst(cx: Float, cy: Float) {
-            for (i in 0 until 25) {
+            for (i in 0 until 20) {
                 val angle = rand.nextFloat() * Math.PI * 2
-                val speed = rand.nextFloat() * 15f + 5f
-                sparks.add(Spark(cx, cy, cos(angle).toFloat() * speed, sin(angle).toFloat() * speed, 1f, Color.WHITE, rand.nextFloat() * 4f + 2f))
+                val speed = rand.nextFloat() * 12f + 4f
+                sparks.add(Spark(cx, cy, cos(angle).toFloat() * speed, sin(angle).toFloat() * speed, 1f, Color.WHITE, rand.nextFloat() * 3f + 1.5f))
             }
             invalidate()
         }
 
         fun spawnScrollDust(cx: Float, dir: Float) {
-            for (i in 0 until 3) {
+            for (i in 0 until 2) {
                 val x = cx + (rand.nextFloat() - 0.5f) * width
-                sparks.add(Spark(x, if (dir > 0) -10f else height + 10f, 0f, dir * 10f, 1f, Color.parseColor("#AACCFF"), rand.nextFloat() * 3f + 1f))
+                sparks.add(Spark(x, if (dir > 0) -10f else height + 10f, 0f, dir * 8f, 1f, Color.WHITE, rand.nextFloat() * 2f + 1f))
             }
             invalidate()
         }
@@ -506,7 +508,7 @@ class OptimizerUI(private val ctx: Context) {
                 val s = iter.next()
                 s.x += s.vx
                 s.y += s.vy
-                s.vy += 0.5f
+                s.vy += 0.4f
                 s.life -= 0.02f
                 if (s.life <= 0) {
                     iter.remove()
@@ -606,19 +608,16 @@ class OptimizerUI(private val ctx: Context) {
             time += 0.015f
             canvas.drawPaint(bgPaint)
             
-            // Aurora 1 (Фиолетовое)
             val ax1 = width / 2f + sin(time * 0.7f) * width * 0.3f
             val ay1 = height * 0.3f + cos(time * 0.9f) * height * 0.2f
             auroraPaint.shader = RadialGradient(ax1, ay1, width * 0.9f, intArrayOf(0x44A855F7, 0x00000000), null, Shader.TileMode.CLAMP)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), auroraPaint)
 
-            // Aurora 2 (Синее)
             val ax2 = width / 2f + cos(time * 0.5f) * width * 0.4f
             val ay2 = height * 0.7f + sin(time * 0.8f) * height * 0.2f
             auroraPaint.shader = RadialGradient(ax2, ay2, width * 0.8f, intArrayOf(0x4450C0FF, 0x00000000), null, Shader.TileMode.CLAMP)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), auroraPaint)
 
-            // Snow
             for (f in flakes) {
                 f.y += f.speed
                 f.x += f.drift + sin(time + f.y * 0.01f) * 0.5f
