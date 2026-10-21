@@ -129,24 +129,25 @@ class MainActivity : AppCompatActivity() {
         ui.onPresetSelected = { preset(it) }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
         ui.onThermalSelected = { prefs.setThermalLevel(it); async { if (it == 0) info.resetThermal() else info.setThermalLimit(it * 10 + 40) } }
-        ui.onTurboToggle = { if (!busy && ready()) { val e = !prefs.isTurboActive(); ex.execute { val r = info.toggleTurbo(e); main.post { prefs.setTurboActive(e); ui.setTurboState(e); ui.statusResult.text = r } } } }
         ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e) } }
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
         ui.onShowGames = { ex.execute { val g = info.listGames(); main.post { games(g) } } }
         ui.onShowProfiles = { profiles() }
         ui.onToggle = { if (!busy) toggle() }
 
-        ui.setActive(prefs.isActive()); ui.setTurboState(prefs.isTurboActive())
+        ui.setActive(prefs.isActive())
         if (prefs.isActive()) alive(true)
         refresh(); loop()
-    }
-    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.statusResult.text = r } } }
+    }    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.statusResult.text = r } } }
 
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
-        AlertDialog.Builder(this).setTitle("Выберите игру").setItems(g.map { it.second }.toTypedArray()) { _, w ->
-            val p = g[w].first; ui.setPackageText(p); prefs.setLastPackage(p); async { info.compilePackage(p) }
-        }.show()
+        ui.showGlassList("Выберите игру", g.map { it.second }) { w ->
+            val p = g[w].first
+            ui.setPackageText(p)
+            prefs.setLastPackage(p)
+            async { info.compilePackage(p) }
+        }
     }
 
     private fun diag() {
@@ -157,8 +158,6 @@ class MainActivity : AppCompatActivity() {
                 "UserService/Direct: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
                 "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
                 "Governor: ${if (a && info.checkSystemState()) "✓" else "✗"}\n" +
-                "DNS: ${if (a && info.verifyDnsPublic()) "✓" else "✗"}\n" +
-                "BBR: ${if (a && info.verifyBbrPublic()) "✓" else "✗"}\n" +
                 "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
                 "Чип: ${info.chipName()}\n" +
                 "GPU: ${info.gpuName()}\n" +
@@ -175,8 +174,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun preset(p: Int) {
-        var m = 1; var s = 0; var t = 0; var g = false; var b = false; var tb = false; var hz = 60
-        when (p) { 1 -> { m = 0; s = 1; t = 2; g = true; b = true; tb = true; hz = 120 }; 2 -> { m = 0; s = 3; t = 3; g = true; b = true; tb = true; hz = 144 } }
+        var m = 1; var s = 0; var t = 0; var g = false; var b = false; var hz = 60
+        when (p) { 1 -> { m = 0; s = 1; t = 2; g = true; b = true; hz = 120 }; 2 -> { m = 0; s = 3; t = 3; g = true; b = true; hz = 144 } }
         prefs.setPerfMode(m); prefs.setSenseLevel(s); prefs.setThermalLevel(t); prefs.setGpuBoost(g); prefs.setBackgroundLimit(b); prefs.setTargetHz(hz)
         ui.setMode(m); ui.setSenseLevel(s); ui.setThermalLevel(t); ui.setGpuBoostState(g); ui.setBgLimitState(b); ui.setHz(hz); ui.setPreset(p)
         if (prefs.isActive()) {
@@ -185,9 +184,8 @@ class MainActivity : AppCompatActivity() {
                 val r = info.activateMaxPerformance(hz, m, g)
                 info.applySense(s)
                 if (t == 0) info.resetThermal() else info.setThermalLimit(t * 10 + 40)
-                if (tb != prefs.isTurboActive()) info.toggleTurbo(tb)
                 if (b) info.restrictBackground() else info.restoreBackground()
-                main.post { prefs.setTurboActive(tb); ui.setTurboState(tb); ui.statusResult.text = "Пресет применён: $r" }
+                main.post { ui.statusResult.text = "Пресет применён: $r" }
             }
         } else ui.statusResult.text = "Пресет выбран, нажмите ОПТИМИЗИРОВАТЬ"
     }
@@ -196,17 +194,29 @@ class MainActivity : AppCompatActivity() {
         val p = prefs.getLastPackage()
         if (p.isBlank()) { Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show(); return }
         val ps = prefs.getProfiles()
-        val names = mutableListOf("Сохранить профиль для текущей игры")
-        if (ps.isNotEmpty()) { names.add("Удалить профиль текущей игры"); names.add("—— Профили ——"); names.addAll(ps.map { it.pkg }) }
-        AlertDialog.Builder(this).setTitle("Профили").setItems(names.toTypedArray()) { _, w ->
-            val c = names[w]
+        
+        val items = mutableListOf("Сохранить профиль для текущей игры")
+        if (ps.isNotEmpty()) {
+            items.add("Удалить профиль текущей игры")
+            items.add("── Профили ──")
+            items.addAll(ps.map { it.pkg })
+        }
+
+        ui.showGlassList("Профили", items) { w ->
+            val c = items[w]
             when {
-                c.startsWith("Сохранить") -> { prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), prefs.getThermalLevel(), prefs.isTurboActive(), prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit())); Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show() }
-                c.startsWith("Удалить") -> { prefs.deleteProfile(p); Toast.makeText(this, "Удалён", Toast.LENGTH_SHORT).show() }
-                c.startsWith("——") -> {}
+                c.startsWith("Сохранить") -> {
+                    prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), prefs.getThermalLevel(), false, prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
+                    Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show()
+                }
+                c.startsWith("Удалить") -> {
+                    prefs.deleteProfile(p)
+                    Toast.makeText(this, "Удалён", Toast.LENGTH_SHORT).show()
+                }
+                c.startsWith("──") -> {}
                 else -> ps.firstOrNull { it.pkg == c }?.let { applyProfile(it) }
             }
-        }.show()
+        }
     }
 
     private fun applyProfile(p: GameProfile) {
@@ -217,7 +227,6 @@ class MainActivity : AppCompatActivity() {
             if (p.thermal == 0) info.resetThermal() else info.setThermalLimit(p.thermal * 10 + 40)
             if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost)
             if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
-            if (p.turbo != prefs.isTurboActive()) { val r = info.toggleTurbo(p.turbo); main.post { prefs.setTurboActive(p.turbo); ui.setTurboState(p.turbo); ui.statusResult.text = r } }
         }
     }
 
@@ -231,22 +240,20 @@ class MainActivity : AppCompatActivity() {
             ex.execute {
                 val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost())
                 if (p.isNotBlank()) info.unlockGameFps(p, hz)
-                info.toggleTurbo(true)
                 if (prefs.isBackgroundLimit()) info.restrictBackground()
                 info.applySurfaceFlingerBoost(true)
                 info.applyMemoryTweaks(true)
-                main.post { prefs.setActive(true); prefs.setTurboActive(true); ui.setActive(true); ui.setTurboState(true); ui.statusResult.text = r; busy = false; alive(true); refresh() }
+                main.post { prefs.setActive(true); ui.setActive(true); ui.statusResult.text = r; busy = false; alive(true); refresh() }
             }
         } else {
             ui.statusResult.text = "Отключение..."
             ex.execute {
                 val r = info.deactivateMaxPerformance()
                 if (p.isNotBlank()) info.resetGameFps(p)
-                info.toggleTurbo(false)
                 if (prefs.isBackgroundLimit()) info.restoreBackground()
                 info.applySurfaceFlingerBoost(false)
                 info.applyMemoryTweaks(false)
-                main.post { prefs.setActive(false); prefs.setTurboActive(false); ui.setActive(false); ui.setTurboState(false); ui.statusResult.text = r; busy = false; alive(false); refresh() }
+                main.post { prefs.setActive(false); ui.setActive(false); ui.statusResult.text = r; busy = false; alive(false); refresh() }
             }
         }
     }
@@ -272,8 +279,8 @@ class MainActivity : AppCompatActivity() {
                 val growth = if (tHist.size >= 2) tHist.last() - tHist.first() else 0f
 
                 if (temp > 80f && active) {
-                    info.deactivateMaxPerformance(); prefs.setActive(false); prefs.setTurboActive(false)
-                    main.post { if (uiBuilt) { ui.setActive(false); ui.setTurboState(false); ui.setAppliedState(false, false, false, false); ui.setOverheat(false, true); ui.statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — оптимизация выключена"; busy = false; alive(false) } }
+                    info.deactivateMaxPerformance(); prefs.setActive(false)
+                    main.post { if (uiBuilt) { ui.setActive(false); ui.setAppliedState(false, false); ui.setOverheat(false, true); ui.statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — оптимизация выключена"; busy = false; alive(false) } }
                     return@execute
                 }
 
@@ -284,8 +291,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 if (slow) {
-                    val gov = if (active) info.checkSystemState() else false; val dns = if (active) info.verifyDnsPublic() else false; val bbr = if (active) info.verifyBbrPublic() else false
-                    main.post { try { if (uiBuilt) ui.setAppliedState(active, gov, dns, bbr) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
+                    val gov = if (active) info.checkSystemState() else false
+                    main.post { try { if (uiBuilt) ui.setAppliedState(active, gov) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
                 }
 
                 main.post {
@@ -295,8 +302,8 @@ class MainActivity : AppCompatActivity() {
                         if (active && bat <= 10) {
                             busy = true
                             ex.execute {
-                                info.deactivateMaxPerformance(); info.toggleTurbo(false)
-                                main.post { prefs.setActive(false); prefs.setTurboActive(false); ui.setActive(false); ui.setTurboState(false); ui.setAppliedState(false, false, false, false); ui.statusResult.text = "Автоотключение: батарея ≤ 10%"; busy = false; alive(false) }
+                                info.deactivateMaxPerformance()
+                                main.post { prefs.setActive(false); ui.setActive(false); ui.setAppliedState(false, false); ui.statusResult.text = "Автоотключение: батарея ≤ 10%"; busy = false; alive(false) }
                             }
                         }
                     } catch (e: Throwable) { Log.e("TurboBoost", "ui", e) }
