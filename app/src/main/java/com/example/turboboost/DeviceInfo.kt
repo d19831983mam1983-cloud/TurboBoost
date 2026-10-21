@@ -80,7 +80,7 @@ class DeviceInfo(private val ctx: Context) {
         if (clusters.isEmpty()) return false
         for ((idx, _) in clusters) {
             val gov = SystemReader.read("cat $cpuBase/cpu$idx/cpufreq/scaling_governor")
-            if (gov != "performance") return false
+            if (gov != "schedutil") return false
         }
         return true
     }
@@ -137,13 +137,13 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean): String {
-        val bgLimit = if (mode == 0) "64" else "32"; val sched = if (mode == 0) "noop" else "deadline"; val io = ioCache
+        val bgLimit = if (mode == 0) "64" else "48"; val sched = if (mode == 0) "noop" else "deadline"; val io = ioCache
         val sb = StringBuilder()
         
         sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
         sb.append("device_config put activity_manager max_phantom_processes 128; ")
         sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
-        sb.append("settings put global window_animation_scale 0.0; settings put global transition_animation_scale 0.0; settings put global animator_duration_scale 0.5; ")
+        sb.append("settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5; ")
         if (io != null) sb.append("echo $sched > /sys/block/$io/queue/scheduler 2>/dev/null; ")
 
         val clusters = clustersCache
@@ -153,11 +153,11 @@ class DeviceInfo(private val ctx: Context) {
 
         if (little.isNotEmpty()) sb.append("for i in ${little.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
         if (mid.isNotEmpty()) sb.append("for i in ${mid.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-        if (big.isNotEmpty()) sb.append("for i in ${big.joinToString(" ")}; do echo performance > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; m=\$(cat $cpuBase/cpu\$i/cpufreq/cpuinfo_max_freq 2>/dev/null); if [ -n \"\$m\" ]; then echo \$m > $cpuBase/cpu\$i/cpufreq/scaling_max_freq 2>/dev/null; fi; done; ")
+        if (big.isNotEmpty()) sb.append("for i in ${big.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; m=\$(cat $cpuBase/cpu\$i/cpufreq/cpuinfo_max_freq 2>/dev/null); if [ -n \"\$m\" ]; then min=\$((m * 70 / 100)); echo \$min > $cpuBase/cpu\$i/cpufreq/scaling_min_freq 2>/dev/null; fi; done; ")
 
         if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-            sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; echo 3 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
-            if (gpuBoost) sb.append("echo 10000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
+            sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; echo 1 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; echo 3 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
+            if (gpuBoost) sb.append("echo 5000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
         } else if (gpuCache.contains("Mali", true)) {
             val maliPath = "/sys/class/misc/mali0/device/devfreq"
             if (SystemReader.testWrite("$maliPath/governor")) sb.append("echo performance > $maliPath/governor 2>/dev/null; ")
@@ -165,8 +165,8 @@ class DeviceInfo(private val ctx: Context) {
 
         SystemReader.read(sb.toString())
 
-        val gov = if (checkGovernorApplied()) "Governor: ✓" else "Governor: ✗"
-        return "Режим: ${if (mode == 0) "Производительность" else "Сбалансированный"} | $gov"
+        val gov = if (checkSystemState()) "Стабильность: ✓" else "Стабильность: ✗"
+        return "Режим: ${if (mode == 0) "Плавный" else "Экономный"} | $gov"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -185,14 +185,6 @@ class DeviceInfo(private val ctx: Context) {
         return "Настройки возвращены"
     }
 
-    private fun checkGovernorApplied(): Boolean {
-        for ((idx, label) in clustersCache) {
-            if (label != "big") continue
-            if (SystemReader.read("cat $cpuBase/cpu$idx/cpufreq/scaling_governor") != "performance") return false
-        }
-        return true
-    }
-
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
         val safeHz = when { hz >= 144 -> 120; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
@@ -209,14 +201,14 @@ class DeviceInfo(private val ctx: Context) {
     fun applySense(level: Int): String {
         val slop: Int; val longPress: Int; val multiPress: Int; val pointer: Int; val pressure: String; val touchRate: Int
         when (level) {
-            0 -> { slop = 8; longPress = 400; multiPress = 300; pointer = 1; pressure = "1"; touchRate = 120 }
-            1 -> { slop = 6; longPress = 300; multiPress = 250; pointer = 4; pressure = "0.1"; touchRate = 180 }
-            2 -> { slop = 4; longPress = 200; multiPress = 200; pointer = 7; pressure = "0.001"; touchRate = 240 }
-            else -> { slop = 2; longPress = 120; multiPress = 120; pointer = 10; pressure = "0.0001"; touchRate = 300 }
+            0 -> { slop = 8; longPress = 350; multiPress = 280; pointer = 2; pressure = "0.8"; touchRate = 120 }
+            1 -> { slop = 7; longPress = 300; multiPress = 250; pointer = 4; pressure = "0.5"; touchRate = 180 }
+            2 -> { slop = 6; longPress = 250; multiPress = 220; pointer = 6; pressure = "0.1"; touchRate = 240 }
+            else -> { slop = 5; longPress = 200; multiPress = 200; pointer = 8; pressure = "0.05"; touchRate = 300 }
         }
         SystemReader.read("settings put secure touch_slop $slop; settings put secure long_press_timeout $longPress; settings put secure multi_press_timeout $multiPress; settings put secure pointer_speed $pointer; settings put system pointer_speed $pointer; settings put system touch.pressure.scale $pressure")
         SystemReader.read("settings put system touch_sampling_rate $touchRate")
-        return "Сенса: ${arrayOf("Средний", "Сильный", "Эксп.", "Макс")[level]} (${touchRate} Гц)"
+        return "Сенса: ${arrayOf("Плавная", "Быстрая", "Резкая", "Макс")[level]} (${touchRate} Гц)"
     }
 
     fun applySurfaceFlingerBoost(enable: Boolean): String {
@@ -241,7 +233,8 @@ class DeviceInfo(private val ctx: Context) {
 
     fun setThermalLimit(temp: Int): String {
         if (temp <= 0) { SystemReader.read("dumpsys thermalservice override-status 0"); return "Троттлинг: выкл" }
-        val milli = temp * 1000
+        val softTemp = temp + 5
+        val milli = softTemp * 1000
         val zones = SystemReader.read("ls /sys/class/thermal/thermal_zone* 2>/dev/null").split("\n")
         var count = 0
         for (z in zones) {
@@ -251,7 +244,7 @@ class DeviceInfo(private val ctx: Context) {
             if (type.contains("critical")) continue
             if (SystemReader.testWrite("$zn/trip_point_0_temp")) { SystemReader.read("echo $milli > $zn/trip_point_0_temp 2>/dev/null"); count++ }
         }
-        return "Троттлинг: $temp°C (зон: $count)"
+        return "Троттлинг: $softTemp°C (зон: $count)"
     }
 
     fun resetThermal(): String { SystemReader.read("dumpsys thermalservice override-status -1"); return "Троттлинг: авто" }
@@ -286,9 +279,9 @@ class DeviceInfo(private val ctx: Context) {
 
     fun boostThreadPriorities(): String {
         val sb = StringBuilder()
-        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n -20 -p $surface 2>/dev/null; ")
-        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n -10 -p $sys 2>/dev/null; ")
-        SystemReader.read(sb.toString()); return "Приоритеты: применены"
+        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n -10 -p $surface 2>/dev/null; ")
+        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n -5 -p $sys 2>/dev/null; ")
+        SystemReader.read(sb.toString()); return "Приоритеты: смягчены"
     }
 
     fun resetThreadPriorities(): String {
