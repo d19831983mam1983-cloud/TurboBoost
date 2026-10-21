@@ -2,10 +2,16 @@ package com.example.turboboost
 
 import android.animation.ObjectAnimator
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.text.Editable
 import android.text.InputType
@@ -73,6 +79,8 @@ class OptimizerUI(private val ctx: Context) {
     var currentPreset = -1
     var currentHz = 120
 
+    private var bgSnapshot: Bitmap? = null
+
     private val blueS by lazy { gb(intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt(), 0xFF4F46E5.toInt()), 0x99FFFFFF.toInt()).constantState }
     private val redS by lazy { gb(intArrayOf(0xFFDC2626.toInt(), 0xFFF87171.toInt(), 0xFFDC2626.toInt()), 0x99FFFFFF.toInt()).constantState }
     private val unselS by lazy { gb(intArrayOf(0x22FFFFFF, 0x11FFFFFF, 0x22FFFFFF), 0x33FFFFFF.toInt()).constantState }
@@ -87,11 +95,18 @@ class OptimizerUI(private val ctx: Context) {
     private fun tGreen() = tGreenS!!.newDrawable().mutate() as GradientDrawable
     private fun cardD() = cardS!!.newDrawable().mutate() as GradientDrawable
 
+    fun setBackgroundSnapshot(bmp: Bitmap?) { bgSnapshot = bmp }
+
     fun build(): FrameLayout {
         root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#05070A"))
+        val bgLayer = ImageView(ctx).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            bgSnapshot?.let { setImageBitmap(it) }
+        }
+        root.addView(bgLayer, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
-        scroll1 = ScrollView(ctx).apply { isFillViewport = true; addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
+        scroll1 = ScrollView(ctx).apply { isFillViewport = true; setBackgroundColor(Color.TRANSPARENT); addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
         root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         header()
         buildMain()
@@ -157,7 +172,7 @@ class OptimizerUI(private val ctx: Context) {
             setSingleLine()
             inputType = InputType.TYPE_CLASS_TEXT
             setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = unsel()
+            setBackgroundColor(Color.TRANSPARENT)
             setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             if (android.os.Build.VERSION.SDK_INT >= 31) {
                 setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
@@ -168,8 +183,12 @@ class OptimizerUI(private val ctx: Context) {
                 override fun afterTextChanged(s: Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
             })
         }
-        page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
-        
+        val pkgWrap = FrameLayout(ctx).apply {
+            background = glassBgDrawable(14)
+            addView(pkgInput, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply { setMargins(dp(1), dp(1), dp(1), dp(1)) })
+        }
+        page1.addView(pkgWrap, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
+
         val r1 = row(page1, 6)
         btnGames = glass("Игры") { onShowGames?.invoke() }
         r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
@@ -201,9 +220,7 @@ class OptimizerUI(private val ctx: Context) {
         br.addView(btnTurbo, LinearLayout.LayoutParams(0, dp(66), 0.32f).apply { marginEnd = dp(8) })
         btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, blue()) { onToggle?.invoke() }
         br.addView(btnOpt, LinearLayout.LayoutParams(0, dp(66), 0.68f))
-    }
-
-    private fun animateIn() {
+    }    private fun animateIn() {
         for (i in 0 until page1.childCount) {
             val v = page1.getChildAt(i)
             v.alpha = 0f; v.translationY = dp(24).toFloat()
@@ -258,26 +275,49 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     private fun glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text; setTextColor(Color.WHITE); textSize = 11f; gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), 0)
-        background = unsel(); setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        this.text = text
+        setTextColor(Color.WHITE)
+        textSize = 11f
+        gravity = Gravity.CENTER
+        setPadding(dp(4), 0, dp(4), 0)
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         if (android.os.Build.VERSION.SDK_INT >= 31) {
-            setRenderEffect(RenderEffect.createBlurEffect(15f, 15f, Shader.TileMode.CLAMP))
+            setRenderEffect(RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP))
         }
+        background = glassBgDrawable(12)
         touch(this, click)
     }
 
     private fun bigBtn(text: String, size: Float, bg: GradientDrawable, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text; setTextColor(Color.WHITE); textSize = size; gravity = Gravity.CENTER; setShadowLayer(6f, 0f, 2f, Color.parseColor("#44000000"))
-        background = bg; touch(this, click)
+        this.text = text
+        setTextColor(Color.WHITE)
+        textSize = size
+        gravity = Gravity.CENTER
+        setShadowLayer(6f, 0f, 2f, Color.parseColor("#44000000"))
+        background = bg
+        touch(this, click)
     }
 
     private fun card(text: String): TextView = TextView(ctx).apply {
-        this.text = text; setTextColor(Color.parseColor("#E0E0E0")); textSize = 13f; gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(16), dp(12), dp(16), dp(12)); background = cardD()
+        this.text = text
+        setTextColor(Color.parseColor("#E8E8E8"))
+        textSize = 13f
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(16), dp(12), dp(16), dp(12))
         setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         if (android.os.Build.VERSION.SDK_INT >= 31) {
-            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
+            setRenderEffect(RenderEffect.createBlurEffect(24f, 24f, Shader.TileMode.CLAMP))
         }
+        background = glassBgDrawable(16)
+    }
+
+    private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(radius).toFloat()
+        colors = intArrayOf(0x55FFFFFF, 0x18FFFFFF, 0x3AFFFFFF)
+        gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.TL_BR
+        setStroke(dp(1), 0xAAFFFFFF.toInt())
     }
 
     private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
@@ -287,12 +327,20 @@ class OptimizerUI(private val ctx: Context) {
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
     private fun cb(): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(16).toFloat(); colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x0DFFFFFF)
-        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR; setStroke(1, 0x44FFFFFF.toInt())
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(16).toFloat()
+        colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x0DFFFFFF)
+        gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.TL_BR
+        setStroke(dp(1), 0x55FFFFFF.toInt())
     }
 
     private fun gb(colors: IntArray, stroke: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(12).toFloat(); this.colors = colors
-        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.LEFT_RIGHT; setStroke(1, stroke)
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(12).toFloat()
+        this.colors = colors
+        gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.LEFT_RIGHT
+        setStroke(dp(1), stroke)
     }
 }
