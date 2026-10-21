@@ -139,10 +139,12 @@ class DeviceInfo(private val ctx: Context) {
     fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean): String {
         val bgLimit = if (mode == 0) "64" else "32"; val sched = if (mode == 0) "noop" else "deadline"; val io = ioCache
         val sb = StringBuilder()
+        
         sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
-        if (io != null) sb.append("echo $sched > /sys/block/$io/queue/scheduler 2>/dev/null; ")
+        sb.append("device_config put activity_manager max_phantom_processes 128; ")
         sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
         sb.append("settings put global window_animation_scale 0.0; settings put global transition_animation_scale 0.0; settings put global animator_duration_scale 0.5; ")
+        if (io != null) sb.append("echo $sched > /sys/block/$io/queue/scheduler 2>/dev/null; ")
 
         val clusters = clustersCache
         val big = clusters.filter { it.second == "big" }.map { it.first }
@@ -161,7 +163,6 @@ class DeviceInfo(private val ctx: Context) {
             if (SystemReader.testWrite("$maliPath/governor")) sb.append("echo performance > $maliPath/governor 2>/dev/null; ")
         }
 
-        sb.append("settings put global low_power 0; am kill-all; echo 1 > /proc/sys/vm/drop_caches")
         SystemReader.read(sb.toString())
 
         val gov = if (checkGovernorApplied()) "Governor: ✓" else "Governor: ✗"
@@ -172,14 +173,14 @@ class DeviceInfo(private val ctx: Context) {
         val io = ioCache
         val sb = StringBuilder()
         sb.append("settings delete global activity_manager_constants; ")
-        if (io != null) sb.append("echo deadline > /sys/block/$io/queue/scheduler 2>/dev/null; ")
+        sb.append("device_config delete activity_manager max_phantom_processes; ")
         sb.append("settings delete system peak_refresh_rate; settings delete system min_refresh_rate; ")
         sb.append("settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0; ")
+        if (io != null) sb.append("echo deadline > /sys/block/$io/queue/scheduler 2>/dev/null; ")
         sb.append("for i in 0 1 2 3 4 5 6 7; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
         if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; echo 5000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
         }
-        sb.append("settings delete global low_power")
         SystemReader.read(sb.toString())
         return "Настройки возвращены"
     }
