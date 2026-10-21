@@ -28,12 +28,10 @@ class KeepAliveService : Service() {
             val info = DeviceInfo(this)
             try {
                 info.deactivateMaxPerformance()
-                info.toggleTurbo(false)
                 info.applySurfaceFlingerBoost(false)
                 info.applyMemoryTweaks(false)
             } catch (e: Throwable) {}
             prefs.setActive(false)
-            prefs.setTurboActive(false)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
