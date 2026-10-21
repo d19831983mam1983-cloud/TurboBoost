@@ -22,9 +22,6 @@ class AppPrefs(ctx: Context) {
     fun isActive(): Boolean = prefs.getBoolean("active", false)
     fun setActive(v: Boolean) = prefs.edit().putBoolean("active", v).apply()
 
-    fun isTurboActive(): Boolean = prefs.getBoolean("turbo_active", false)
-    fun setTurboActive(v: Boolean) = prefs.edit().putBoolean("turbo_active", v).apply()
-
     fun getTargetHz(): Int = prefs.getInt("target_hz", 120)
     fun setTargetHz(hz: Int) = prefs.edit().putInt("target_hz", hz).apply()
 
@@ -46,18 +43,6 @@ class AppPrefs(ctx: Context) {
     fun isBackgroundLimit(): Boolean = prefs.getBoolean("bg_limit", false)
     fun setBackgroundLimit(v: Boolean) = prefs.edit().putBoolean("bg_limit", v).apply()
 
-    fun isFpsMonitor(): Boolean = prefs.getBoolean("fps_monitor", true)
-    fun setFpsMonitor(v: Boolean) = prefs.edit().putBoolean("fps_monitor", v).apply()
-
-    fun getLastPing(): String = prefs.getString("last_ping", "") ?: ""
-    fun setLastPing(v: String) = prefs.edit().putString("last_ping", v).apply()
-
-    fun getLastFps(): Int = prefs.getInt("last_fps", 0)
-    fun setLastFps(v: Int) = prefs.edit().putInt("last_fps", v).apply()
-
-    fun getLastCacheTrim(): Long = prefs.getLong("last_cache_trim", 0L)
-    fun setLastCacheTrim(v: Long) = prefs.edit().putLong("last_cache_trim", v).apply()
-
     fun getActiveProfilePkg(): String = prefs.getString("active_profile_pkg", "") ?: ""
     fun setActiveProfilePkg(pkg: String) = prefs.edit().putString("active_profile_pkg", pkg).apply()
 
@@ -66,9 +51,6 @@ class AppPrefs(ctx: Context) {
 
     fun isJoyoseDisabled(): Boolean = prefs.getBoolean("joyose_disabled", false)
     fun setJoyoseDisabled(v: Boolean) = prefs.edit().putBoolean("joyose_disabled", v).apply()
-
-    fun isDownscale(): Boolean = prefs.getBoolean("downscale", false)
-    fun setDownscale(v: Boolean) = prefs.edit().putBoolean("downscale", v).apply()
 
     fun isThreadsBoost(): Boolean = prefs.getBoolean("threads_boost", false)
     fun setThreadsBoost(v: Boolean) = prefs.edit().putBoolean("threads_boost", v).apply()
