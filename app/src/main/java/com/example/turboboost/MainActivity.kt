@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         uiBuilt = false
         val box = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#070A12")); setPadding(60, 60, 60, 60)
+            setBackgroundColor(Color.parseColor("#05070A")); setPadding(60, 60, 60, 60)
         }
         box.addView(android.widget.TextView(this).apply { text = "Доступ закрыт"; setTextColor(Color.WHITE); textSize = 28f; gravity = android.view.Gravity.CENTER })
         box.addView(android.widget.TextView(this).apply {
@@ -240,6 +240,8 @@ class MainActivity : AppCompatActivity() {
                 if (p.isNotBlank()) info.unlockGameFps(p, hz)
                 info.toggleTurbo(true)
                 if (prefs.isBackgroundLimit()) info.restrictBackground()
+                info.applySurfaceFlingerBoost(true)
+                info.applyMemoryTweaks(true)
                 main.post { prefs.setActive(true); prefs.setTurboActive(true); ui.setActive(true); ui.setTurboState(true); ui.statusResult.text = r; busy = false; alive(true); refresh() }
             }
         } else {
@@ -249,6 +251,8 @@ class MainActivity : AppCompatActivity() {
                 if (p.isNotBlank()) info.resetGameFps(p)
                 info.toggleTurbo(false)
                 if (prefs.isBackgroundLimit()) info.restoreBackground()
+                info.applySurfaceFlingerBoost(false)
+                info.applyMemoryTweaks(false)
                 main.post { prefs.setActive(false); prefs.setTurboActive(false); ui.setActive(false); ui.setTurboState(false); ui.statusResult.text = r; busy = false; alive(false); refresh() }
             }
         }
