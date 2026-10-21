@@ -223,15 +223,36 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun applySense(level: Int): String {
-        val slop: Int; val longPress: Int; val multiPress: Int; val pointer: Int; val pressure: String
+        val slop: Int; val longPress: Int; val multiPress: Int; val pointer: Int; val pressure: String; val touchRate: Int
         when (level) {
-            0 -> { slop = 8; longPress = 400; multiPress = 300; pointer = 1; pressure = "1" }
-            1 -> { slop = 6; longPress = 300; multiPress = 250; pointer = 4; pressure = "0.1" }
-            2 -> { slop = 4; longPress = 200; multiPress = 200; pointer = 7; pressure = "0.001" }
-            else -> { slop = 2; longPress = 120; multiPress = 120; pointer = 10; pressure = "0.0001" }
+            0 -> { slop = 8; longPress = 400; multiPress = 300; pointer = 1; pressure = "1"; touchRate = 120 }
+            1 -> { slop = 6; longPress = 300; multiPress = 250; pointer = 4; pressure = "0.1"; touchRate = 180 }
+            2 -> { slop = 4; longPress = 200; multiPress = 200; pointer = 7; pressure = "0.001"; touchRate = 240 }
+            else -> { slop = 2; longPress = 120; multiPress = 120; pointer = 10; pressure = "0.0001"; touchRate = 300 }
         }
         SystemReader.read("settings put secure touch_slop $slop; settings put secure long_press_timeout $longPress; settings put secure multi_press_timeout $multiPress; settings put secure pointer_speed $pointer; settings put system pointer_speed $pointer; settings put system touch.pressure.scale $pressure")
-        return "Сенса: ${arrayOf("Средний", "Сильный", "Эксп.", "Макс")[level]}"
+        SystemReader.read("settings put system touch_sampling_rate $touchRate")
+        return "Сенса: ${arrayOf("Средний", "Сильный", "Эксп.", "Макс")[level]} (${touchRate} Гц)"
+    }
+
+    fun applySurfaceFlingerBoost(enable: Boolean): String {
+        return if (enable) {
+            SystemReader.read("setprop debug.sf.auto_latch_unsignaled true")
+            "SurfaceFlinger: Boost"
+        } else {
+            SystemReader.read("setprop debug.sf.auto_latch_unsignaled false")
+            "SurfaceFlinger: Default"
+        }
+    }
+
+    fun applyMemoryTweaks(enable: Boolean): String {
+        return if (enable) {
+            SystemReader.read("echo 60 > /proc/sys/vm/swappiness 2>/dev/null")
+            "Память: Tweaked"
+        } else {
+            SystemReader.read("echo 100 > /proc/sys/vm/swappiness 2>/dev/null")
+            "Память: Default"
+        }
     }
 
     fun setThermalLimit(temp: Int): String {
@@ -293,10 +314,7 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun openGameSpace(): String {
-        val pkgs = listOf(
-            "com.miui.securitycenter", "com.coloros.gamespace", "com.coloros.gamespaceui",
-            "com.transsion.game", "com.transsion.gamemode"
-        )
+        val pkgs = listOf("com.miui.securitycenter", "com.coloros.gamespace", "com.coloros.gamespaceui", "com.transsion.game", "com.transsion.gamemode")
         for (pkg in pkgs) {
             try {
                 val i = ctx.packageManager.getLaunchIntentForPackage(pkg)
