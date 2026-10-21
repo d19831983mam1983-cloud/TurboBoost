@@ -1,6 +1,5 @@
 package com.example.turboboost
 
-import com.example.turboboost.IUserService
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -14,16 +13,18 @@ object SystemReader {
     var directMode: Boolean = false
 
     private const val TIMEOUT_MS = 5000L
-    private val executor = Executors.newCachedThreadPool()
+    private val executor = Executors.newFixedThreadPool(4)
 
-    fun read(cmd: String): String {
-        if (directMode) {
-            return ShizukuHelper.execDirect(cmd)
+    fun read(cmd: String): String = read(cmd, TIMEOUT_MS)
+
+    fun read(cmd: String, timeoutMs: Long): String {
+        val task = Callable {
+            if (directMode) ShizukuHelper.execDirect(cmd)
+            else service?.exec(cmd) ?: ""
         }
-        val s = service ?: return ""
         return try {
-            val future = executor.submit(Callable { s.exec(cmd) })
-            future.get(TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            val future = executor.submit(task)
+            future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (e: Throwable) {
             ""
         }
@@ -35,5 +36,5 @@ object SystemReader {
 
     fun testWrite(path: String): Boolean = read("test -w $path && echo ok").contains("ok")
 
-    fun isReady(): Boolean = service != null || directMode
+    fun isReady(): Boolean = service != null || (directMode && ShizukuHelper.isAvailable())
 }
