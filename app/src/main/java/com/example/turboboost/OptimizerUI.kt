@@ -47,21 +47,21 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var page1: LinearLayout
     lateinit var snowView: SnowView
     lateinit var fxView: FXView
-    lateinit var btnOpt: TextView
-    lateinit var btnDiagnostics: TextView
-    lateinit var btnJoyose: TextView
-    lateinit var btnThreads: TextView
-    lateinit var btnMglru: TextView
-    lateinit var btnGameSpace: TextView
-    lateinit var btnModePerf: TextView
-    lateinit var btnModeBal: TextView
-    lateinit var btnGpuBoost: TextView
-    lateinit var btnBgLimit: TextView
-    lateinit var btnGames: TextView
-    lateinit var btnProfiles: TextView
+    lateinit var btnOpt: FrameLayout
+    lateinit var btnDiagnostics: FrameLayout
+    lateinit var btnJoyose: FrameLayout
+    lateinit var btnThreads: FrameLayout
+    lateinit var btnMglru: FrameLayout
+    lateinit var btnGameSpace: FrameLayout
+    lateinit var btnModePerf: FrameLayout
+    lateinit var btnModeBal: FrameLayout
+    lateinit var btnGpuBoost: FrameLayout
+    lateinit var btnBgLimit: FrameLayout
+    lateinit var btnGames: FrameLayout
+    lateinit var btnProfiles: FrameLayout
     lateinit var pkgInput: EditText
-    lateinit var cardApplied: TextView
-    lateinit var statusResult: TextView
+    lateinit var cardApplied: FrameLayout
+    lateinit var statusResult: FrameLayout
     lateinit var senseRow: LinearLayout
     lateinit var thermalRow: LinearLayout
     lateinit var presetRow: LinearLayout
@@ -336,7 +336,7 @@ class OptimizerUI(private val ctx: Context) {
     fun setThermalLevel(l: Int) { currentThermal = l; updThermal() }
     
     fun setActive(a: Boolean) { 
-        btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
+        setText(btnOpt, if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ")
         fade(btnOpt, if (a) red() else blue())
         if (a) pulse(btnOpt) else stopPulse(btnOpt)
     }
@@ -349,12 +349,21 @@ class OptimizerUI(private val ctx: Context) {
     fun setMglruState(a: Boolean) { fade(btnMglru, if (a) blue() else unsel()) }
 
     fun setAppliedState(active: Boolean, gov: Boolean) {
-        if (!active) { cardApplied.text = "Применено: —"; return }
-        cardApplied.text = "Применено: Governor ${if (gov) "✓" else "✗"}"
+        if (!active) { setText(cardApplied, "Применено: —"); return }
+        setText(cardApplied, "Применено: Governor ${if (gov) "✓" else "✗"}")
     }
 
     fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f }
-    fun setOverheat(warn: Boolean, critical: Boolean) { if (critical) statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — выключено"; else if (warn) statusResult.text = "Перегрев — снизьте троттлинг" }
+    fun setOverheat(warn: Boolean, critical: Boolean) { 
+        if (critical) setText(statusResult, "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — выключено"); 
+        else if (warn) setText(statusResult, "Перегрев — снизьте троттлинг") 
+    }
+    
+    fun setStatus(text: String) { setText(statusResult, text) }
+
+    private fun setText(container: FrameLayout, txt: String) {
+        (container.getChildAt(0) as? TextView)?.text = txt
+    }
 
     private fun pulse(v: View) {
         v.animate().cancel()
@@ -373,10 +382,10 @@ class OptimizerUI(private val ctx: Context) {
         val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(250)
     }
 
-    private fun updPreset() { for (i in 0 until presetRow.childCount) (presetRow.getChildAt(i) as TextView).background = if (i == currentPreset) blue() else unsel() }
-    private fun updHz() { val m = listOf(60, 90, 120, 144); for (i in 0 until hzRow.childCount) (hzRow.getChildAt(i) as TextView).background = if (m[i] == currentHz) blue() else unsel() }
-    private fun updSense() { for (i in 0 until senseRow.childCount) (senseRow.getChildAt(i) as TextView).background = if (i == currentSense) blue() else unsel() }
-    private fun updThermal() { for (i in 0 until thermalRow.childCount) (thermalRow.getChildAt(i) as TextView).background = if (i == currentThermal) blue() else unsel() }
+    private fun updPreset() { for (i in 0 until presetRow.childCount) (presetRow.getChildAt(i) as FrameLayout).background = if (i == currentPreset) blue() else unsel() }
+    private fun updHz() { val m = listOf(60, 90, 120, 144); for (i in 0 until hzRow.childCount) (hzRow.getChildAt(i) as FrameLayout).background = if (m[i] == currentHz) blue() else unsel() }
+    private fun updSense() { for (i in 0 until senseRow.childCount) (senseRow.getChildAt(i) as FrameLayout).background = if (i == currentSense) blue() else unsel() }
+    private fun updThermal() { for (i in 0 until thermalRow.childCount) (thermalRow.getChildAt(i) as FrameLayout).background = if (i == currentThermal) blue() else unsel() }
 
     private fun touch(v: View, click: () -> Unit) {
         v.setOnTouchListener { view, ev ->
@@ -397,48 +406,66 @@ class OptimizerUI(private val ctx: Context) {
         }
     }
 
-    private fun glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = 11f
-        gravity = Gravity.CENTER
-        setPadding(dp(4), 0, dp(4), 0)
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            setRenderEffect(RenderEffect.createBlurEffect(12f, 12f, Shader.TileMode.CLAMP))
+    private fun glass(text: String, click: () -> Unit): FrameLayout {
+        val tv = TextView(ctx).apply {
+            this.text = text
+            setTextColor(Color.WHITE)
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setPadding(dp(4), 0, dp(4), 0)
         }
-        background = glassBgDrawable(12)
-        touch(this, click)
+        val wrap = FrameLayout(ctx).apply {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                setRenderEffect(RenderEffect.createBlurEffect(12f, 12f, Shader.TileMode.CLAMP))
+            }
+            background = glassBgDrawable(12)
+            addView(tv, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            touch(this, click)
+        }
+        return wrap
     }
 
-    private fun bigBtn(text: String, size: Float, bg: GradientDrawable, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = size
-        gravity = Gravity.CENTER
-        setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
-        background = bg
-        touch(this, click)
+    private fun bigBtn(text: String, size: Float, bg: GradientDrawable, click: () -> Unit): FrameLayout {
+        val tv = TextView(ctx).apply {
+            this.text = text
+            setTextColor(Color.WHITE)
+            textSize = size
+            gravity = Gravity.CENTER
+            setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
+        }
+        val wrap = FrameLayout(ctx).apply {
+            background = bg
+            addView(tv, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            touch(this, click)
+        }
+        return wrap
     }
 
-    private fun card(text: String): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.parseColor("#EEEEEE"))
-        textSize = 13f
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            setRenderEffect(RenderEffect.createBlurEffect(16f, 16f, Shader.TileMode.CLAMP))
+    private fun card(text: String): FrameLayout {
+        val tv = TextView(ctx).apply {
+            this.text = text
+            setTextColor(Color.parseColor("#EEEEEE"))
+            textSize = 13f
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
         }
-        background = glassBgDrawable(16)
+        val wrap = FrameLayout(ctx).apply {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                setRenderEffect(RenderEffect.createBlurEffect(16f, 16f, Shader.TileMode.CLAMP))
+            }
+            background = glassBgDrawable(16)
+            addView(tv, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        }
+        return wrap
     }
 
     private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dp(radius).toFloat()
-        colors = intArrayOf(0x55FFFFFF, 0x1AFFFFFF, 0x33FFFFFF)
+        colors = intArrayOf(0x66FFFFFF, 0x22FFFFFF, 0x44FFFFFF)
         gradientType = GradientDrawable.LINEAR_GRADIENT
         orientation = GradientDrawable.Orientation.TL_BR
-        setStroke(dp(1), 0xAAFFFFFF.toInt())
+        setStroke(dp(1), 0xCCFFFFFF.toInt())
     }
 
     private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
