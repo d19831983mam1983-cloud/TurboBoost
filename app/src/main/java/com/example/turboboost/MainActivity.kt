@@ -161,6 +161,7 @@ class MainActivity : AppCompatActivity() {
                 "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
                 "Чип: ${info.chipName()}\n" +
                 "GPU: ${info.gpuName()}\n" +
+                "Класс: ${info.tierName()}\n" +
                 "Температура: ${"%.0f".format(info.cpuTemp())}°C\n" +
                 "Батарея: ${info.batteryLevel()}%${if (info.isCharging()) " ⚡" else ""}"
             main.post { AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show() }
@@ -292,6 +293,11 @@ class MainActivity : AppCompatActivity() {
 
                 if (slow) {
                     val gov = if (active) info.checkSystemState() else false
+                    if (active) info.dynamicAdjust()
+                    if (active) {
+                        val pkg = prefs.getLastPackage()
+                        if (pkg.isNotBlank()) info.prioritizeGameThreads(pkg)
+                    }
                     main.post { try { if (uiBuilt) ui.setAppliedState(active, gov) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
                 }
 
