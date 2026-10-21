@@ -22,12 +22,18 @@ class UserService : IUserService.Stub {
     override fun exec(cmd: String): String {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
-            p.redirectErrorStream(true)
+            val errThread = Thread {
+                try {
+                    BufferedReader(InputStreamReader(p.errorStream)).use { it.readText() }
+                } catch (e: Throwable) {}
+            }
+            errThread.isDaemon = true
+            errThread.start()
             val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText().trim() }
             if (!p.waitFor(5, TimeUnit.SECONDS)) {
                 p.destroyForcibly()
-                out
-            } else out
+            }
+            out
         } catch (e: Throwable) {
             ""
         }
