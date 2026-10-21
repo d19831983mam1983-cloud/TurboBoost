@@ -166,7 +166,9 @@ class OptimizerUI(private val ctx: Context) {
                 override fun afterTextChanged(s: Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
             })
         }
-        page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })        val r1 = row(page1, 6)
+        page1.addView(pkgInput, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
+        
+        val r1 = row(page1, 6)
         btnGames = glass("Игры") { onShowGames?.invoke() }
         r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
         btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
