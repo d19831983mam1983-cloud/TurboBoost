@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RenderEffect
 import android.graphics.Shader
@@ -17,6 +18,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -86,13 +89,14 @@ class OptimizerUI(private val ctx: Context) {
     var currentMode = 0
     var currentPreset = -1
     var currentHz = 120
+    private var isSummer = false
 
     private val blueS by lazy { gb(intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt(), 0xFF4F46E5.toInt()), 0xCCFFFFFF.toInt()).constantState }
-    private val redS by lazy { gb(intArrayOf(0xFFDC2626.toInt(), 0xFFF87171.toInt(), 0xFFDC2626.toInt()), 0xCCFFFFFF.toInt()).constantState }
+    private val greenS by lazy { gb(intArrayOf(0xFF16A34A.toInt(), 0xFF4ADE80.toInt(), 0xFF16A34A.toInt()), 0xCCFFFFFF.toInt()).constantState }
     private val unselS by lazy { gb(intArrayOf(0x44FFFFFF, 0x22FFFFFF, 0x33FFFFFF), 0x55FFFFFF.toInt()).constantState }
 
     private fun blue() = blueS!!.newDrawable().mutate() as GradientDrawable
-    private fun red() = redS!!.newDrawable().mutate() as GradientDrawable
+    private fun green() = greenS!!.newDrawable().mutate() as GradientDrawable
     private fun unsel() = unselS!!.newDrawable().mutate() as GradientDrawable
 
     fun build(): FrameLayout {
@@ -302,17 +306,8 @@ class OptimizerUI(private val ctx: Context) {
         animatorY.interpolator = android.view.animation.DecelerateInterpolator()
         animatorY.start()
         
-        if (::fxView.isInitialized) {
-            fxView.spawnBurst(root.width / 2f, root.height / 2f)
-        }
-        if (::pkgInput.isInitialized) {
-            pkgInput.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-        }
-        if (::btnOpt.isInitialized) {
-            btnOpt.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).withEndAction {
-                btnOpt.animate().scaleX(1f).scaleY(1f).setDuration(250).setInterpolator(OvershootInterpolator(2.5f)).start()
-            }.start()
-        }
+        if (::fxView.isInitialized) fxView.spawnBurst(root.width / 2f, root.height / 2f)
+        if (::pkgInput.isInitialized) pkgInput.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
     }
 
     fun setMode(m: Int) { currentMode = m; fade(btnModePerf, if (m == 0) blue() else unsel()); fade(btnModeBal, if (m == 1) blue() else unsel()) }
@@ -322,9 +317,10 @@ class OptimizerUI(private val ctx: Context) {
     fun setSenseLevel(l: Int) { currentSense = l; updSense() }
     
     fun setActive(a: Boolean) { 
+        isSummer = a
         btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
-        fade(btnOpt, if (a) red() else blue())
-        if (a) pulse(btnOpt) else stopPulse(btnOpt)
+        fade(btnOpt, if (a) green() else blue())
+        if (::snowView.isInitialized) snowView.setSummer(a)
     }
     
     fun setGpuBoostState(a: Boolean) { fade(btnGpuBoost, if (a) blue() else unsel()) }
@@ -347,21 +343,10 @@ class OptimizerUI(private val ctx: Context) {
     
     fun setStatus(text: String) { statusResult.text = text }
 
-    private fun pulse(v: View) {
-        v.animate().cancel()
-        v.animate().scaleX(1.04f).scaleY(1.04f).setDuration(800).setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction {
-            v.animate().scaleX(1f).scaleY(1f).setDuration(800).setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction {
-                if (v.tag == "pulse") pulse(v)
-            }
-        }.start()
-        v.tag = "pulse"
-    }
-    private fun stopPulse(v: View) { v.tag = null; v.animate().cancel(); v.animate().scaleX(1f).scaleY(1f).setDuration(200).start() }
-
     private fun fade(v: View, bg: GradientDrawable) {
         val o = v.background
         if (o == null) { v.background = bg; return }
-        val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(250)
+        val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(600)
     }
 
     private fun updPreset() { for (i in 0 until presetRow.childCount) (presetRow.getChildAt(i) as TextView).background = if (i == currentPreset) blue() else unsel() }
@@ -487,7 +472,7 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     class SnowView(context: Context) : View(context), SensorEventListener {
-        private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int)
+        private data class Flake(var x: Float, var y: Float, var radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
         private val flakes = mutableListOf<Flake>()
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -498,6 +483,7 @@ class OptimizerUI(private val ctx: Context) {
         private val rand = Random(System.currentTimeMillis())
         private var time = 0f
         private var active = true
+        private var summer = false
         
         private var sensorManager: SensorManager? = null
         private var accelerometer: Sensor? = null
@@ -511,6 +497,27 @@ class OptimizerUI(private val ctx: Context) {
         init {
             sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        }
+
+        fun setSummer(s: Boolean) {
+            summer = s
+            updateGradients()
+            invalidate()
+        }
+
+        private fun updateGradients() {
+            val w = width.toFloat()
+            val h = height.toFloat()
+            if (w <= 0 || h <= 0) return
+            if (summer) {
+                bgPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(0xFF0F2027.toInt(), 0xFF203A43.toInt(), 0xFF2C5364.toInt(), 0xFF1F4037.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
+                auroraPaint1.shader = RadialGradient(w / 2f, h * 0.3f, w * 0.9f, intArrayOf(0x44FFD700, 0x00000000), null, Shader.TileMode.CLAMP)
+                auroraPaint2.shader = RadialGradient(w / 2f, h * 0.7f, w * 0.8f, intArrayOf(0x4455FF55, 0x00000000), null, Shader.TileMode.CLAMP)
+            } else {
+                bgPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(0xFF05070A.toInt(), 0xFF101A3A.toInt(), 0xFF2A1A4A.toInt(), 0xFF05070A.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
+                auroraPaint1.shader = RadialGradient(w / 2f, h * 0.3f, w * 0.9f, intArrayOf(0x44A855F7, 0x00000000), null, Shader.TileMode.CLAMP)
+                auroraPaint2.shader = RadialGradient(w / 2f, h * 0.7f, w * 0.8f, intArrayOf(0x4450C0FF, 0x00000000), null, Shader.TileMode.CLAMP)
+            }
         }
 
         override fun onAttachedToWindow() {
@@ -570,11 +577,9 @@ class OptimizerUI(private val ctx: Context) {
             super.onSizeChanged(w, h, oldw, oldh)
             flakes.clear()
             for (i in 0 until 30) {
-                flakes.add(Flake(rand.nextFloat() * w, rand.nextFloat() * h, rand.nextFloat() * 2.5f + 1f, rand.nextFloat() * 1.5f + 0.5f, rand.nextFloat() * 0.6f - 0.3f, 100 + rand.nextInt(155)))
+                flakes.add(Flake(rand.nextFloat() * w, rand.nextFloat() * h, rand.nextFloat() * 2.5f + 1f, rand.nextFloat() * 1.5f + 0.5f, rand.nextFloat() * 0.6f - 0.3f, 100 + rand.nextInt(155), rand.nextFloat() * 360f))
             }
-            bgPaint.shader = LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0xFF05070A.toInt(), 0xFF101A3A.toInt(), 0xFF2A1A4A.toInt(), 0xFF05070A.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
-            auroraPaint1.shader = RadialGradient(w / 2f, h * 0.3f, w * 0.9f, intArrayOf(0x44A855F7, 0x00000000), null, Shader.TileMode.CLAMP)
-            auroraPaint2.shader = RadialGradient(w / 2f, h * 0.7f, w * 0.8f, intArrayOf(0x4450C0FF, 0x00000000), null, Shader.TileMode.CLAMP)
+            updateGradients()
         }
 
         override fun onDraw(canvas: Canvas) {
@@ -593,12 +598,23 @@ class OptimizerUI(private val ctx: Context) {
             for (f in flakes) {
                 f.y += f.speed
                 f.x += f.drift + sin(time + f.y * 0.01f) * 0.3f
+                f.rotation += 2f
                 if (f.y > height + 10) { f.y = -10f; f.x = rand.nextFloat() * width }
                 if (f.x > width + 10) f.x = -10f
                 if (f.x < -10) f.x = width + 10f
 
-                paint.color = Color.argb(f.alpha, 255, 255, 255)
-                canvas.drawCircle(f.x, f.y, f.radius, paint)
+                if (summer) {
+                    paint.color = Color.argb(f.alpha, 50, 205, 50)
+                    paint.setShadowLayer(f.radius * 2, 0f, 0f, Color.parseColor("#3355FF55"))
+                    canvas.save()
+                    canvas.rotate(f.rotation, f.x, f.y)
+                    canvas.drawOval(f.x - f.radius, f.y - f.radius * 0.5f, f.x + f.radius, f.y + f.radius * 0.5f, paint)
+                    canvas.restore()
+                } else {
+                    paint.color = Color.argb(f.alpha, 255, 255, 255)
+                    paint.setShadowLayer(f.radius * 3, 0f, 0f, Color.argb(f.alpha / 3, 255, 255, 255))
+                    canvas.drawCircle(f.x, f.y, f.radius, paint)
+                }
             }
             invalidate()
         }
