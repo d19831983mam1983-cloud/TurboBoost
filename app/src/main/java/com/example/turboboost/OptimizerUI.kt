@@ -35,7 +35,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.random.Random
@@ -96,27 +95,14 @@ class OptimizerUI(private val ctx: Context) {
     private var currentMglru = false
     private var currentJoyose = false
 
-    private val themeColors = arrayOf(
-        intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt()),
-        intArrayOf(0xFF16A34A.toInt(), 0xFF4ADE80.toInt()),
-        intArrayOf(0xFFDC2626.toInt(), 0xFFF87171.toInt()),
-        intArrayOf(0xFFEA580C.toInt(), 0xFFFB923C.toInt()),
-        intArrayOf(0xFF9333EA.toInt(), 0xFFC084FC.toInt()),
-        intArrayOf(0xFF0891B2.toInt(), 0xFF22D3EE.toInt()),
-        intArrayOf(0xFFDB2777.toInt(), 0xFFF472B6.toInt()),
-        intArrayOf(0xFFCA8A04.toInt(), 0xFFFACC15.toInt()),
-        intArrayOf(0xFF059669.toInt(), 0xFF34D399.toInt()),
-        intArrayOf(0xFF0284C7.toInt(), 0xFF38BDF8.toInt())
-    )
-
-    private fun accentColors(): IntArray = themeColors[themeIndex.coerceIn(0, themeColors.size - 1)]
+    private fun theme(): ThemePalette.Theme = ThemePalette.get(themeIndex)
 
     private fun accentDrawable(): GradientDrawable {
-        val c = accentColors()
+        val t = theme()
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(12).toFloat()
-            colors = intArrayOf(c[0], c[1], c[0])
+            colors = intArrayOf(t.primary, t.secondary, t.primary)
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.LEFT_RIGHT
             setStroke(dp(1), 0xCCFFFFFF.toInt())
@@ -133,7 +119,9 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     fun setThemeIndex(i: Int) {
-        themeIndex = i.coerceIn(0, themeColors.size - 1)
+        themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
+        if (!::root.isInitialized) return
+        if (::bgView.isInitialized) bgView.setTheme(themeIndex, isActive)
         applyThemeToAll()
     }
 
@@ -192,7 +180,7 @@ class OptimizerUI(private val ctx: Context) {
         
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, accentColors()[1]) })
+        col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, theme().secondary) })
         col.addView(tv("LIQUID GLASS", 10f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
         
         btnSettings = ImageView(ctx).apply {
@@ -317,7 +305,7 @@ fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
     
     val root = FrameLayout(ctx)
-    root.setBackgroundColor(Color.parseColor("#CC05070A"))
+    root.setBackgroundColor(Color.parseColor("#FF000000"))
     
     val scroll = ScrollView(ctx)
     val container = LinearLayout(ctx).apply {
@@ -338,10 +326,10 @@ fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
     val dlgBg = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dp(24).toFloat()
-        colors = intArrayOf(0x66FFFFFF, 0x33FFFFFF, 0x44FFFFFF)
+        colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x22FFFFFF)
         gradientType = GradientDrawable.LINEAR_GRADIENT
         orientation = GradientDrawable.Orientation.TL_BR
-        setStroke(dp(1), 0xCCFFFFFF.toInt())
+        setStroke(dp(1), 0xAAFFFFFF.toInt())
     }
 
     items.forEachIndexed { i, item ->
@@ -382,7 +370,7 @@ fun setActive(a: Boolean) {
     isActive = a
     btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
     fade(btnOpt, accentDrawable())
-    if (::bgView.isInitialized) bgView.setSummer(a)
+    if (::bgView.isInitialized) bgView.setActive(a)
     setMode(currentMode)
     setGpuBoostState(currentGpu)
     setBgLimitState(currentBg)
@@ -495,7 +483,10 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
     class LiquidBackgroundView(context: Context) : View(context), SensorEventListener {
-        private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
+        private data class Flake(
+            var x: Float, var y: Float, val radius: Float,
+            val speed: Float, val drift: Float, var alpha: Int, var rotation: Float
+        )
         private val flakes = mutableListOf<Flake>()
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val blobPaint1 = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -507,8 +498,9 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         private val matrix3 = Matrix()
         private val rand = Random(System.currentTimeMillis())
         private var time = 0f
-        private var summer = false
         private var active = true
+        private var isActiveMode = false
+        private var themeIndex = 0
         private var bgBitmap: Bitmap? = null
         
         private var sensorManager: SensorManager? = null
@@ -530,28 +522,60 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
             invalidate()
         }
 
-        fun setSummer(s: Boolean) {
-            summer = s
+        fun setActive(a: Boolean) {
+            isActiveMode = a
             updateGradients()
             invalidate()
+        }
+
+        fun setTheme(index: Int, activeMode: Boolean) {
+            themeIndex = index
+            isActiveMode = activeMode
+            updateGradients()
+            invalidate()
+        }
+
+        private fun currentPrimary(): Int {
+            val t = ThemePalette.get(themeIndex)
+            return if (isActiveMode) t.secondary else t.primary
+        }
+
+        private fun currentSecondary(): Int {
+            val t = ThemePalette.get(themeIndex)
+            return if (isActiveMode) t.primary else t.secondary
         }
 
         private fun updateGradients() {
             val w = width.toFloat()
             val h = height.toFloat()
             if (w <= 0 || h <= 0) return
-            
-            if (summer) {
-                bgPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(0xFF0F2027.toInt(), 0xFF203A43.toInt(), 0xFF2C5364.toInt(), 0xFF1F4037.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
-                blobPaint1.shader = RadialGradient(w * 0.3f, h * 0.3f, w * 0.7f, intArrayOf(0x66FFD700, 0x00000000), null, Shader.TileMode.CLAMP)
-                blobPaint2.shader = RadialGradient(w * 0.7f, h * 0.6f, w * 0.8f, intArrayOf(0x6655FF55, 0x00000000), null, Shader.TileMode.CLAMP)
-                blobPaint3.shader = RadialGradient(w * 0.5f, h * 0.9f, w * 0.6f, intArrayOf(0x44AAFFAA, 0x00000000), null, Shader.TileMode.CLAMP)
-            } else {
-                bgPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(0xFF05070A.toInt(), 0xFF101A3A.toInt(), 0xFF2A1A4A.toInt(), 0xFF05070A.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
-                blobPaint1.shader = RadialGradient(w * 0.3f, h * 0.3f, w * 0.7f, intArrayOf(0x664F46E5, 0x00000000), null, Shader.TileMode.CLAMP)
-                blobPaint2.shader = RadialGradient(w * 0.7f, h * 0.6f, w * 0.8f, intArrayOf(0x662563EB, 0x00000000), null, Shader.TileMode.CLAMP)
-                blobPaint3.shader = RadialGradient(w * 0.5f, h * 0.9f, w * 0.6f, intArrayOf(0x440D9488, 0x00000000), null, Shader.TileMode.CLAMP)
-            }
+
+            val t = ThemePalette.get(themeIndex)
+            val top = if (isActiveMode) darken(t.secondary) else darken(t.primary)
+            val mid = if (isActiveMode) t.secondary else t.primary
+            val bot = darken(if (isActiveMode) t.primary else t.secondary)
+
+            bgPaint.shader = LinearGradient(
+                0f, 0f, 0f, h,
+                intArrayOf(0xFF05070A.toInt(), top, mid, bot, 0xFF05070A.toInt()),
+                floatArrayOf(0f, 0.25f, 0.5f, 0.75f, 1f),
+                Shader.TileMode.CLAMP
+            )
+
+            val b1 = if (isActiveMode) t.blob2 else t.blob1
+            val b2 = if (isActiveMode) t.blob3 else t.blob2
+            val b3 = if (isActiveMode) t.blob1 else t.blob3
+
+            blobPaint1.shader = RadialGradient(w * 0.3f, h * 0.3f, w * 0.7f, intArrayOf(b1, 0x00000000), null, Shader.TileMode.CLAMP)
+            blobPaint2.shader = RadialGradient(w * 0.7f, h * 0.6f, w * 0.8f, intArrayOf(b2, 0x00000000), null, Shader.TileMode.CLAMP)
+            blobPaint3.shader = RadialGradient(w * 0.5f, h * 0.9f, w * 0.6f, intArrayOf(b3, 0x00000000), null, Shader.TileMode.CLAMP)
+        }
+
+        private fun darken(c: Int): Int {
+            val r = (Color.red(c) * 0.4f).toInt().coerceIn(0, 255)
+            val g = (Color.green(c) * 0.4f).toInt().coerceIn(0, 255)
+            val b = (Color.blue(c) * 0.4f).toInt().coerceIn(0, 255)
+            return Color.rgb(r, g, b)
         }
 
         override fun onAttachedToWindow() {
@@ -575,16 +599,22 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
                 val x = event.values[0]
                 val y = event.values[1]
                 val z = event.values[2]
-                val deltaX = abs(x - lastX)
-                val deltaY = abs(y - lastY)
-                val deltaZ = abs(z - lastZ)
-                val speed = deltaX + deltaY + deltaZ
-
-                if (speed > 12f) {
+                val delta = abs(x - lastX) + abs(y - lastY) + abs(z - lastZ)
+                if (delta > 12f) {
                     val now = System.currentTimeMillis()
                     if (now - lastShakeTime > 800) {
                         lastShakeTime = now
-                        triggerShake()
+                        val cx = width / 2f
+                        val cy = height / 2f
+                        for (f in flakes) {
+                            val dx = f.x - cx
+                            val dy = f.y - cy
+                            val dist = hypot(dx, dy).coerceAtLeast(1f)
+                            val force = rand.nextFloat() * 18f + 12f
+                            f.x += (dx / dist) * force
+                            f.y += (dy / dist) * force
+                        }
+                        post { onShake?.invoke() }
                     }
                 }
                 lastX = x; lastY = y; lastZ = z
@@ -593,25 +623,21 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-        private fun triggerShake() {
-            val cx = width / 2f
-            val cy = height / 2f
-            for (f in flakes) {
-                val dx = f.x - cx
-                val dy = f.y - cy
-                val dist = hypot(dx, dy).coerceAtLeast(1f)
-                val force = (rand.nextFloat() * 20f + 15f)
-                f.x += (dx / dist) * force
-                f.y += (dy / dist) * force
-            }
-            post { onShake?.invoke() }
-        }
-
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
             flakes.clear()
             for (i in 0 until 30) {
-                flakes.add(Flake(rand.nextFloat() * w, rand.nextFloat() * h, rand.nextFloat() * 2.5f + 1f, rand.nextFloat() * 1.5f + 0.5f, rand.nextFloat() * 0.6f - 0.3f, 100 + rand.nextInt(155), rand.nextFloat() * 360f))
+                flakes.add(
+                    Flake(
+                        rand.nextFloat() * w,
+                        rand.nextFloat() * h,
+                        rand.nextFloat() * 2.5f + 1f,
+                        rand.nextFloat() * 1.5f + 0.5f,
+                        rand.nextFloat() * 0.6f - 0.3f,
+                        100 + rand.nextInt(155),
+                        rand.nextFloat() * 360f
+                    )
+                )
             }
             updateGradients()
         }
@@ -619,7 +645,7 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         override fun onDraw(canvas: Canvas) {
             if (!active) return
             time += 0.01f
-            
+
             val bmp = bgBitmap
             if (bmp != null) {
                 val scale = maxOf(width.toFloat() / bmp.width, height.toFloat() / bmp.height)
@@ -633,18 +659,20 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
             } else {
                 canvas.drawPaint(bgPaint)
             }
-            
-            matrix1.setTranslate(sin(time * 0.5f) * width * 0.3f, cos(time * 0.7f) * height * 0.2f)
+
+            matrix1.setTranslate(sin(time * 0.5f) * width * 0.3f, kotlin.math.cos(time * 0.7f) * height * 0.2f)
             blobPaint1.shader?.setLocalMatrix(matrix1)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint1)
 
-            matrix2.setTranslate(cos(time * 0.4f) * width * 0.4f, sin(time * 0.6f) * height * 0.3f)
+            matrix2.setTranslate(kotlin.math.cos(time * 0.4f) * width * 0.4f, sin(time * 0.6f) * height * 0.3f)
             blobPaint2.shader?.setLocalMatrix(matrix2)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint2)
 
-            matrix3.setTranslate(sin(time * 0.3f) * width * 0.2f, cos(time * 0.5f) * height * 0.4f)
+            matrix3.setTranslate(sin(time * 0.3f) * width * 0.2f, kotlin.math.cos(time * 0.5f) * height * 0.4f)
             blobPaint3.shader?.setLocalMatrix(matrix3)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint3)
+
+            val flakeColor = if (isActiveMode) currentSecondary() else currentPrimary()
 
             for (f in flakes) {
                 f.y += f.speed
@@ -654,16 +682,16 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
                 if (f.x > width + 10) f.x = -10f
                 if (f.x < -10) f.x = width + 10f
 
-                if (summer) {
-                    flakePaint.color = Color.argb(f.alpha, 50, 205, 50)
-                    flakePaint.setShadowLayer(f.radius * 2, 0f, 0f, Color.parseColor("#3355FF55"))
+                if (isActiveMode) {
+                    flakePaint.color = Color.argb(f.alpha, Color.red(flakeColor), Color.green(flakeColor), Color.blue(flakeColor))
+                    flakePaint.setShadowLayer(f.radius * 2, 0f, 0f, flakeColor)
                     canvas.save()
                     canvas.rotate(f.rotation, f.x, f.y)
                     canvas.drawOval(f.x - f.radius, f.y - f.radius * 0.5f, f.x + f.radius, f.y + f.radius * 0.5f, flakePaint)
                     canvas.restore()
                 } else {
-                    flakePaint.color = Color.argb(f.alpha, 255, 255, 255)
-                    flakePaint.setShadowLayer(f.radius * 3, 0f, 0f, Color.argb(f.alpha / 3, 255, 255, 255))
+                    flakePaint.color = Color.argb(f.alpha, Color.red(flakeColor), Color.green(flakeColor), Color.blue(flakeColor))
+                    flakePaint.setShadowLayer(f.radius * 3, 0f, 0f, flakeColor)
                     canvas.drawCircle(f.x, f.y, f.radius, flakePaint)
                 }
             }
