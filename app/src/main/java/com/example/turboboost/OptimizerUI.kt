@@ -8,6 +8,7 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RadialGradient
+import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
@@ -62,7 +63,6 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var cardApplied: TextView
     lateinit var statusResult: TextView
     lateinit var senseRow: LinearLayout
-    lateinit var thermalRow: LinearLayout
     lateinit var presetRow: LinearLayout
     lateinit var hzRow: LinearLayout
 
@@ -73,7 +73,6 @@ class OptimizerUI(private val ctx: Context) {
     var onMglruToggle: (() -> Unit)? = null
     var onGameSpace: (() -> Unit)? = null
     var onSenseSelected: ((Int) -> Unit)? = null
-    var onThermalSelected: ((Int) -> Unit)? = null
     var onModeSelected: ((Int) -> Unit)? = null
     var onGpuBoostToggle: (() -> Unit)? = null
     var onBgLimitToggle: (() -> Unit)? = null
@@ -84,7 +83,6 @@ class OptimizerUI(private val ctx: Context) {
     var onPackageChanged: ((String) -> Unit)? = null
 
     var currentSense = -1
-    var currentThermal = -1
     var currentMode = 0
     var currentPreset = -1
     var currentHz = 120
@@ -167,12 +165,6 @@ class OptimizerUI(private val ctx: Context) {
         senseRow = row(page1, 6)
         listOf("Средний", "Сильный", "Эксп.", "Макс").forEachIndexed { i, n ->
             senseRow.addView(glass(n) { currentSense = i; onSenseSelected?.invoke(i); updSense() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-        }
-
-        page1.addView(lbl("Троттлинг (°C):"))
-        thermalRow = row(page1, 6)
-        listOf("Авто", "50", "60", "70").forEachIndexed { i, n ->
-            thermalRow.addView(glass(n) { currentThermal = i; onThermalSelected?.invoke(i); updThermal() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
         }
 
         page1.addView(lbl("Пакет игры:"))
@@ -268,10 +260,10 @@ class OptimizerUI(private val ctx: Context) {
         val dlgBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(24).toFloat()
-            colors = intArrayOf(0x66FFFFFF, 0x33FFFFFF, 0x44FFFFFF)
+            colors = intArrayOf(0x44FFFFFF, 0x11FFFFFF, 0x33FFFFFF)
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.TL_BR
-            setStroke(dp(1), 0xCCFFFFFF.toInt())
+            setStroke(dp(1), 0x88FFFFFF.toInt())
         }
 
         items.forEachIndexed { i, item ->
@@ -289,6 +281,10 @@ class OptimizerUI(private val ctx: Context) {
                 }
             }
             container.addView(tv, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            root.setRenderEffect(RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP))
         }
         
         dialog.setContentView(root)
@@ -328,7 +324,6 @@ class OptimizerUI(private val ctx: Context) {
     fun setHz(hz: Int) { currentHz = hz; updHz() }
     fun setPackageText(t: String) { if (t.isNotEmpty()) pkgInput.setText(t) }
     fun setSenseLevel(l: Int) { currentSense = l; updSense() }
-    fun setThermalLevel(l: Int) { currentThermal = l; updThermal() }
     
     fun setActive(a: Boolean) { 
         btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
@@ -345,11 +340,14 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setAppliedState(active: Boolean, gov: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
-        cardApplied.text = "Применено: Governor ${if (gov) "✓" else "✗"}"
+        cardApplied.text = "Применено: RAM очищена"
     }
 
     fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f }
-    fun setOverheat(warn: Boolean, critical: Boolean) { if (critical) statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — выключено"; else if (warn) statusResult.text = "Перегрев — снизьте троттлинг" }
+    fun setOverheat(warn: Boolean, critical: Boolean) { 
+        if (critical) statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — выключено"; 
+        else if (warn) statusResult.text = "Перегрев" 
+    }
     
     fun setStatus(text: String) { statusResult.text = text }
 
@@ -373,7 +371,6 @@ class OptimizerUI(private val ctx: Context) {
     private fun updPreset() { for (i in 0 until presetRow.childCount) (presetRow.getChildAt(i) as TextView).background = if (i == currentPreset) blue() else unsel() }
     private fun updHz() { val m = listOf(60, 90, 120, 144); for (i in 0 until hzRow.childCount) (hzRow.getChildAt(i) as TextView).background = if (m[i] == currentHz) blue() else unsel() }
     private fun updSense() { for (i in 0 until senseRow.childCount) (senseRow.getChildAt(i) as TextView).background = if (i == currentSense) blue() else unsel() }
-    private fun updThermal() { for (i in 0 until thermalRow.childCount) (thermalRow.getChildAt(i) as TextView).background = if (i == currentThermal) blue() else unsel() }
 
     private fun touch(v: View, click: () -> Unit) {
         v.setOnTouchListener { view, ev ->
