@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun blocked() {
         uiBuilt = false
+        busy = false
         val box = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER
             setBackgroundColor(Color.parseColor("#05070A")); setPadding(60, 60, 60, 60)
@@ -99,6 +100,7 @@ class MainActivity : AppCompatActivity() {
     private fun buildMain() {
         if (uiBuilt) return
         uiBuilt = true
+        busy = false
         setContentView(ui.build())
         val ap = prefs.getActiveProfilePkg()
         ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
@@ -227,27 +229,74 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun toggle() {
-        if (!ready()) return
+        if (!ready() || busy) return
         busy = true
-        if (!prefs.isActive() && info.batteryLevel() <= 10) { Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show(); busy = false; return }
-        val on = !prefs.isActive(); val p = prefs.getLastPackage(); val m = prefs.getPerfMode(); val hz = prefs.getTargetHz()
+        
+        val timeoutRunnable = Runnable {
+            if (busy) {
+                busy = false
+                if (uiBuilt) ui.setStatus("Готово (таймаут)")
+            }
+        }
+        main.postDelayed(timeoutRunnable, 15000)
+        
+        if (!prefs.isActive() && info.batteryLevel() <= 10) { 
+            Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show()
+            busy = false
+            main.removeCallbacks(timeoutRunnable)
+            return 
+        }
+        
+        val on = !prefs.isActive()
+        val p = prefs.getLastPackage()
+        val m = prefs.getPerfMode()
+        val hz = prefs.getTargetHz()
+        
         if (on) {
-            ui.setStatus("Оптимизация...")
+            if (uiBuilt) ui.setStatus("Оптимизация...")
             ex.execute {
-                val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost())
-                if (p.isNotBlank()) info.unlockGameFps(p, hz)
-                if (prefs.isBackgroundLimit()) info.restrictBackground()
-                info.applySurfaceFlingerBoost(true)
-                main.post { prefs.setActive(true); ui.setActive(true); ui.setStatus(r); busy = false; alive(true); refresh() }
+                try {
+                    val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost())
+                    if (p.isNotBlank()) info.unlockGameFps(p, hz)
+                    if (prefs.isBackgroundLimit()) info.restrictBackground()
+                    info.applySurfaceFlingerBoost(true)
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { 
+                        busy = false
+                        if (!uiBuilt) return@post
+                        prefs.setActive(true); ui.setActive(true); ui.setStatus(r); alive(true); refresh() 
+                    }
+                } catch (e: Throwable) {
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { 
+                        busy = false
+                        if (!uiBuilt) return@post
+                        ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") 
+                    }
+                }
             }
         } else {
-            ui.setStatus("Отключение...")
+            if (uiBuilt) ui.setStatus("Отключение...")
             ex.execute {
-                val r = info.deactivateMaxPerformance()
-                if (p.isNotBlank()) info.resetGameFps(p)
-                if (prefs.isBackgroundLimit()) info.restoreBackground()
-                info.applySurfaceFlingerBoost(false)
-                main.post { prefs.setActive(false); ui.setActive(false); ui.setStatus(r); busy = false; alive(false); refresh() }
+                try {
+                    val r = info.deactivateMaxPerformance()
+                    if (p.isNotBlank()) info.resetGameFps(p)
+                    if (prefs.isBackgroundLimit()) info.restoreBackground()
+                    info.applySurfaceFlingerBoost(false)
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { 
+                        busy = false
+                        if (!uiBuilt) return@post
+                        prefs.setActive(false); ui.setActive(false); ui.setStatus(r); alive(false); refresh() 
+                    }
+                } catch (e: Throwable) {
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { 
+                        busy = false
+                        if (!uiBuilt) return@post
+                        ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") 
+                    }
+                }
             }
         }
     }
@@ -303,6 +352,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() { super.onPause(); if (uiBuilt) prefs.setUiScrollY(ui.scroll1.scrollY) }
-    override fun onResume() { super.onResume(); if (!uiBuilt) check() else { val y = prefs.getUiScrollY(); if (y > 0) ui.scroll1.post { ui.scroll1.scrollTo(0, y) } } }
+
+    override fun onResume() {
+        super.onResume()
+        if (!uiBuilt) {
+            check()
+        } else {
+            val y = prefs.getUiScrollY()
+            if (y > 0) ui.scroll1.post { ui.scroll1.scrollTo(0, y) }
+            
+            val active = prefs.isActive()
+            ui.setActive(active)
+            ui.setStatus(if (active) "Активно" else "Готов к работе")
+            ui.setGpuBoostState(prefs.isGpuBoost())
+            ui.setBgLimitState(prefs.isBackgroundLimit())
+            if (active) refresh()
+            busy = false
+        }
+    }
+
     override fun onDestroy() { ShizukuHelper.destroy(); ex.shutdown(); super.onDestroy() }
 }
