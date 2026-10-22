@@ -293,6 +293,9 @@ class MainActivity : AppCompatActivity() {
                     if (prefs.isBackgroundLimit()) info.restrictBackground()
                     info.applySurfaceFlingerBoost(true)
                     info.boostInputDispatcher()
+                    info.restrictPowerKeeper()
+                    info.cleanupDozeWhitelist()
+                    info.restrictGms()
                     main.removeCallbacks(timeoutRunnable)
                     main.post { 
                         busy = false
@@ -316,6 +319,8 @@ class MainActivity : AppCompatActivity() {
                     if (p.isNotBlank()) info.resetGameFps(p)
                     if (prefs.isBackgroundLimit()) info.restoreBackground()
                     info.applySurfaceFlingerBoost(false)
+                    info.restorePowerKeeper()
+                    info.restoreGms()
                     main.removeCallbacks(timeoutRunnable)
                     main.post { 
                         busy = false
