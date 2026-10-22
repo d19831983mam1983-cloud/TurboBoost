@@ -105,7 +105,6 @@ class MainActivity : AppCompatActivity() {
         ui.onPackageChanged = { prefs.setLastPackage(it) }
         ui.setMode(prefs.getPerfMode()); ui.setHz(prefs.getTargetHz())
         if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
-        if (prefs.getThermalLevel() >= 0) ui.setThermalLevel(prefs.getThermalLevel())
         ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
         ui.setStatus("Готов к работе")
         
@@ -128,7 +127,6 @@ class MainActivity : AppCompatActivity() {
         ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.setStatus(r) } } }
         ui.onPresetSelected = { preset(it) }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
-        ui.onThermalSelected = { prefs.setThermalLevel(it); async { if (it == 0) info.resetThermal() else info.setThermalLimit(it * 10 + 40) } }
         ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e) } }
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
         ui.onShowGames = { ex.execute { val g = info.listGames(); main.post { games(g) } } }
@@ -157,7 +155,6 @@ class MainActivity : AppCompatActivity() {
                 "Разрешение: ${if (ShizukuHelper.hasPermission()) "✓" else "✗"}\n" +
                 "UserService/Direct: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
                 "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
-                "Governor: ${if (a && info.checkSystemState()) "✓" else "✗"}\n" +
                 "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
                 "Чип: ${info.chipName()}\n" +
                 "GPU: ${info.gpuName()}\n" +
@@ -175,16 +172,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun preset(p: Int) {
-        var m = 1; var s = 0; var t = 0; var g = false; var b = false; var hz = 60
-        when (p) { 1 -> { m = 0; s = 1; t = 2; g = true; b = true; hz = 120 }; 2 -> { m = 0; s = 3; t = 3; g = true; b = true; hz = 144 } }
-        prefs.setPerfMode(m); prefs.setSenseLevel(s); prefs.setThermalLevel(t); prefs.setGpuBoost(g); prefs.setBackgroundLimit(b); prefs.setTargetHz(hz)
-        ui.setMode(m); ui.setSenseLevel(s); ui.setThermalLevel(t); ui.setGpuBoostState(g); ui.setBgLimitState(b); ui.setHz(hz); ui.setPreset(p)
+        var m = 1; var s = 0; var g = false; var b = false; var hz = 60
+        when (p) { 1 -> { m = 0; s = 1; g = true; b = true; hz = 120 }; 2 -> { m = 0; s = 3; g = true; b = true; hz = 144 } }
+        prefs.setPerfMode(m); prefs.setSenseLevel(s); prefs.setGpuBoost(g); prefs.setBackgroundLimit(b); prefs.setTargetHz(hz)
+        ui.setMode(m); ui.setSenseLevel(s); ui.setGpuBoostState(g); ui.setBgLimitState(b); ui.setHz(hz); ui.setPreset(p)
         if (prefs.isActive()) {
             if (!ready()) return
             ex.execute {
                 val r = info.activateMaxPerformance(hz, m, g)
                 info.applySense(s)
-                if (t == 0) info.resetThermal() else info.setThermalLimit(t * 10 + 40)
                 if (b) info.restrictBackground() else info.restoreBackground()
                 main.post { ui.setStatus("Пресет применён: $r") }
             }
@@ -207,7 +203,7 @@ class MainActivity : AppCompatActivity() {
             val c = items[w]
             when {
                 c.startsWith("Сохранить") -> {
-                    prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), prefs.getThermalLevel(), false, prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
+                    prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), 0, false, prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
                     Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show()
                 }
                 c.startsWith("Удалить") -> {
@@ -221,11 +217,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyProfile(p: GameProfile) {
-        prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setThermalLevel(p.thermal); prefs.setTargetHz(p.hz); prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit); prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
-        ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); if (p.thermal >= 0) ui.setThermalLevel(p.thermal); ui.setHz(p.hz); ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit); ui.setPackageText(p.pkg)
+        prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setTargetHz(p.hz); prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit); prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
+        ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); ui.setHz(p.hz); ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit); ui.setPackageText(p.pkg)
         ex.execute {
             info.applySense(p.sense)
-            if (p.thermal == 0) info.resetThermal() else info.setThermalLimit(p.thermal * 10 + 40)
             if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost)
             if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
         }
@@ -243,7 +238,6 @@ class MainActivity : AppCompatActivity() {
                 if (p.isNotBlank()) info.unlockGameFps(p, hz)
                 if (prefs.isBackgroundLimit()) info.restrictBackground()
                 info.applySurfaceFlingerBoost(true)
-                info.applyMemoryTweaks(true)
                 main.post { prefs.setActive(true); ui.setActive(true); ui.setStatus(r); busy = false; alive(true); refresh() }
             }
         } else {
@@ -253,7 +247,6 @@ class MainActivity : AppCompatActivity() {
                 if (p.isNotBlank()) info.resetGameFps(p)
                 if (prefs.isBackgroundLimit()) info.restoreBackground()
                 info.applySurfaceFlingerBoost(false)
-                info.applyMemoryTweaks(false)
                 main.post { prefs.setActive(false); ui.setActive(false); ui.setStatus(r); busy = false; alive(false); refresh() }
             }
         }
@@ -275,9 +268,8 @@ class MainActivity : AppCompatActivity() {
         val now = System.currentTimeMillis(); val slow = now - lastSlow >= 15000L; if (slow) lastSlow = now
         ex.execute {
             try {
-                val bat = info.batteryLevel(); val temp = info.cpuTemp(); val charging = info.isCharging(); val active = prefs.isActive(); val th = prefs.getThermalLevel()
+                val bat = info.batteryLevel(); val temp = info.cpuTemp(); val active = prefs.isActive()
                 tHist.addLast(temp); if (tHist.size > 5) tHist.removeFirst()
-                val growth = if (tHist.size >= 2) tHist.last() - tHist.first() else 0f
 
                 if (temp > 80f && active) {
                     info.deactivateMaxPerformance(); prefs.setActive(false)
@@ -285,20 +277,12 @@ class MainActivity : AppCompatActivity() {
                     return@execute
                 }
 
-                if (active && th > 0) {
-                    var t = if (charging) (th * 10 + 50).coerceAtMost(70) else (th * 10 + 40)
-                    if (growth > 4f && t > 50) t -= 5
-                    info.setThermalLimit(t)
-                }
-
                 if (slow) {
-                    val gov = if (active) info.checkSystemState() else false
-                    if (active) info.dynamicAdjust()
                     if (active) {
                         val pkg = prefs.getLastPackage()
                         if (pkg.isNotBlank()) info.prioritizeGameThreads(pkg)
                     }
-                    main.post { try { if (uiBuilt) ui.setAppliedState(active, gov) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
+                    main.post { try { if (uiBuilt) ui.setAppliedState(active, active) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
                 }
 
                 main.post {
