@@ -135,17 +135,37 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Throwable) { null }
     }
 
+    private fun openSettings() {
+        val settings = SettingsScreen(this)
+        settings.onBack = { buildMain() }
+        settings.onThemeSelected = { idx ->
+            prefs.setThemeIndex(idx)
+            ui.setThemeIndex(idx)
+            buildMain()
+        }
+        settings.onPickBackground = { pickImage.launch("image/*") }
+        settings.onResetBackground = {
+            ui.setBackgroundBitmap(null)
+            try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
+        }
+        setContentView(settings.build())
+    }
+
     private fun buildMain() {
-        if (uiBuilt) return
-        uiBuilt = true
-        busy = false
-        setContentView(ui.build())
+        if (uiBuilt && ::ui.isInitialized && ::prefs.isInitialized) {
+            setContentView(ui.build())
+        } else {
+            uiBuilt = true
+            busy = false
+            setContentView(ui.build())
+        }
+        
         ui.setThemeIndex(prefs.getThemeIndex())
         
         val savedBg = loadBgFromInternal()
         if (savedBg != null) ui.setBackgroundBitmap(savedBg)
         
-        ui.onSettingsClick = { showSettings() }
+        ui.onSettingsClick = { openSettings() }
         
         val ap = prefs.getActiveProfilePkg()
         ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
@@ -183,32 +203,7 @@ class MainActivity : AppCompatActivity() {
         ui.setActive(prefs.isActive())
         if (prefs.isActive()) alive(true)
         refresh(); loop()
-    }    private fun showSettings() {
-        val items = mutableListOf(
-            "Выбрать фон из галереи",
-            "Сбросить фон",
-            "── Темы ──"
-        )
-        val themeNames = arrayOf("Синяя", "Зелёная", "Красная", "Оранжевая", "Фиолетовая", "Бирюзовая", "Розовая", "Жёлтая", "Мятная", "Ледяная")
-        items.addAll(themeNames.toList())
-        
-        ui.showGlassList("Настройки", items) { idx ->
-            when {
-                idx == 0 -> pickImage.launch("image/*")
-                idx == 1 -> {
-                    ui.setBackgroundBitmap(null)
-                    try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
-                }
-                idx >= 3 -> {
-                    val themeIdx = idx - 3
-                    prefs.setThemeIndex(themeIdx)
-                    ui.setThemeIndex(themeIdx)
-                }
-            }
-        }
-    }
-
-    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
+    }    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
 
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
@@ -232,6 +227,7 @@ class MainActivity : AppCompatActivity() {
             val t = "Режим: $mode\n" +
                 "Готов: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
                 "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
+                "Тема: ${ThemePalette.get(prefs.getThemeIndex()).name}\n" +
                 "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
                 "Чип: ${info.chipName()}\n" +
                 "GPU: ${info.gpuName()}\n" +
