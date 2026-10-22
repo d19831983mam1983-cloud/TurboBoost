@@ -292,6 +292,7 @@ class MainActivity : AppCompatActivity() {
                     if (p.isNotBlank()) info.unlockGameFps(p, hz)
                     if (prefs.isBackgroundLimit()) info.restrictBackground()
                     info.applySurfaceFlingerBoost(true)
+                    info.boostInputDispatcher()
                     main.removeCallbacks(timeoutRunnable)
                     main.post { 
                         busy = false
