@@ -222,6 +222,55 @@ class DeviceInfo(private val ctx: Context) {
         return "Игра $pkg: ${tids.size} потоков на ${allCores.size} ядрах"
     }
 
+    fun pinGameToPrimeCore(pkg: String): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        val pid = SystemReader.read("pidof $pkg").trim()
+        if (pid.isBlank()) return "Игра не запущена"
+
+        val big = clustersCache.filter { it.second == "big" }.map { it.first }.sorted()
+        if (big.isEmpty()) return "Нет big-ядер"
+
+        var mask = 0
+        for (core in big) {
+            mask = mask or (1 shl core)
+        }
+        val hexMask = Integer.toHexString(mask)
+
+        val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .mapNotNull { line ->
+                val parts = line.split(Regex("\\s+"))
+                if (parts.size >= 2) {
+                    val tid = parts[0].toIntOrNull()
+                    val name = parts[1]
+                    if (tid != null && tid != pid.toInt()) tid to name else null
+                } else null
+            }
+
+        if (allTids.isEmpty()) return "Потоки не найдены"
+
+        var target = allTids.firstOrNull { (_, name) ->
+            name.contains("GameThread", true) || name.contains("UnityMain", true) || name == "main"
+        }
+        if (target == null) {
+            target = allTids.firstOrNull { (_, name) ->
+                name.contains("RenderThread", true) || name.contains("UnityGfx", true)
+            }
+        }
+        if (target == null) {
+            target = allTids.firstOrNull()
+        }
+
+        if (target == null) return "Главный поток не найден"
+
+        val (tid, name) = target
+        SystemReader.read("taskset -p $hexMask $tid 2>/dev/null; renice -n -15 -p $tid 2>/dev/null")
+
+        val coreNames = big.joinToString(",")
+        return "Отклик: $name (TID $tid) -> big-ядра [$coreNames]"
+    }
+
     fun boostInputDispatcher(): String {
         val sb = StringBuilder()
         val inputPid = SystemReader.read("pidof inputflinger").trim()
