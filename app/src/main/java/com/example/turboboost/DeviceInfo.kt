@@ -222,6 +222,23 @@ class DeviceInfo(private val ctx: Context) {
         return "Игра $pkg: ${tids.size} потоков на ${allCores.size} ядрах"
     }
 
+    fun boostInputDispatcher(): String {
+        val sb = StringBuilder()
+        val inputPid = SystemReader.read("pidof inputflinger").trim()
+        if (inputPid.isNotBlank()) {
+            sb.append("renice -n -15 -p $inputPid 2>/dev/null; ")
+            val tids = SystemReader.read("ps -T -p $inputPid -o TID,CMD").lines()
+                .map { it.trim() }
+                .filter { it.contains("InputDispatcher", true) }
+                .mapNotNull { it.split(Regex("\\s+")).firstOrNull()?.toIntOrNull() }
+            for (tid in tids) {
+                sb.append("renice -n -15 -p $tid 2>/dev/null; ")
+            }
+        }
+        SystemReader.read(sb.toString())
+        return if (inputPid.isNotBlank()) "InputDispatcher: усилен" else "inputflinger не найден"
+    }
+
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
         val safeHz = when { hz >= 144 -> 120; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
