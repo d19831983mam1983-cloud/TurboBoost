@@ -2,6 +2,7 @@ package com.example.turboboost
 
 import android.app.Dialog
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -42,9 +43,11 @@ import kotlin.random.Random
 class OptimizerUI(private val ctx: Context) {
 
     lateinit var root: FrameLayout
+    lateinit var topBar: FrameLayout
     lateinit var scroll1: ScrollView
     lateinit var page1: LinearLayout
     lateinit var bgView: LiquidBackgroundView
+    lateinit var btnSettings: ImageView
     lateinit var btnOpt: TextView
     lateinit var btnDiagnostics: TextView
     lateinit var btnJoyose: TextView
@@ -79,26 +82,72 @@ class OptimizerUI(private val ctx: Context) {
     var onPresetSelected: ((Int) -> Unit)? = null
     var onHzSelected: ((Int) -> Unit)? = null
     var onPackageChanged: ((String) -> Unit)? = null
+    var onSettingsClick: (() -> Unit)? = null
 
     var currentSense = -1
     var currentMode = 0
     var currentPreset = -1
     var currentHz = 120
-    private var isSummer = false
+    private var isActive = false
+    private var themeIndex = 0
     private var currentGpu = false
     private var currentBg = false
     private var currentThreads = false
     private var currentMglru = false
     private var currentJoyose = false
 
-    private val blueS by lazy { gb(intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt(), 0xFF4F46E5.toInt()), 0xCCFFFFFF.toInt()).constantState }
-    private val greenS by lazy { gb(intArrayOf(0xFF16A34A.toInt(), 0xFF4ADE80.toInt(), 0xFF16A34A.toInt()), 0xCCFFFFFF.toInt()).constantState }
-    private val unselS by lazy { gb(intArrayOf(0x44FFFFFF, 0x22FFFFFF, 0x33FFFFFF), 0x55FFFFFF.toInt()).constantState }
+    private val themeColors = arrayOf(
+        intArrayOf(0xFF4F46E5.toInt(), 0xFF7BA7F5.toInt()),
+        intArrayOf(0xFF16A34A.toInt(), 0xFF4ADE80.toInt()),
+        intArrayOf(0xFFDC2626.toInt(), 0xFFF87171.toInt()),
+        intArrayOf(0xFFEA580C.toInt(), 0xFFFB923C.toInt()),
+        intArrayOf(0xFF9333EA.toInt(), 0xFFC084FC.toInt()),
+        intArrayOf(0xFF0891B2.toInt(), 0xFF22D3EE.toInt()),
+        intArrayOf(0xFFDB2777.toInt(), 0xFFF472B6.toInt()),
+        intArrayOf(0xFFCA8A04.toInt(), 0xFFFACC15.toInt()),
+        intArrayOf(0xFF059669.toInt(), 0xFF34D399.toInt()),
+        intArrayOf(0xFF0284C7.toInt(), 0xFF38BDF8.toInt())
+    )
 
-    private fun accent() = if (isSummer) green() else blue()
-    private fun blue() = blueS!!.newDrawable().mutate() as GradientDrawable
-    private fun green() = greenS!!.newDrawable().mutate() as GradientDrawable
-    private fun unsel() = unselS!!.newDrawable().mutate() as GradientDrawable
+    private fun accentColors(): IntArray = themeColors[themeIndex.coerceIn(0, themeColors.size - 1)]
+
+    private fun accentDrawable(): GradientDrawable {
+        val c = accentColors()
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(12).toFloat()
+            colors = intArrayOf(c[0], c[1], c[0])
+            gradientType = GradientDrawable.LINEAR_GRADIENT
+            orientation = GradientDrawable.Orientation.LEFT_RIGHT
+            setStroke(dp(1), 0xCCFFFFFF.toInt())
+        }
+    }
+
+    private fun unselDrawable(): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(12).toFloat()
+        colors = intArrayOf(0x44FFFFFF, 0x22FFFFFF, 0x33FFFFFF)
+        gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.LEFT_RIGHT
+        setStroke(dp(1), 0x55FFFFFF.toInt())
+    }
+
+    fun setThemeIndex(i: Int) {
+        themeIndex = i.coerceIn(0, themeColors.size - 1)
+        applyThemeToAll()
+    }
+
+    private fun applyThemeToAll() {
+        if (!::root.isInitialized) return
+        setMode(currentMode)
+        setGpuBoostState(currentGpu)
+        setBgLimitState(currentBg)
+        setThreadsState(currentThreads)
+        setMglruState(currentMglru)
+        setJoyoseState(currentJoyose)
+        updPreset(); updHz(); updSense()
+        if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
+    }
 
     fun build(): FrameLayout {
         root = FrameLayout(ctx)
@@ -107,30 +156,54 @@ class OptimizerUI(private val ctx: Context) {
         bgView = LiquidBackgroundView(ctx)
         root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
+        val content = FrameLayout(ctx)
+        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
         scroll1 = ScrollView(ctx).apply { 
             isFillViewport = true
             setBackgroundColor(Color.TRANSPARENT)
             addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            setPadding(0, dp(80), 0, 0)
         }
-        root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        
-        header()
+        content.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        topBar = buildTopBar()
+        content.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
+
         buildMain()
         animateIn()
         return root
     }
 
-    private fun header() {
-        val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        page1.addView(h, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+    private fun buildTopBar(): FrameLayout {
+        val bar = FrameLayout(ctx)
+        bar.setBackgroundColor(Color.parseColor("#CC05070A"))
+        
+        val h = LinearLayout(ctx).apply { 
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        
         val ic = ImageView(ctx).apply { setImageResource(R.drawable.ic_bolt); alpha = 0.9f }
         h.addView(ic, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(12) })
+        
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        col.addView(tv("TurboBoost", 26f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(10f, 0f, 0f, Color.parseColor("#887BA7F5")) })
-        col.addView(tv("LIQUID GLASS", 11f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
-        page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#33FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(16); bottomMargin = dp(10) })
+        col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, accentColors()[1]) })
+        col.addView(tv("LIQUID GLASS", 10f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
+        
+        btnSettings = ImageView(ctx).apply {
+            setImageResource(android.R.drawable.ic_menu_preferences)
+            setColorFilter(Color.WHITE)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setOnClickListener { onSettingsClick?.invoke() }
+        }
+        h.addView(btnSettings, LinearLayout.LayoutParams(dp(44), dp(44)))
+        
+        return bar
     }private fun buildMain() {
     val mr = row(page1, 6)
     btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
@@ -212,7 +285,7 @@ class OptimizerUI(private val ctx: Context) {
 
     val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     page1.addView(br, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-    btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, accent()) { onToggle?.invoke() }
+    btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, accentDrawable()) { onToggle?.invoke() }
     br.addView(btnOpt, LinearLayout.LayoutParams(MATCH_PARENT, dp(68)))
 }
 
@@ -233,6 +306,10 @@ private fun animateIn() {
             .setInterpolator(AnticipateOvershootInterpolator(1.2f))
             .start()
     }
+}
+
+fun setBackgroundBitmap(bmp: Bitmap?) {
+    if (::bgView.isInitialized) bgView.setBackgroundImage(bmp)
 }
 
 fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
@@ -293,8 +370,8 @@ fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
 
 fun setMode(m: Int) { 
     currentMode = m
-    fade(btnModePerf, if (m == 0) accent() else unsel())
-    fade(btnModeBal, if (m == 1) accent() else unsel())
+    fade(btnModePerf, if (m == 0) accentDrawable() else unselDrawable())
+    fade(btnModeBal, if (m == 1) accentDrawable() else unselDrawable())
 }
 fun setPreset(p: Int) { currentPreset = p; updPreset() }
 fun setHz(hz: Int) { currentHz = hz; updHz() }
@@ -302,25 +379,10 @@ fun setPackageText(t: String) { if (t.isNotEmpty()) pkgInput.setText(t) }
 fun setSenseLevel(l: Int) { currentSense = l; updSense() }
 
 fun setActive(a: Boolean) { 
-    isSummer = a
+    isActive = a
     btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
+    fade(btnOpt, accentDrawable())
     if (::bgView.isInitialized) bgView.setSummer(a)
-    
-    setDrawableActive(btnOpt, a)
-    setDrawableActive(btnModePerf, a)
-    setDrawableActive(btnModeBal, a)
-    setDrawableActive(btnGpuBoost, a)
-    setDrawableActive(btnBgLimit, a)
-    setDrawableActive(btnThreads, a)
-    setDrawableActive(btnMglru, a)
-    setDrawableActive(btnJoyose, a)
-    setDrawableActive(btnDiagnostics, a)
-    setDrawableActive(btnGames, a)
-    setDrawableActive(btnProfiles, a)
-    setDrawableActive(btnGameSpace, a)
-    setDrawableActive(cardApplied, a)
-    setDrawableActive(statusResult, a)
-    
     setMode(currentMode)
     setGpuBoostState(currentGpu)
     setBgLimitState(currentBg)
@@ -330,19 +392,12 @@ fun setActive(a: Boolean) {
     updPreset(); updHz(); updSense()
 }
 
-private fun setDrawableActive(v: View, active: Boolean) {
-    val bg = v.background
-    if (bg is AnimatedGlassDrawable) {
-        bg.setActive(active)
-    }
-}
-
-fun setGpuBoostState(a: Boolean) { currentGpu = a; fade(btnGpuBoost, if (a) accent() else unsel()) }
-fun setBgLimitState(a: Boolean) { currentBg = a; fade(btnBgLimit, if (a) accent() else unsel()) }
-fun setJoyoseState(a: Boolean) { currentJoyose = a; fade(btnJoyose, if (a) accent() else unsel()) }
+fun setGpuBoostState(a: Boolean) { currentGpu = a; fade(btnGpuBoost, if (a) accentDrawable() else unselDrawable()) }
+fun setBgLimitState(a: Boolean) { currentBg = a; fade(btnBgLimit, if (a) accentDrawable() else unselDrawable()) }
+fun setJoyoseState(a: Boolean) { currentJoyose = a; fade(btnJoyose, if (a) accentDrawable() else unselDrawable()) }
 fun setJoyoseVisible(v: Boolean) { btnJoyose.visibility = if (v) View.VISIBLE else View.GONE }
-fun setThreadsState(a: Boolean) { currentThreads = a; fade(btnThreads, if (a) accent() else unsel()) }
-fun setMglruState(a: Boolean) { currentMglru = a; fade(btnMglru, if (a) accent() else unsel()) }
+fun setThreadsState(a: Boolean) { currentThreads = a; fade(btnThreads, if (a) accentDrawable() else unselDrawable()) }
+fun setMglruState(a: Boolean) { currentMglru = a; fade(btnMglru, if (a) accentDrawable() else unselDrawable()) }
 
 fun setAppliedState(active: Boolean, gov: Boolean) {
     if (!active) { cardApplied.text = "Применено: —"; return }
@@ -364,20 +419,20 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
     private fun updPreset() { 
         for (i in 0 until presetRow.childCount) {
             val tv = presetRow.getChildAt(i) as TextView
-            tv.background = if (i == currentPreset) accent() else unsel()
+            tv.background = if (i == currentPreset) accentDrawable() else unselDrawable()
         }
     }
     private fun updHz() { 
         val m = listOf(60, 90, 120, 144)
         for (i in 0 until hzRow.childCount) {
             val tv = hzRow.getChildAt(i) as TextView
-            tv.background = if (m[i] == currentHz) accent() else unsel()
+            tv.background = if (m[i] == currentHz) accentDrawable() else unselDrawable()
         }
     }
     private fun updSense() { 
         for (i in 0 until senseRow.childCount) {
             val tv = senseRow.getChildAt(i) as TextView
-            tv.background = if (i == currentSense) accent() else unsel()
+            tv.background = if (i == currentSense) accentDrawable() else unselDrawable()
         }
     }
 
@@ -401,10 +456,7 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         textSize = 11f
         gravity = Gravity.CENTER
         setPadding(dp(4), 0, dp(4), 0)
-        val drawable = AnimatedGlassDrawable(false).apply {
-            setCornerRadius(dp(12).toFloat())
-        }
-        background = drawable
+        background = unselDrawable()
         touch(this, click)
     }
 
@@ -414,10 +466,7 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         textSize = size
         gravity = Gravity.CENTER
         setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
-        val drawable = AnimatedGlassDrawable(true).apply {
-            setCornerRadius(dp(34).toFloat())
-        }
-        background = drawable
+        background = bg
         touch(this, click)
     }
 
@@ -427,10 +476,7 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         textSize = 13f
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16), dp(14), dp(16), dp(14))
-        val drawable = AnimatedGlassDrawable(false).apply {
-            setCornerRadius(dp(16).toFloat())
-        }
-        background = drawable
+        background = glassBgDrawable(16)
     }
 
     private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
@@ -448,147 +494,6 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
     private fun row(p: LinearLayout, margin: Int): LinearLayout = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(margin) }) }
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
-    private fun gb(colors: IntArray, stroke: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dp(12).toFloat()
-        this.colors = colors
-        gradientType = GradientDrawable.LINEAR_GRADIENT
-        orientation = GradientDrawable.Orientation.LEFT_RIGHT
-        setStroke(dp(1), stroke)
-    }
-
-    class AnimatedGlassDrawable(private val isAccent: Boolean = false) : android.graphics.drawable.Drawable() {
-        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val outerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 2f
-            color = 0xCCFFFFFF.toInt()
-        }
-        private val innerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 1f
-            color = 0x33FFFFFF.toInt()
-        }
-        private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private var animator: android.animation.ValueAnimator? = null
-        private var phase = 0f
-        private var radius = 0f
-        private var active = false
-        
-        private val blueColors = intArrayOf(
-            0x1A7BA7F5.toInt(),
-            0x084F46E5.toInt(),
-            0x2A60A5FA.toInt(),
-            0x084F46E5.toInt(),
-            0x1A7BA7F5.toInt(),
-            0x084F46E5.toInt()
-        )
-        
-        private val greenColors = intArrayOf(
-            0x1A4ADE80.toInt(),
-            0x0816A34A.toInt(),
-            0x2A86EFAC.toInt(),
-            0x0816A34A.toInt(),
-            0x1A4ADE80.toInt(),
-            0x0816A34A.toInt()
-        )
-        
-        private val idleColors = intArrayOf(
-            0x1AFFFFFF.toInt(),
-            0x08FFFFFF.toInt(),
-            0x22FFFFFF.toInt(),
-            0x08FFFFFF.toInt(),
-            0x1AFFFFFF.toInt(),
-            0x08FFFFFF.toInt()
-        )
-
-        fun setCornerRadius(r: Float) { radius = r; invalidateSelf() }
-
-        fun setActive(a: Boolean) {
-            if (active == a) return
-            active = a
-            if (a) startAnimation() else stopAnimation()
-            invalidateSelf()
-        }
-
-        override fun onBoundsChange(bounds: android.graphics.Rect) {
-            super.onBoundsChange(bounds)
-            updateShader()
-        }
-
-        private fun updateShader() {
-            val w = bounds.width().toFloat()
-            val h = bounds.height().toFloat()
-            if (w <= 0 || h <= 0) return
-            
-            val colors = when {
-                !active -> idleColors
-                isAccent -> greenColors
-                else -> blueColors
-            }
-            
-            val offset = if (active) phase * w * 2f else 0f
-            val shader = LinearGradient(
-                -w + offset, 0f,
-                offset, h,
-                colors, null, Shader.TileMode.CLAMP
-            )
-            fillPaint.shader = shader
-            
-            highlightPaint.shader = LinearGradient(
-                0f, 0f,
-                w, h * 0.6f,
-                intArrayOf(0x33FFFFFF, 0x00FFFFFF),
-                null, Shader.TileMode.CLAMP
-            )
-        }
-
-        override fun draw(canvas: Canvas) {
-            val r = radius
-            val left = bounds.left.toFloat() + 2f
-            val top = bounds.top.toFloat() + 2f
-            val right = bounds.right.toFloat() - 2f
-            val bottom = bounds.bottom.toFloat() - 2f
-            
-            canvas.drawRoundRect(left, top, right, bottom, r, r, fillPaint)
-            canvas.drawRoundRect(left, top, right, bottom, r, r, highlightPaint)
-            canvas.drawRoundRect(left, top, right, bottom, r, r, outerStroke)
-            canvas.drawRoundRect(left + 3f, top + 3f, right - 3f, bottom - 3f, r - 3f, r - 3f, innerStroke)
-        }
-
-        override fun setAlpha(alpha: Int) { 
-            fillPaint.alpha = alpha
-            highlightPaint.alpha = alpha
-        }
-        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { 
-            fillPaint.colorFilter = colorFilter 
-        }
-        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
-
-        private fun startAnimation() {
-            if (animator != null) return
-            animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 3000
-                repeatCount = android.animation.ValueAnimator.INFINITE
-                repeatMode = android.animation.ValueAnimator.RESTART
-                addUpdateListener {
-                    phase = it.animatedValue as Float
-                    updateShader()
-                    invalidateSelf()
-                }
-                start()
-            }
-        }
-
-        private fun stopAnimation() {
-            animator?.cancel()
-            animator = null
-            phase = 0f
-            updateShader()
-            invalidateSelf()
-        }
-    }
-
     class LiquidBackgroundView(context: Context) : View(context), SensorEventListener {
         private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
         private val flakes = mutableListOf<Flake>()
@@ -604,6 +509,7 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         private var time = 0f
         private var summer = false
         private var active = true
+        private var bgBitmap: Bitmap? = null
         
         private var sensorManager: SensorManager? = null
         private var accelerometer: Sensor? = null
@@ -617,6 +523,11 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         init {
             sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        }
+
+        fun setBackgroundImage(bmp: Bitmap?) {
+            bgBitmap = bmp
+            invalidate()
         }
 
         fun setSummer(s: Boolean) {
@@ -708,7 +619,20 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         override fun onDraw(canvas: Canvas) {
             if (!active) return
             time += 0.01f
-            canvas.drawPaint(bgPaint)
+            
+            val bmp = bgBitmap
+            if (bmp != null) {
+                val scale = maxOf(width.toFloat() / bmp.width, height.toFloat() / bmp.height)
+                val dx = (width - bmp.width * scale) / 2f
+                val dy = (height - bmp.height * scale) / 2f
+                canvas.save()
+                canvas.translate(dx, dy)
+                canvas.scale(scale, scale)
+                canvas.drawBitmap(bmp, 0f, 0f, null)
+                canvas.restore()
+            } else {
+                canvas.drawPaint(bgPaint)
+            }
             
             matrix1.setTranslate(sin(time * 0.5f) * width * 0.3f, cos(time * 0.7f) * height * 0.2f)
             blobPaint1.shader?.setLocalMatrix(matrix1)
