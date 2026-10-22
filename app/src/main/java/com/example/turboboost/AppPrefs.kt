@@ -58,6 +58,12 @@ class AppPrefs(ctx: Context) {
     fun isMglru(): Boolean = prefs.getBoolean("mglru", false)
     fun setMglru(v: Boolean) = prefs.edit().putBoolean("mglru", v).apply()
 
+    fun getThemeIndex(): Int = prefs.getInt("theme_index", 0)
+    fun setThemeIndex(i: Int) = prefs.edit().putInt("theme_index", i).apply()
+
+    fun getBackgroundUri(): String = prefs.getString("bg_uri", "") ?: ""
+    fun setBackgroundUri(uri: String) = prefs.edit().putString("bg_uri", uri).apply()
+
     fun getProfiles(): List<GameProfile> {
         val raw = prefs.getString("profiles", "") ?: ""
         if (raw.isBlank()) return emptyList()
