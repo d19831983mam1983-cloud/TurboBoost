@@ -12,6 +12,7 @@ import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -27,6 +28,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.Window
 import android.view.WindowManager
+import android.view.animation.AnticipateOvershootInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -45,8 +47,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var root: FrameLayout
     lateinit var scroll1: ScrollView
     lateinit var page1: LinearLayout
-    lateinit var snowView: SnowView
-    lateinit var fxView: FXView
+    lateinit var bgView: LiquidBackgroundView
     lateinit var btnOpt: TextView
     lateinit var btnDiagnostics: TextView
     lateinit var btnJoyose: TextView
@@ -101,22 +102,14 @@ class OptimizerUI(private val ctx: Context) {
         root = FrameLayout(ctx)
         root.setBackgroundColor(Color.parseColor("#05070A"))
         
-        snowView = SnowView(ctx)
-        snowView.onShake = { shakeUI() }
-        root.addView(snowView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        
-        fxView = FXView(ctx)
-        root.addView(fxView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        bgView = LiquidBackgroundView(ctx)
+        root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
         scroll1 = ScrollView(ctx).apply { 
             isFillViewport = true
             setBackgroundColor(Color.TRANSPARENT)
             addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-            setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
-                val dir = if (scrollY > oldScrollY) 1f else -1f
-                fxView.spawnScrollDust(scroll1.width / 2f, dir)
-            }
         }
         root.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         
@@ -134,7 +127,7 @@ class OptimizerUI(private val ctx: Context) {
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         col.addView(tv("TurboBoost", 26f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(10f, 0f, 0f, Color.parseColor("#887BA7F5")) })
-        col.addView(tv("ZNAK • LIQUID", 11f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
+        col.addView(tv("LIQUID GLASS", 11f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
         page1.addView(View(ctx).apply { setBackgroundColor(Color.parseColor("#33FFFFFF")) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).apply { topMargin = dp(16); bottomMargin = dp(10) })
     }
 
@@ -227,13 +220,17 @@ class OptimizerUI(private val ctx: Context) {
         for (i in 0 until page1.childCount) {
             val v = page1.getChildAt(i)
             v.alpha = 0f
-            v.translationY = dp(30).toFloat()
-            v.scaleX = 0.97f
-            v.scaleY = 0.97f
-            v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setStartDelay((i * 15).toLong())
-                .setDuration(300)
-                .setInterpolator(OvershootInterpolator(1.0f))
+            v.translationY = dp(40).toFloat()
+            v.scaleX = 0.9f
+            v.scaleY = 0.9f
+            v.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setStartDelay((i * 20).toLong())
+                .setDuration(500)
+                .setInterpolator(AnticipateOvershootInterpolator(1.2f))
                 .start()
         }
     }    fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
@@ -292,22 +289,6 @@ class OptimizerUI(private val ctx: Context) {
         dialog.show()
     }
 
-    private fun shakeUI() {
-        if (!::scroll1.isInitialized) return
-        val animator = android.animation.ObjectAnimator.ofFloat(scroll1, "translationX", 0f, -20f, 20f, -15f, 15f, -10f, 10f, -5f, 5f, 0f)
-        animator.duration = 700
-        animator.interpolator = android.view.animation.DecelerateInterpolator()
-        animator.start()
-        
-        val animatorY = android.animation.ObjectAnimator.ofFloat(scroll1, "translationY", 0f, -12f, 12f, -8f, 8f, -4f, 4f, 0f)
-        animatorY.duration = 700
-        animatorY.interpolator = android.view.animation.DecelerateInterpolator()
-        animatorY.start()
-        
-        if (::fxView.isInitialized) fxView.spawnBurst(root.width / 2f, root.height / 2f)
-        if (::pkgInput.isInitialized) pkgInput.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-    }
-
     fun setMode(m: Int) { 
         currentMode = m
         fade(btnModePerf, if (m == 0) accent() else unsel())
@@ -322,7 +303,7 @@ class OptimizerUI(private val ctx: Context) {
         isSummer = a
         btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
         fade(btnOpt, accent())
-        if (::snowView.isInitialized) snowView.setSummer(a)
+        if (::bgView.isInitialized) bgView.setSummer(a)
         setMode(currentMode)
         setGpuBoostState(currentGpu)
         setBgLimitState(currentBg)
@@ -388,17 +369,12 @@ class OptimizerUI(private val ctx: Context) {
         v.setOnTouchListener { view, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(250).setInterpolator(OvershootInterpolator(2.5f)).start()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(AnticipateOvershootInterpolator(2f)).start()
             }
             false
         }
         v.setOnClickListener { 
             v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (::fxView.isInitialized) {
-                val loc = IntArray(2)
-                v.getLocationInWindow(loc)
-                fxView.spawnBurst(loc[0] + v.width / 2f, loc[1] + v.height / 2f)
-            }
             click() 
         }
     }
@@ -435,10 +411,10 @@ class OptimizerUI(private val ctx: Context) {
     private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dp(radius).toFloat()
-        colors = intArrayOf(0x66FFFFFF, 0x22FFFFFF, 0x44FFFFFF)
+        colors = intArrayOf(0x55FFFFFF.toInt(), 0x22FFFFFF, 0x44FFFFFF)
         gradientType = GradientDrawable.LINEAR_GRADIENT
         orientation = GradientDrawable.Orientation.TL_BR
-        setStroke(dp(1), 0xCCFFFFFF.toInt())
+        setStroke(dp(1), 0xAAFFFFFF.toInt())
     }
 
     private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
@@ -456,74 +432,20 @@ class OptimizerUI(private val ctx: Context) {
         setStroke(dp(1), stroke)
     }
 
-    class FXView(context: Context) : View(context) {
-        private data class Spark(var x: Float, var y: Float, var vx: Float, var vy: Float, var life: Float, val color: Int, val size: Float)
-        private val sparks = mutableListOf<Spark>()
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val rand = Random(System.currentTimeMillis())
-
-        fun spawnBurst(cx: Float, cy: Float) {
-            if (sparks.size > 10) return
-            for (i in 0 until 6) {
-                val angle = rand.nextFloat() * Math.PI * 2
-                val speed = rand.nextFloat() * 10f + 3f
-                sparks.add(Spark(cx, cy, cos(angle).toFloat() * speed, sin(angle).toFloat() * speed, 1f, Color.WHITE, rand.nextFloat() * 3f + 1.5f))
-            }
-            invalidate()
-        }
-
-        fun spawnScrollDust(cx: Float, dir: Float) {
-            if (sparks.size > 10) return
-            val x = cx + (rand.nextFloat() - 0.5f) * width
-            sparks.add(Spark(x, if (dir > 0) -10f else height + 10f, 0f, dir * 8f, 1f, Color.WHITE, rand.nextFloat() * 2f + 1f))
-            invalidate()
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            if (sparks.isEmpty()) return
-
-            val iter = sparks.iterator()
-            while (iter.hasNext()) {
-                val s = iter.next()
-                s.x += s.vx
-                s.y += s.vy
-                s.vy += 0.4f
-                s.life -= 0.03f
-                if (s.life <= 0) {
-                    iter.remove()
-                } else {
-                    paint.color = s.color
-                    paint.alpha = (s.life * 255).toInt().coerceIn(0, 255)
-                    canvas.drawCircle(s.x, s.y, s.size * s.life, paint)
-                }
-            }
-            invalidate()
-        }
-    }
-
-    class SnowView(context: Context) : View(context), SensorEventListener {
-        private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
-        private val flakes = mutableListOf<Flake>()
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    class LiquidBackgroundView(context: Context) : View(context), SensorEventListener {
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val auroraPaint1 = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val auroraPaint2 = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val blobPaint1 = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val blobPaint2 = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val blobPaint3 = Paint(Paint.ANTI_ALIAS_FLAG)
         private val matrix1 = Matrix()
         private val matrix2 = Matrix()
-        private val rand = Random(System.currentTimeMillis())
+        private val matrix3 = Matrix()
         private var time = 0f
-        private var active = true
         private var summer = false
+        private var active = true
         
         private var sensorManager: SensorManager? = null
         private var accelerometer: Sensor? = null
-        private var lastShakeTime = 0L
-        private var lastX = 0f
-        private var lastY = 0f
-        private var lastZ = 0f
-
-        var onShake: (() -> Unit)? = null
 
         init {
             sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -540,14 +462,17 @@ class OptimizerUI(private val ctx: Context) {
             val w = width.toFloat()
             val h = height.toFloat()
             if (w <= 0 || h <= 0) return
+            
             if (summer) {
                 bgPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(0xFF0F2027.toInt(), 0xFF203A43.toInt(), 0xFF2C5364.toInt(), 0xFF1F4037.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
-                auroraPaint1.shader = RadialGradient(w / 2f, h * 0.3f, w * 0.9f, intArrayOf(0x44FFD700, 0x00000000), null, Shader.TileMode.CLAMP)
-                auroraPaint2.shader = RadialGradient(w / 2f, h * 0.7f, w * 0.8f, intArrayOf(0x4455FF55, 0x00000000), null, Shader.TileMode.CLAMP)
+                blobPaint1.shader = RadialGradient(w * 0.3f, h * 0.3f, w * 0.7f, intArrayOf(0x66FFD700, 0x00000000), null, Shader.TileMode.CLAMP)
+                blobPaint2.shader = RadialGradient(w * 0.7f, h * 0.6f, w * 0.8f, intArrayOf(0x6655FF55, 0x00000000), null, Shader.TileMode.CLAMP)
+                blobPaint3.shader = RadialGradient(w * 0.5f, h * 0.9f, w * 0.6f, intArrayOf(0x44AAFFAA, 0x00000000), null, Shader.TileMode.CLAMP)
             } else {
                 bgPaint.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(0xFF05070A.toInt(), 0xFF101A3A.toInt(), 0xFF2A1A4A.toInt(), 0xFF05070A.toInt()), floatArrayOf(0f, 0.3f, 0.7f, 1f), Shader.TileMode.CLAMP)
-                auroraPaint1.shader = RadialGradient(w / 2f, h * 0.3f, w * 0.9f, intArrayOf(0x44A855F7, 0x00000000), null, Shader.TileMode.CLAMP)
-                auroraPaint2.shader = RadialGradient(w / 2f, h * 0.7f, w * 0.8f, intArrayOf(0x4450C0FF, 0x00000000), null, Shader.TileMode.CLAMP)
+                blobPaint1.shader = RadialGradient(w * 0.3f, h * 0.3f, w * 0.7f, intArrayOf(0x664F46E5, 0x00000000), null, Shader.TileMode.CLAMP)
+                blobPaint2.shader = RadialGradient(w * 0.7f, h * 0.6f, w * 0.8f, intArrayOf(0x662563EB, 0x00000000), null, Shader.TileMode.CLAMP)
+                blobPaint3.shader = RadialGradient(w * 0.5f, h * 0.9f, w * 0.6f, intArrayOf(0x440D9488, 0x00000000), null, Shader.TileMode.CLAMP)
             }
         }
 
@@ -567,86 +492,32 @@ class OptimizerUI(private val ctx: Context) {
             if (active) invalidate()
         }
 
-        override fun onSensorChanged(event: SensorEvent) {
-            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                val x = event.values[0]
-                val y = event.values[1]
-                val z = event.values[2]
-                val deltaX = abs(x - lastX)
-                val deltaY = abs(y - lastY)
-                val deltaZ = abs(z - lastZ)
-                val speed = deltaX + deltaY + deltaZ
-
-                if (speed > 12f) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastShakeTime > 800) {
-                        lastShakeTime = now
-                        triggerShake()
-                    }
-                }
-                lastX = x; lastY = y; lastZ = z
-            }
-        }
+        override fun onSensorChanged(event: SensorEvent) {}
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-        private fun triggerShake() {
-            val cx = width / 2f
-            val cy = height / 2f
-            for (f in flakes) {
-                val dx = f.x - cx
-                val dy = f.y - cy
-                val dist = hypot(dx, dy).coerceAtLeast(1f)
-                val force = (rand.nextFloat() * 20f + 15f)
-                f.x += (dx / dist) * force
-                f.y += (dy / dist) * force
-            }
-            post { onShake?.invoke() }
-        }
-
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
-            flakes.clear()
-            for (i in 0 until 30) {
-                flakes.add(Flake(rand.nextFloat() * w, rand.nextFloat() * h, rand.nextFloat() * 2.5f + 1f, rand.nextFloat() * 1.5f + 0.5f, rand.nextFloat() * 0.6f - 0.3f, 100 + rand.nextInt(155), rand.nextFloat() * 360f))
-            }
             updateGradients()
         }
 
         override fun onDraw(canvas: Canvas) {
             if (!active) return
-            time += 0.015f
+            time += 0.01f
             canvas.drawPaint(bgPaint)
             
-            matrix1.setTranslate(sin(time * 0.7f) * width * 0.3f, cos(time * 0.9f) * height * 0.2f)
-            auroraPaint1.shader?.setLocalMatrix(matrix1)
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), auroraPaint1)
+            matrix1.setTranslate(sin(time * 0.5f) * width * 0.3f, cos(time * 0.7f) * height * 0.2f)
+            blobPaint1.shader?.setLocalMatrix(matrix1)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint1)
 
-            matrix2.setTranslate(cos(time * 0.5f) * width * 0.4f, sin(time * 0.8f) * height * 0.2f)
-            auroraPaint2.shader?.setLocalMatrix(matrix2)
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), auroraPaint2)
+            matrix2.setTranslate(cos(time * 0.4f) * width * 0.4f, sin(time * 0.6f) * height * 0.3f)
+            blobPaint2.shader?.setLocalMatrix(matrix2)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint2)
 
-            for (f in flakes) {
-                f.y += f.speed
-                f.x += f.drift + sin(time + f.y * 0.01f) * 0.3f
-                f.rotation += 2f
-                if (f.y > height + 10) { f.y = -10f; f.x = rand.nextFloat() * width }
-                if (f.x > width + 10) f.x = -10f
-                if (f.x < -10) f.x = width + 10f
+            matrix3.setTranslate(sin(time * 0.3f) * width * 0.2f, cos(time * 0.5f) * height * 0.4f)
+            blobPaint3.shader?.setLocalMatrix(matrix3)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint3)
 
-                if (summer) {
-                    paint.color = Color.argb(f.alpha, 50, 205, 50)
-                    paint.setShadowLayer(f.radius * 2, 0f, 0f, Color.parseColor("#3355FF55"))
-                    canvas.save()
-                    canvas.rotate(f.rotation, f.x, f.y)
-                    canvas.drawOval(f.x - f.radius, f.y - f.radius * 0.5f, f.x + f.radius, f.y + f.radius * 0.5f, paint)
-                    canvas.restore()
-                } else {
-                    paint.color = Color.argb(f.alpha, 255, 255, 255)
-                    paint.setShadowLayer(f.radius * 3, 0f, 0f, Color.argb(f.alpha / 3, 255, 255, 255))
-                    canvas.drawCircle(f.x, f.y, f.radius, paint)
-                }
-            }
             invalidate()
         }
     }
