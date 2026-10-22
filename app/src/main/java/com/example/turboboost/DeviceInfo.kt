@@ -286,13 +286,45 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun listGames(): List<Pair<String, String>> {
+        val popular = listOf(
+            "com.tencent.ig" to "PUBG Mobile",
+            "com.pubg.krmobile" to "PUBG KR",
+            "com.rekoo.pubgm" to "PUBG (ReKoo)",
+            "com.vng.pubgmobile" to "PUBG VN",
+            "com.axlebolt.standoff2" to "Standoff 2",
+            "com.ScarletWork.CounterFlame" to "CounterFlame",
+            "com.tencent.stc.cfl" to "CrossFire: Legends",
+            "com.tencent.tmgp.cf" to "CrossFire (CN)",
+            "com.supercell.brawlstars" to "Brawl Stars",
+            "com.supercell.clashofclans" to "Clash of Clans",
+            "com.supercell.clashroyale" to "Clash Royale",
+            "com.wargaming.wot.blitz" to "Tanks Blitz",
+            "com.riotgames.league.wildrift" to "League of Legends: Wild Rift",
+            "com.mobile.legends" to "Mobile Legends",
+            "com.miHoYo.GenshinImpact" to "Genshin Impact",
+            "com.miHoYo.hkrpg" to "Honkai: Star Rail",
+            "com.epicgames.fortnite" to "Fortnite",
+            "com.activision.callofduty.shooter" to "Call of Duty: Mobile",
+            "com.gameloft.android.ANMP.GloftA9HM" to "Asphalt 9",
+            "com.ea.gp.apexlegendsmobilefps" to "Apex Legends Mobile",
+            "com.roblox.client" to "Roblox"
+        )
+
         val pm = ctx.packageManager
-        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val installed = pm.getInstalledApplications(PackageManager.GET_META_DATA).map { it.packageName }.toSet()
         val result = mutableListOf<Pair<String, String>>()
+
+        for ((pkg, name) in popular) {
+            if (installed.contains(pkg)) result.add(pkg to name)
+        }
+
+        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         for (a in apps) {
             if (a.flags and ApplicationInfo.FLAG_SYSTEM != 0 || a.category != ApplicationInfo.CATEGORY_GAME) continue
+            if (result.any { it.first == a.packageName }) continue
             result.add(a.packageName to pm.getApplicationLabel(a).toString())
         }
+
         return result.sortedBy { it.second.lowercase() }
     }
 
