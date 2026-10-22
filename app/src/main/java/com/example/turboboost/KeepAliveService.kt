@@ -29,7 +29,6 @@ class KeepAliveService : Service() {
             try {
                 info.deactivateMaxPerformance()
                 info.applySurfaceFlingerBoost(false)
-                info.applyMemoryTweaks(false)
             } catch (e: Throwable) {}
             prefs.setActive(false)
             stopForeground(STOP_FOREGROUND_REMOVE)
