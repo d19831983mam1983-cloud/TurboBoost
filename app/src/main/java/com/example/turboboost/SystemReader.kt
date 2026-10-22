@@ -6,21 +6,33 @@ import java.util.concurrent.TimeUnit
 
 object SystemReader {
 
-    @Volatile
-    var service: IUserService? = null
-
-    @Volatile
-    var directMode: Boolean = false
+    @Volatile var service: IUserService? = null
+    @Volatile var directMode: Boolean = false
+    @Volatile var rootMode: Boolean = false
 
     private const val TIMEOUT_MS = 5000L
     private val executor = Executors.newFixedThreadPool(4)
+
+    fun checkRoot(): Boolean {
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val out = p.inputStream.bufferedReader().readText()
+            p.waitFor()
+            out.contains("uid=0")
+        } catch (e: Throwable) {
+            false
+        }
+    }
 
     fun read(cmd: String): String = read(cmd, TIMEOUT_MS)
 
     fun read(cmd: String, timeoutMs: Long): String {
         val task = Callable {
-            if (directMode) ShizukuHelper.execDirect(cmd)
-            else service?.exec(cmd) ?: ""
+            when {
+                rootMode -> execRoot(cmd)
+                directMode -> ShizukuHelper.execDirect(cmd)
+                else -> service?.exec(cmd) ?: ""
+            }
         }
         return try {
             val future = executor.submit(task)
@@ -30,17 +42,20 @@ object SystemReader {
         }
     }
 
-    fun test(path: String): Boolean = read("test -e $path && echo ok").contains("ok")
-
-    fun testWrite(path: String): Boolean = read("test -w $path && echo ok").contains("ok")
-
-    fun tryWrite(path: String, value: String): Boolean {
-        if (!testWrite(path)) return false
-        read("echo $value > $path 2>/dev/null")
-        return true
+    private fun execRoot(cmd: String): String {
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            p.redirectErrorStream(true)
+            val out = p.inputStream.bufferedReader().readText().trim()
+            p.waitFor()
+            out
+        } catch (e: Throwable) {
+            ""
+        }
     }
 
-    fun readMulti(commands: List<String>): List<String> = commands.map { read(it) }
+    fun test(path: String): Boolean = read("test -e $path && echo ok").contains("ok")
+    fun testWrite(path: String): Boolean = read("test -w $path && echo ok").contains("ok")
 
-    fun isReady(): Boolean = service != null || (directMode && ShizukuHelper.isAvailable())
+    fun isReady(): Boolean = rootMode || service != null || (directMode && ShizukuHelper.isAvailable())
 }
