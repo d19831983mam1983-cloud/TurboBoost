@@ -185,10 +185,6 @@ class DeviceInfo(private val ctx: Context) {
         return "Настройки возвращены"
     }
 
-    fun dynamicAdjust(): String {
-        return ""
-    }
-
     fun prioritizeGameThreads(pkg: String): String {
         if (pkg.isBlank()) return "Пакет не указан"
         val pid = SystemReader.read("pidof $pkg").trim()
@@ -203,9 +199,17 @@ class DeviceInfo(private val ctx: Context) {
         }
         val hexMask = Integer.toHexString(mask)
 
-        val tids = SystemReader.read("ps -T -p $pid -o TID").lines()
+        var tids = SystemReader.read("ps -T -p $pid -o TID").lines()
             .map { it.trim() }
             .filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
+
+        if (tids.isEmpty()) {
+            tids = SystemReader.read("top -H -b -n 1 -p $pid").lines()
+                .map { it.trim().split(Regex("\\s+")) }
+                .filter { it.size > 1 && it[0].toIntOrNull() != null }
+                .map { it[0] }
+                .filter { it != pid }
+        }
 
         if (tids.isEmpty()) return "Потоки не найдены"
 
@@ -222,7 +226,7 @@ class DeviceInfo(private val ctx: Context) {
         if (pkg.isBlank()) return "Пакет не указан"
         val safeHz = when { hz >= 144 -> 120; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
         SystemReader.read("cmd game mode performance $pkg; cmd game set --fps $safeHz $pkg; device_config put game_overlay $pkg mode=2,fps=$safeHz")
-        return "Игра $pkg: FPS $safeHz"
+        return "Игра $pkg: Performance | FPS cap $safeHz"
     }
 
     fun resetGameFps(pkg: String): String {
@@ -255,42 +259,41 @@ class DeviceInfo(private val ctx: Context) {
         }
     }
 
-    fun applyMemoryTweaks(enable: Boolean): String {
-        return "Память: ок"
+    fun compilePackage(pkg: String): String { 
+        if (pkg.isBlank()) return "Введите пакет"
+        return if (SystemReader.read("cmd package compile -m speed -f $pkg").isBlank()) "Компиляция запущена" else "Компиляция завершена"
     }
 
-    fun setThermalLimit(temp: Int): String {
-        return "Термалка: не поддерживается без root"
+    fun tryKeepAlive(pkg: String): String { 
+        if (pkg.isBlank()) return "Введите пакет"
+        SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow; appops set $pkg KEEP_ALIVE allow; cmd deviceidle whitelist +$pkg")
+        return "Удержание: $pkg"
     }
 
-    fun resetThermal(): String { return "Термалка: не поддерживается" }
-    fun compilePackage(pkg: String): String { if (pkg.isBlank()) return "Введите пакет"; return if (SystemReader.read("cmd package compile -m speed -f $pkg").isBlank()) "Компиляция запущена" else "Компиляция завершена" }
-    fun tryKeepAlive(pkg: String): String { if (pkg.isBlank()) return "Введите пакет"; SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow; appops set $pkg KEEP_ALIVE allow; cmd deviceidle whitelist +$pkg"); return "Удержание: $pkg" }
-    fun trimCaches(): String { SystemReader.read("cmd package trim-caches 1000M"); return "Кэш очищен" }
-
-    fun ping(): String {
-        val c = SystemReader.read("ping -c 3 -W 2 1.1.1.1"); val g = SystemReader.read("ping -c 3 -W 2 8.8.8.8")
-        val ct = parsePingAvg(c); val gt = parsePingAvg(g)
-        return "Cloudflare: ${if (ct >= 0) "$ct мс" else "—"} | Google: ${if (gt >= 0) "$gt мс" else "—"}"
+    fun trimCaches(): String { 
+        SystemReader.read("cmd package trim-caches 1000M")
+        return "Кэш очищен"
     }
 
-    private fun parsePingAvg(out: String): Int { val line = out.lines().firstOrNull { it.contains("avg") } ?: return -1; val parts = line.split("/"); if (parts.size < 5) return -1; return parts[4].toDoubleOrNull()?.toInt() ?: -1 }
-    fun currentFps(pkg: String): Int { return 0 }
-    fun restrictBackground(): String { SystemReader.read("settings put global background_process_limit 2"); return "Фон ограничен" }
-    fun restoreBackground(): String { SystemReader.read("settings delete global background_process_limit"); return "Фон восстановлен" }
+    fun restrictBackground(): String { 
+        SystemReader.read("settings put global background_process_limit 2")
+        return "Фон ограничен"
+    }
+
+    fun restoreBackground(): String { 
+        SystemReader.read("settings delete global background_process_limit")
+        return "Фон восстановлен"
+    }
 
     fun listGames(): List<Pair<String, String>> {
-        val pm = ctx.packageManager; val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val pm = ctx.packageManager
+        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         val result = mutableListOf<Pair<String, String>>()
-        for (a in apps) { if (a.flags and ApplicationInfo.FLAG_SYSTEM != 0 || a.category != ApplicationInfo.CATEGORY_GAME) continue; result.add(a.packageName to pm.getApplicationLabel(a).toString()) }
+        for (a in apps) {
+            if (a.flags and ApplicationInfo.FLAG_SYSTEM != 0 || a.category != ApplicationInfo.CATEGORY_GAME) continue
+            result.add(a.packageName to pm.getApplicationLabel(a).toString())
+        }
         return result.sortedBy { it.second.lowercase() }
-    }
-
-    fun applyDownscale(percent: Int): String {
-        if (percent <= 0) { SystemReader.read("wm size reset"); return "Разрешение: сброшено" }
-        val dm = ctx.resources.displayMetrics; val w = dm.widthPixels; val h = dm.heightPixels
-        val newW = (w * percent / 100); val newH = (h * percent / 100)
-        SystemReader.read("wm size ${newW}x$newH"); return "Разрешение: $percent% (${newW}x$newH)"
     }
 
     fun boostThreadPriorities(): String {
@@ -299,7 +302,8 @@ class DeviceInfo(private val ctx: Context) {
         val sysNice = when (tierCache) { 0 -> -5; 2 -> -8; else -> -6 }
         val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
         val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
-        SystemReader.read(sb.toString()); return "Приоритеты: усилены"
+        SystemReader.read(sb.toString())
+        return "Приоритеты: усилены"
     }
 
     fun resetThreadPriorities(): String {
@@ -320,6 +324,10 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun openDeveloperOptions() {
-        try { val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(intent) } catch (e: Exception) {}
+        try { 
+            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+        } catch (e: Exception) {}
     }
 }
