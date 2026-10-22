@@ -351,12 +351,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 val bat = info.batteryLevel(); val temp = info.cpuTemp(); val active = prefs.isActive()
 
-                if (temp > 80f && active) {
-                    info.deactivateMaxPerformance(); prefs.setActive(false)
-                    main.post { if (uiBuilt) { ui.setActive(false); ui.setAppliedState(false, false); ui.setOverheat(false, true); ui.setStatus("КРИТИЧЕСКИЙ ПЕРЕГРЕВ — оптимизация выключена"); busy = false; alive(false) } }
-                    return@execute
-                }
-
                 if (slow) {
                     if (active) {
                         val pkg = prefs.getLastPackage()
@@ -368,7 +362,8 @@ class MainActivity : AppCompatActivity() {
                 main.post {
                     try {
                         if (!uiBuilt) return@post
-                        ui.setOverheat(temp > 75f, false); ui.setBatteryLowBlock(bat <= 10)
+                        ui.setOverheat(temp > 75f, false)
+                        ui.setBatteryLowBlock(bat <= 10)
                         if (active && bat <= 10) {
                             busy = true
                             ex.execute {
