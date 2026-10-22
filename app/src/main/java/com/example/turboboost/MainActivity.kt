@@ -4,14 +4,17 @@ import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -27,6 +30,19 @@ class MainActivity : AppCompatActivity() {
     var uiBuilt = false
     private var lastSlow = 0L
 
+    private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val bmp = MediaStore.Images.Media.getBitmap(contentResolver, uri)
+                ui.setBackgroundBitmap(bmp)
+                prefs.setBackgroundUri(uri.toString())
+                saveBgToInternal(bmp)
+            } catch (e: Throwable) {
+                Toast.makeText(this, "Не удалось загрузить", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         window.statusBarColor = Color.TRANSPARENT
@@ -37,15 +53,23 @@ class MainActivity : AppCompatActivity() {
         ShizukuHelper.init(this)
         ShizukuHelper.onPermissionResult = { g -> main.post { if (g) bind() else blocked() } }
         ShizukuHelper.onBindTimeout = { main.post { if (!uiBuilt) blocked() } }
-        ex.execute {
-            val hasRoot = SystemReader.checkRoot()
-            main.post {
-                if (hasRoot) {
-                    SystemReader.rootMode = true
-                    SystemReader.directMode = false
-                    bind()
-                } else {
-                    check()
+        showSplash()
+    }
+
+    private fun showSplash() {
+        val splash = SplashScreen(this)
+        setContentView(splash)
+        splash.start {
+            ex.execute {
+                val hasRoot = SystemReader.checkRoot()
+                main.post {
+                    if (hasRoot) {
+                        SystemReader.rootMode = true
+                        SystemReader.directMode = false
+                        bind()
+                    } else {
+                        check()
+                    }
                 }
             }
         }
@@ -60,11 +84,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun bind() {
         ShizukuHelper.onServiceReady = { r -> main.post { if (r) buildMain() else blocked() } }
-        if (SystemReader.rootMode) {
-            buildMain()
-        } else {
-            ShizukuHelper.bindService()
-        }
+        if (SystemReader.rootMode) buildMain() else ShizukuHelper.bindService()
     }
 
     private fun blocked() {
@@ -81,10 +101,6 @@ class MainActivity : AppCompatActivity() {
         }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
         box.addView(makeBtn("ОТКРЫТЬ SHIZUKU", "#7BA7F5") { openShizuku() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
         box.addView(makeBtn("ПРОВЕРИТЬ СНОВА", "#5B8DEF") { check() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
-        box.addView(android.widget.TextView(this).apply {
-            text = "ДИАГНОСТИКА"; setTextColor(Color.parseColor("#CCFFFFFF")); textSize = 14f; gravity = android.view.Gravity.CENTER
-            setPadding(40, 20, 40, 20); setOnClickListener { blockedDiag() }
-        }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
         setContentView(box)
     }
 
@@ -105,24 +121,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun blockedDiag() {
-        val avail = ShizukuHelper.isAvailable()
-        val perm = ShizukuHelper.hasPermission()
-        val ready = SystemReader.isReady()
-        val mode = when {
-            SystemReader.rootMode -> "Root"
-            SystemReader.directMode -> "Shizuku Direct"
-            SystemReader.service != null -> "Shizuku UserService"
-            else -> "Нет"
-        }
-        val ver = try { if (avail) rikka.shizuku.Shizuku.getVersion().toString() else "—" } catch (e: Throwable) { "—" }
-        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
-                "Режим: $mode\n" +
-                "Shizuku: ${if (avail) "✓" else "✗"}\n" +
-                "Разрешение: ${if (perm) "✓" else "✗"}\n" +
-                "Готов: ${if (ready) "✓" else "✗"}\n" +
-                "Версия Shizuku: $ver"
-        AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show()
+    private fun saveBgToInternal(bmp: Bitmap) {
+        try {
+            val f = java.io.File(filesDir, "bg_custom.png")
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            prefs.setBackgroundUri(f.absolutePath)
+        } catch (e: Throwable) {}
+    }
+
+    private fun loadBgFromInternal(): Bitmap? {
+        return try {
+            val f = java.io.File(filesDir, "bg_custom.png")
+            if (f.exists()) android.graphics.BitmapFactory.decodeFile(f.absolutePath) else null
+        } catch (e: Throwable) { null }
     }
 
     private fun buildMain() {
@@ -130,6 +141,13 @@ class MainActivity : AppCompatActivity() {
         uiBuilt = true
         busy = false
         setContentView(ui.build())
+        ui.setThemeIndex(prefs.getThemeIndex())
+        
+        val savedBg = loadBgFromInternal()
+        if (savedBg != null) ui.setBackgroundBitmap(savedBg)
+        
+        ui.onSettingsClick = { showSettings() }
+        
         val ap = prefs.getActiveProfilePkg()
         ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
         ui.onPackageChanged = { prefs.setLastPackage(it) }
@@ -166,7 +184,33 @@ class MainActivity : AppCompatActivity() {
         ui.setActive(prefs.isActive())
         if (prefs.isActive()) alive(true)
         refresh(); loop()
-    }    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
+    }    private fun showSettings() {
+        val items = mutableListOf(
+            "Выбрать фон из галереи",
+            "Сбросить фон",
+            "── Темы ──"
+        )
+        val themeNames = arrayOf("Синяя", "Зелёная", "Красная", "Оранжевая", "Фиолетовая", "Бирюзовая", "Розовая", "Жёлтая", "Мятная", "Ледяная")
+        items.addAll(themeNames.toList())
+        
+        ui.showGlassList("Настройки", items) { idx ->
+            when {
+                idx == 0 -> pickImage.launch("image/*")
+                idx == 1 -> {
+                    ui.setBackgroundBitmap(null)
+                    prefs.setBackgroundUri("")
+                    try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
+                }
+                idx >= 3 -> {
+                    val themeIdx = idx - 3
+                    prefs.setThemeIndex(themeIdx)
+                    ui.setThemeIndex(themeIdx)
+                }
+            }
+        }
+    }
+
+    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
 
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
@@ -265,10 +309,7 @@ class MainActivity : AppCompatActivity() {
         busy = true
         
         val timeoutRunnable = Runnable {
-            if (busy) {
-                busy = false
-                if (uiBuilt) ui.setStatus("Готово (таймаут)")
-            }
+            if (busy) { busy = false; if (uiBuilt) ui.setStatus("Готово (таймаут)") }
         }
         main.postDelayed(timeoutRunnable, 15000)
         
@@ -290,6 +331,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost())
                     if (p.isNotBlank()) info.unlockGameFps(p, hz)
+                    if (p.isNotBlank()) info.pinGameToPrimeCore(p)
                     if (prefs.isBackgroundLimit()) info.restrictBackground()
                     info.applySurfaceFlingerBoost(true)
                     info.boostInputDispatcher()
@@ -304,11 +346,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 } catch (e: Throwable) {
                     main.removeCallbacks(timeoutRunnable)
-                    main.post { 
-                        busy = false
-                        if (!uiBuilt) return@post
-                        ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") 
-                    }
+                    main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
                 }
             }
         } else {
@@ -329,11 +367,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 } catch (e: Throwable) {
                     main.removeCallbacks(timeoutRunnable)
-                    main.post { 
-                        busy = false
-                        if (!uiBuilt) return@post
-                        ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") 
-                    }
+                    main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
                 }
             }
         }
@@ -360,7 +394,7 @@ class MainActivity : AppCompatActivity() {
                 if (slow) {
                     if (active) {
                         val pkg = prefs.getLastPackage()
-                        if (pkg.isNotBlank()) info.prioritizeGameThreads(pkg)
+                        if (pkg.isNotBlank()) info.pinGameToPrimeCore(pkg)
                     }
                     main.post { try { if (uiBuilt) ui.setAppliedState(active, active) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
                 }
@@ -387,12 +421,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!uiBuilt) {
-            check()
-        } else {
+        if (!uiBuilt) check() else {
             val y = prefs.getUiScrollY()
             if (y > 0) ui.scroll1.post { ui.scroll1.scrollTo(0, y) }
-            
             val active = prefs.isActive()
             ui.setActive(active)
             ui.setStatus(if (active) "Активно" else "Готов к работе")
