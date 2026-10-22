@@ -12,7 +12,6 @@ import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -29,7 +28,6 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.Window
 import android.view.WindowManager
 import android.view.animation.AnticipateOvershootInterpolator
-import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -385,7 +383,11 @@ class OptimizerUI(private val ctx: Context) {
         textSize = 11f
         gravity = Gravity.CENTER
         setPadding(dp(4), 0, dp(4), 0)
-        background = glassBgDrawable(12)
+        val drawable = AnimatedGlassDrawable().apply {
+            setCornerRadius(dp(12).toFloat())
+            startAnimation()
+        }
+        background = drawable
         touch(this, click)
     }
 
@@ -395,7 +397,11 @@ class OptimizerUI(private val ctx: Context) {
         textSize = size
         gravity = Gravity.CENTER
         setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
-        background = bg
+        val drawable = AnimatedGlassDrawable().apply {
+            setCornerRadius(dp(34).toFloat())
+            startAnimation()
+        }
+        background = drawable
         touch(this, click)
     }
 
@@ -405,7 +411,11 @@ class OptimizerUI(private val ctx: Context) {
         textSize = 13f
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = glassBgDrawable(16)
+        val drawable = AnimatedGlassDrawable().apply {
+            setCornerRadius(dp(16).toFloat())
+            startAnimation()
+        }
+        background = drawable
     }
 
     private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
@@ -432,20 +442,125 @@ class OptimizerUI(private val ctx: Context) {
         setStroke(dp(1), stroke)
     }
 
+    class AnimatedGlassDrawable : android.graphics.drawable.Drawable() {
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val outerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            color = 0xCCFFFFFF.toInt()
+        }
+        private val innerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+            color = 0x33FFFFFF.toInt()
+        }
+        private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val shaderMatrix = Matrix()
+        private var animator: android.animation.ValueAnimator? = null
+        private var phase = 0f
+        private var radius = 0f
+        private val colors = intArrayOf(
+            0x1AFFFFFF,
+            0x08FFFFFF,
+            0x22FFFFFF,
+            0x08FFFFFF,
+            0x1AFFFFFF,
+            0x08FFFFFF
+        )
+
+        fun setCornerRadius(r: Float) { radius = r; invalidateSelf() }
+
+        override fun onBoundsChange(bounds: android.graphics.Rect) {
+            super.onBoundsChange(bounds)
+            updateShader()
+        }
+
+        private fun updateShader() {
+            val w = bounds.width().toFloat()
+            val h = bounds.height().toFloat()
+            if (w <= 0 || h <= 0) return
+            val shader = LinearGradient(
+                -w + phase * w * 2f, 0f,
+                phase * w * 2f, h,
+                colors, null, Shader.TileMode.CLAMP
+            )
+            fillPaint.shader = shader
+            
+            highlightPaint.shader = LinearGradient(
+                0f, 0f,
+                w, h * 0.6f,
+                intArrayOf(0x33FFFFFF, 0x00FFFFFF),
+                null, Shader.TileMode.CLAMP
+            )
+        }
+
+        override fun draw(canvas: Canvas) {
+            val r = radius
+            val left = bounds.left.toFloat() + 2f
+            val top = bounds.top.toFloat() + 2f
+            val right = bounds.right.toFloat() - 2f
+            val bottom = bounds.bottom.toFloat() - 2f
+            
+            canvas.drawRoundRect(left, top, right, bottom, r, r, fillPaint)
+            canvas.drawRoundRect(left, top, right, bottom, r, r, highlightPaint)
+            canvas.drawRoundRect(left, top, right, bottom, r, r, outerStroke)
+            canvas.drawRoundRect(left + 3f, top + 3f, right - 3f, bottom - 3f, r - 3f, r - 3f, innerStroke)
+        }
+
+        override fun setAlpha(alpha: Int) { 
+            fillPaint.alpha = alpha
+            highlightPaint.alpha = alpha
+        }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { 
+            fillPaint.colorFilter = colorFilter 
+        }
+        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+
+        fun startAnimation() {
+            if (animator != null) return
+            animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 4000
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                repeatMode = android.animation.ValueAnimator.RESTART
+                addUpdateListener {
+                    phase = it.animatedValue as Float
+                    updateShader()
+                    invalidateSelf()
+                }
+                start()
+            }
+        }
+
+        fun stopAnimation() {
+            animator?.cancel()
+            animator = null
+        }
+    }
+
     class LiquidBackgroundView(context: Context) : View(context), SensorEventListener {
+        private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
+        private val flakes = mutableListOf<Flake>()
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val blobPaint1 = Paint(Paint.ANTI_ALIAS_FLAG)
         private val blobPaint2 = Paint(Paint.ANTI_ALIAS_FLAG)
         private val blobPaint3 = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val flakePaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val matrix1 = Matrix()
         private val matrix2 = Matrix()
         private val matrix3 = Matrix()
+        private val rand = Random(System.currentTimeMillis())
         private var time = 0f
         private var summer = false
         private var active = true
         
         private var sensorManager: SensorManager? = null
         private var accelerometer: Sensor? = null
+        private var lastShakeTime = 0L
+        private var lastX = 0f
+        private var lastY = 0f
+        private var lastZ = 0f
+
+        var onShake: (() -> Unit)? = null
 
         init {
             sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -492,12 +607,49 @@ class OptimizerUI(private val ctx: Context) {
             if (active) invalidate()
         }
 
-        override fun onSensorChanged(event: SensorEvent) {}
+        override fun onSensorChanged(event: SensorEvent) {
+            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                val x = event.values[0]
+                val y = event.values[1]
+                val z = event.values[2]
+                val deltaX = abs(x - lastX)
+                val deltaY = abs(y - lastY)
+                val deltaZ = abs(z - lastZ)
+                val speed = deltaX + deltaY + deltaZ
+
+                if (speed > 12f) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastShakeTime > 800) {
+                        lastShakeTime = now
+                        triggerShake()
+                    }
+                }
+                lastX = x; lastY = y; lastZ = z
+            }
+        }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+        private fun triggerShake() {
+            val cx = width / 2f
+            val cy = height / 2f
+            for (f in flakes) {
+                val dx = f.x - cx
+                val dy = f.y - cy
+                val dist = hypot(dx, dy).coerceAtLeast(1f)
+                val force = (rand.nextFloat() * 20f + 15f)
+                f.x += (dx / dist) * force
+                f.y += (dy / dist) * force
+            }
+            post { onShake?.invoke() }
+        }
+
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
+            flakes.clear()
+            for (i in 0 until 30) {
+                flakes.add(Flake(rand.nextFloat() * w, rand.nextFloat() * h, rand.nextFloat() * 2.5f + 1f, rand.nextFloat() * 1.5f + 0.5f, rand.nextFloat() * 0.6f - 0.3f, 100 + rand.nextInt(155), rand.nextFloat() * 360f))
+            }
             updateGradients()
         }
 
@@ -518,7 +670,28 @@ class OptimizerUI(private val ctx: Context) {
             blobPaint3.shader?.setLocalMatrix(matrix3)
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint3)
 
+            for (f in flakes) {
+                f.y += f.speed
+                f.x += f.drift + sin(time + f.y * 0.01f) * 0.3f
+                f.rotation += 2f
+                if (f.y > height + 10) { f.y = -10f; f.x = rand.nextFloat() * width }
+                if (f.x > width + 10) f.x = -10f
+                if (f.x < -10) f.x = width + 10f
+
+                if (summer) {
+                    flakePaint.color = Color.argb(f.alpha, 50, 205, 50)
+                    flakePaint.setShadowLayer(f.radius * 2, 0f, 0f, Color.parseColor("#3355FF55"))
+                    canvas.save()
+                    canvas.rotate(f.rotation, f.x, f.y)
+                    canvas.drawOval(f.x - f.radius, f.y - f.radius * 0.5f, f.x + f.radius, f.y + f.radius * 0.5f, flakePaint)
+                    canvas.restore()
+                } else {
+                    flakePaint.color = Color.argb(f.alpha, 255, 255, 255)
+                    flakePaint.setShadowLayer(f.radius * 3, 0f, 0f, Color.argb(f.alpha / 3, 255, 255, 255))
+                    canvas.drawCircle(f.x, f.y, f.radius, flakePaint)
+                }
+            }
             invalidate()
         }
-    }
+    }  
 }
