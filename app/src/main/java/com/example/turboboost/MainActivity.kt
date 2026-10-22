@@ -26,7 +26,6 @@ class MainActivity : AppCompatActivity() {
     var busy = false
     var uiBuilt = false
     private var lastSlow = 0L
-    private val tHist = ArrayDeque<Float>()
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
@@ -38,10 +37,22 @@ class MainActivity : AppCompatActivity() {
         ShizukuHelper.init(this)
         ShizukuHelper.onPermissionResult = { g -> main.post { if (g) bind() else blocked() } }
         ShizukuHelper.onBindTimeout = { main.post { if (!uiBuilt) blocked() } }
-        check()
+        ex.execute {
+            val hasRoot = SystemReader.checkRoot()
+            main.post {
+                if (hasRoot) {
+                    SystemReader.rootMode = true
+                    SystemReader.directMode = false
+                    bind()
+                } else {
+                    check()
+                }
+            }
+        }
     }
 
     private fun check() {
+        if (SystemReader.rootMode) { bind(); return }
         if (!ShizukuHelper.isAvailable()) { blocked(); return }
         if (!ShizukuHelper.hasPermission()) { ShizukuHelper.requestPermission(); blocked(); return }
         bind()
@@ -49,7 +60,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun bind() {
         ShizukuHelper.onServiceReady = { r -> main.post { if (r) buildMain() else blocked() } }
-        ShizukuHelper.bindService()
+        if (SystemReader.rootMode) {
+            buildMain()
+        } else {
+            ShizukuHelper.bindService()
+        }
     }
 
     private fun blocked() {
@@ -61,7 +76,7 @@ class MainActivity : AppCompatActivity() {
         }
         box.addView(android.widget.TextView(this).apply { text = "Доступ закрыт"; setTextColor(Color.WHITE); textSize = 28f; gravity = android.view.Gravity.CENTER })
         box.addView(android.widget.TextView(this).apply {
-            text = "Shizuku не запущен или нет разрешения.\n\nЗапустите Shizuku, выдайте разрешение и нажмите «Проверить снова»."
+            text = "Нет Root или Shizuku.\n\nЗапустите Shizuku, выдайте разрешение и нажмите «Проверить снова»."
             setTextColor(Color.parseColor("#AAFFFFFF")); textSize = 15f; gravity = android.view.Gravity.CENTER
         }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
         box.addView(makeBtn("ОТКРЫТЬ SHIZUKU", "#7BA7F5") { openShizuku() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
@@ -91,9 +106,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun blockedDiag() {
-        val avail = ShizukuHelper.isAvailable(); val perm = ShizukuHelper.hasPermission(); val ready = SystemReader.isReady()
+        val avail = ShizukuHelper.isAvailable()
+        val perm = ShizukuHelper.hasPermission()
+        val ready = SystemReader.isReady()
+        val mode = when {
+            SystemReader.rootMode -> "Root"
+            SystemReader.directMode -> "Shizuku Direct"
+            SystemReader.service != null -> "Shizuku UserService"
+            else -> "Нет"
+        }
         val ver = try { if (avail) rikka.shizuku.Shizuku.getVersion().toString() else "—" } catch (e: Throwable) { "—" }
-        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\nShizuku: ${if (avail) "✓" else "✗"}\nРазрешение: ${if (perm) "✓" else "✗"}\nUserService/Direct: ${if (ready) "✓" else "✗"}\nВерсия: $ver"
+        val t = "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
+                "Режим: $mode\n" +
+                "Shizuku: ${if (avail) "✓" else "✗"}\n" +
+                "Разрешение: ${if (perm) "✓" else "✗"}\n" +
+                "Готов: ${if (ready) "✓" else "✗"}\n" +
+                "Версия Shizuku: $ver"
         AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show()
     }
 
@@ -153,9 +181,14 @@ class MainActivity : AppCompatActivity() {
     private fun diag() {
         ex.execute {
             val a = prefs.isActive()
-            val t = "Shizuku: ${if (ShizukuHelper.isAvailable()) "✓" else "✗"}\n" +
-                "Разрешение: ${if (ShizukuHelper.hasPermission()) "✓" else "✗"}\n" +
-                "UserService/Direct: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
+            val mode = when {
+                SystemReader.rootMode -> "Root"
+                SystemReader.directMode -> "Shizuku (Direct)"
+                SystemReader.service != null -> "Shizuku (UserService)"
+                else -> "Нет"
+            }
+            val t = "Режим: $mode\n" +
+                "Готов: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
                 "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
                 "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
                 "Чип: ${info.chipName()}\n" +
@@ -168,8 +201,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun ready(): Boolean {
-        if (!ShizukuHelper.hasPermission()) { Toast.makeText(this, "Нет разрешения Shizuku", Toast.LENGTH_SHORT).show(); return false }
-        if (!SystemReader.isReady()) { Toast.makeText(this, "Сервис не готов", Toast.LENGTH_SHORT).show(); return false }
+        if (!SystemReader.isReady()) { Toast.makeText(this, "Нет доступа (Root/Shizuku)", Toast.LENGTH_SHORT).show(); return false }
         return true
     }
 
@@ -318,7 +350,6 @@ class MainActivity : AppCompatActivity() {
         ex.execute {
             try {
                 val bat = info.batteryLevel(); val temp = info.cpuTemp(); val active = prefs.isActive()
-                tHist.addLast(temp); if (tHist.size > 5) tHist.removeFirst()
 
                 if (temp > 80f && active) {
                     info.deactivateMaxPerformance(); prefs.setActive(false)
