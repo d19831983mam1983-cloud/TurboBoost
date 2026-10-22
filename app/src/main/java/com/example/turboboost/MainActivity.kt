@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -35,7 +36,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 val bmp = MediaStore.Images.Media.getBitmap(contentResolver, uri)
                 ui.setBackgroundBitmap(bmp)
-                prefs.setBackgroundUri(uri.toString())
                 saveBgToInternal(bmp)
             } catch (e: Throwable) {
                 Toast.makeText(this, "Не удалось загрузить", Toast.LENGTH_SHORT).show()
@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSplash() {
         val splash = SplashScreen(this)
-        setContentView(splash)
+        setContentView(splash as View)
         splash.start {
             ex.execute {
                 val hasRoot = SystemReader.checkRoot()
@@ -125,7 +125,6 @@ class MainActivity : AppCompatActivity() {
         try {
             val f = java.io.File(filesDir, "bg_custom.png")
             f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            prefs.setBackgroundUri(f.absolutePath)
         } catch (e: Throwable) {}
     }
 
@@ -198,7 +197,6 @@ class MainActivity : AppCompatActivity() {
                 idx == 0 -> pickImage.launch("image/*")
                 idx == 1 -> {
                     ui.setBackgroundBitmap(null)
-                    prefs.setBackgroundUri("")
                     try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
                 }
                 idx >= 3 -> {
