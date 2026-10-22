@@ -239,6 +239,62 @@ class DeviceInfo(private val ctx: Context) {
         return if (inputPid.isNotBlank()) "InputDispatcher: усилен" else "inputflinger не найден"
     }
 
+    fun boostThreadPriorities(): String {
+        val sb = StringBuilder()
+        val sfNice = when (tierCache) { 0 -> -10; 2 -> -15; else -> -12 }
+        val sysNice = when (tierCache) { 0 -> -5; 2 -> -8; else -> -6 }
+        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
+        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
+        SystemReader.read(sb.toString())
+        return "Приоритеты: усилены"
+    }
+
+    fun resetThreadPriorities(): String {
+        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
+        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
+        return "Приоритеты: сброшены"
+    }
+
+    fun restrictPowerKeeper(): String {
+        val pkg = "com.miui.powerkeeper"
+        val installed = SystemReader.read("pm list packages $pkg").contains(pkg)
+        if (!installed) return "PowerKeeper не найден"
+        SystemReader.read("appops set $pkg WRITE_SETTINGS deny; appops set $pkg GET_USAGE_STATS deny; appops set $pkg RUN_IN_BACKGROUND deny")
+        return "PowerKeeper: ограничен"
+    }
+
+    fun restorePowerKeeper(): String {
+        val pkg = "com.miui.powerkeeper"
+        SystemReader.read("appops set $pkg WRITE_SETTINGS allow; appops set $pkg GET_USAGE_STATS allow; appops set $pkg RUN_IN_BACKGROUND allow")
+        return "PowerKeeper: восстановлен"
+    }
+
+    fun cleanupDozeWhitelist(): String {
+        val targets = listOf("com.facebook.katana", "com.facebook.orca", "com.instagram.android")
+        val sb = StringBuilder()
+        for (pkg in targets) {
+            val installed = SystemReader.read("pm list packages $pkg").contains(pkg)
+            if (installed) {
+                SystemReader.read("dumpsys deviceidle whitelist -$pkg")
+                sb.append("$pkg: убран\n")
+            }
+        }
+        return if (sb.isNotEmpty()) sb.toString() else "Нечего чистить"
+    }
+
+    fun restrictGms(): String {
+        val pkg = "com.google.android.gms"
+        val installed = SystemReader.read("pm list packages $pkg").contains(pkg)
+        if (!installed) return "GMS не найден"
+        SystemReader.read("am set-standby-bucket $pkg rare")
+        return "GMS: rare (экономия)"
+    }
+
+    fun restoreGms(): String {
+        SystemReader.read("am set-standby-bucket com.google.android.gms active")
+        return "GMS: active"
+    }
+
     fun unlockGameFps(pkg: String, hz: Int): String {
         if (pkg.isBlank()) return "Пакет не указан"
         val safeHz = when { hz >= 144 -> 120; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
@@ -343,22 +399,6 @@ class DeviceInfo(private val ctx: Context) {
         }
 
         return result.sortedBy { it.second.lowercase() }
-    }
-
-    fun boostThreadPriorities(): String {
-        val sb = StringBuilder()
-        val sfNice = when (tierCache) { 0 -> -10; 2 -> -15; else -> -12 }
-        val sysNice = when (tierCache) { 0 -> -5; 2 -> -8; else -> -6 }
-        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
-        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
-        SystemReader.read(sb.toString())
-        return "Приоритеты: усилены"
-    }
-
-    fun resetThreadPriorities(): String {
-        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
-        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
-        return "Приоритеты: сброшены"
     }
 
     fun openGameSpace(): String {
