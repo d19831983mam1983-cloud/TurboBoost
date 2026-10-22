@@ -16,6 +16,11 @@ object SystemReader {
     fun checkRoot(): Boolean {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val errThread = Thread {
+                try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {}
+            }
+            errThread.isDaemon = true
+            errThread.start()
             val out = p.inputStream.bufferedReader().readText()
             p.waitFor()
             out.contains("uid=0")
@@ -45,7 +50,11 @@ object SystemReader {
     private fun execRoot(cmd: String): String {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-            p.redirectErrorStream(true)
+            val errThread = Thread {
+                try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {}
+            }
+            errThread.isDaemon = true
+            errThread.start()
             val out = p.inputStream.bufferedReader().readText().trim()
             p.waitFor()
             out
