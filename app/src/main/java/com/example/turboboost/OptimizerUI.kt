@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RenderEffect
 import android.graphics.Shader
@@ -18,8 +17,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Handler
-import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -95,6 +92,7 @@ class OptimizerUI(private val ctx: Context) {
     private val greenS by lazy { gb(intArrayOf(0xFF16A34A.toInt(), 0xFF4ADE80.toInt(), 0xFF16A34A.toInt()), 0xCCFFFFFF.toInt()).constantState }
     private val unselS by lazy { gb(intArrayOf(0x44FFFFFF, 0x22FFFFFF, 0x33FFFFFF), 0x55FFFFFF.toInt()).constantState }
 
+    private fun accent() = if (isSummer) green() else blue()
     private fun blue() = blueS!!.newDrawable().mutate() as GradientDrawable
     private fun green() = greenS!!.newDrawable().mutate() as GradientDrawable
     private fun unsel() = unselS!!.newDrawable().mutate() as GradientDrawable
@@ -221,7 +219,7 @@ class OptimizerUI(private val ctx: Context) {
 
         val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         page1.addView(br, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, blue()) { onToggle?.invoke() }
+        btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, accent()) { onToggle?.invoke() }
         br.addView(btnOpt, LinearLayout.LayoutParams(MATCH_PARENT, dp(68)))
     }
 
@@ -310,7 +308,11 @@ class OptimizerUI(private val ctx: Context) {
         if (::pkgInput.isInitialized) pkgInput.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
     }
 
-    fun setMode(m: Int) { currentMode = m; fade(btnModePerf, if (m == 0) blue() else unsel()); fade(btnModeBal, if (m == 1) blue() else unsel()) }
+    fun setMode(m: Int) { 
+        currentMode = m
+        fade(btnModePerf, if (m == 0) accent() else unsel())
+        fade(btnModeBal, if (m == 1) accent() else unsel())
+    }
     fun setPreset(p: Int) { currentPreset = p; updPreset() }
     fun setHz(hz: Int) { currentHz = hz; updHz() }
     fun setPackageText(t: String) { if (t.isNotEmpty()) pkgInput.setText(t) }
@@ -319,16 +321,29 @@ class OptimizerUI(private val ctx: Context) {
     fun setActive(a: Boolean) { 
         isSummer = a
         btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
-        fade(btnOpt, if (a) green() else blue())
+        fade(btnOpt, accent())
         if (::snowView.isInitialized) snowView.setSummer(a)
+        setMode(currentMode)
+        setGpuBoostState(currentGpu)
+        setBgLimitState(currentBg)
+        setThreadsState(currentThreads)
+        setMglruState(currentMglru)
+        setJoyoseState(currentJoyose)
+        updPreset(); updHz(); updSense()
     }
     
-    fun setGpuBoostState(a: Boolean) { fade(btnGpuBoost, if (a) blue() else unsel()) }
-    fun setBgLimitState(a: Boolean) { fade(btnBgLimit, if (a) blue() else unsel()) }
-    fun setJoyoseState(a: Boolean) { fade(btnJoyose, if (a) blue() else unsel()) }
+    private var currentGpu = false
+    private var currentBg = false
+    private var currentThreads = false
+    private var currentMglru = false
+    private var currentJoyose = false
+    
+    fun setGpuBoostState(a: Boolean) { currentGpu = a; fade(btnGpuBoost, if (a) accent() else unsel()) }
+    fun setBgLimitState(a: Boolean) { currentBg = a; fade(btnBgLimit, if (a) accent() else unsel()) }
+    fun setJoyoseState(a: Boolean) { currentJoyose = a; fade(btnJoyose, if (a) accent() else unsel()) }
     fun setJoyoseVisible(v: Boolean) { btnJoyose.visibility = if (v) View.VISIBLE else View.GONE }
-    fun setThreadsState(a: Boolean) { fade(btnThreads, if (a) blue() else unsel()) }
-    fun setMglruState(a: Boolean) { fade(btnMglru, if (a) blue() else unsel()) }
+    fun setThreadsState(a: Boolean) { currentThreads = a; fade(btnThreads, if (a) accent() else unsel()) }
+    fun setMglruState(a: Boolean) { currentMglru = a; fade(btnMglru, if (a) accent() else unsel()) }
 
     fun setAppliedState(active: Boolean, gov: Boolean) {
         if (!active) { cardApplied.text = "Применено: —"; return }
@@ -346,12 +361,28 @@ class OptimizerUI(private val ctx: Context) {
     private fun fade(v: View, bg: GradientDrawable) {
         val o = v.background
         if (o == null) { v.background = bg; return }
-        val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(600)
+        val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(500)
     }
 
-    private fun updPreset() { for (i in 0 until presetRow.childCount) (presetRow.getChildAt(i) as TextView).background = if (i == currentPreset) blue() else unsel() }
-    private fun updHz() { val m = listOf(60, 90, 120, 144); for (i in 0 until hzRow.childCount) (hzRow.getChildAt(i) as TextView).background = if (m[i] == currentHz) blue() else unsel() }
-    private fun updSense() { for (i in 0 until senseRow.childCount) (senseRow.getChildAt(i) as TextView).background = if (i == currentSense) blue() else unsel() }
+    private fun updPreset() { 
+        for (i in 0 until presetRow.childCount) {
+            val tv = presetRow.getChildAt(i) as TextView
+            tv.background = if (i == currentPreset) accent() else unsel()
+        }
+    }
+    private fun updHz() { 
+        val m = listOf(60, 90, 120, 144)
+        for (i in 0 until hzRow.childCount) {
+            val tv = hzRow.getChildAt(i) as TextView
+            tv.background = if (m[i] == currentHz) accent() else unsel()
+        }
+    }
+    private fun updSense() { 
+        for (i in 0 until senseRow.childCount) {
+            val tv = senseRow.getChildAt(i) as TextView
+            tv.background = if (i == currentSense) accent() else unsel()
+        }
+    }
 
     private fun touch(v: View, click: () -> Unit) {
         v.setOnTouchListener { view, ev ->
@@ -472,7 +503,7 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     class SnowView(context: Context) : View(context), SensorEventListener {
-        private data class Flake(var x: Float, var y: Float, var radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
+        private data class Flake(var x: Float, var y: Float, val radius: Float, val speed: Float, val drift: Float, var alpha: Int, var rotation: Float)
         private val flakes = mutableListOf<Flake>()
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
