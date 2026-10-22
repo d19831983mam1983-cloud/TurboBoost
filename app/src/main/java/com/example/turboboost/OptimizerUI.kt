@@ -260,10 +260,10 @@ class OptimizerUI(private val ctx: Context) {
         val dlgBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(24).toFloat()
-            colors = intArrayOf(0x44FFFFFF, 0x11FFFFFF, 0x33FFFFFF)
+            colors = intArrayOf(0x66FFFFFF, 0x33FFFFFF, 0x44FFFFFF)
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.TL_BR
-            setStroke(dp(1), 0x88FFFFFF.toInt())
+            setStroke(dp(1), 0xCCFFFFFF.toInt())
         }
 
         items.forEachIndexed { i, item ->
@@ -281,10 +281,6 @@ class OptimizerUI(private val ctx: Context) {
                 }
             }
             container.addView(tv, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
-        }
-
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            root.setRenderEffect(RenderEffect.createBlurEffect(25f, 25f, Shader.TileMode.CLAMP))
         }
         
         dialog.setContentView(root)
