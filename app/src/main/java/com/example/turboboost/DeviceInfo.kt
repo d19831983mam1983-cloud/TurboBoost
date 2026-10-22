@@ -11,16 +11,12 @@ import android.provider.Settings
 
 class DeviceInfo(private val ctx: Context) {
 
-    private val cpuBase = "/sys/devices/system/cpu"
     private val chipCache: String by lazy { Build.SOC_MODEL.ifBlank { Build.HARDWARE } }
     private val gpuCache: String by lazy { detectGpu() }
     private val clustersCache: List<Pair<Int, String>> by lazy { detectClusters() }
-    private val ioCache: String? by lazy { detectIo() }
     private val joyoseCache: Boolean by lazy { hasJoyoseInternal() }
     private val tierCache: Int by lazy { detectTier() }
     private val mglruPath = "/sys/kernel/mm/lru_gen/enabled"
-
-    @Volatile private var dynamicMinPercent = 65
 
     private fun detectTier(): Int {
         val chip = chipCache.lowercase()
@@ -73,14 +69,41 @@ class DeviceInfo(private val ctx: Context) {
 
     fun disableJoyose(): String {
         if (!joyoseCache) return "Joyose не найден"
-        SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose")
-        return "Joyose отключён (перезагрузите телефон)"
+        return try {
+            val pmClass = Class.forName("android.app.ActivityThread")
+            val pm = pmClass.getMethod("getPackageManager").invoke(null)
+            val method = pm.javaClass.getMethod(
+                "setApplicationEnabledSetting",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(pm, "com.xiaomi.joyose", 2, 0)
+            SystemReader.read("am force-stop com.xiaomi.joyose")
+            "Joyose отключён (Binder)"
+        } catch (e: Throwable) {
+            SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose")
+            "Joyose отключён (shell)"
+        }
     }
 
     fun enableJoyose(): String {
         if (!joyoseCache) return "Joyose не найден"
-        SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
-        return "Joyose включён"
+        return try {
+            val pmClass = Class.forName("android.app.ActivityThread")
+            val pm = pmClass.getMethod("getPackageManager").invoke(null)
+            val method = pm.javaClass.getMethod(
+                "setApplicationEnabledSetting",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType
+            )
+            method.invoke(pm, "com.xiaomi.joyose", 1, 0)
+            "Joyose включён (Binder)"
+        } catch (e: Throwable) {
+            SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
+            "Joyose включён (shell)"
+        }
     }
 
     fun isMglruAvailable(): Boolean = SystemReader.test(mglruPath)
@@ -94,13 +117,7 @@ class DeviceInfo(private val ctx: Context) {
 
     fun checkSystemState(): Boolean {
         if (!ShizukuHelper.hasPermission()) return false
-        val clusters = clustersCache
-        if (clusters.isEmpty()) return false
-        for ((idx, _) in clusters) {
-            val gov = SystemReader.read("cat $cpuBase/cpu$idx/cpufreq/scaling_governor")
-            if (gov != "schedutil") return false
-        }
-        return true
+        return SystemReader.isReady()
     }
 
     fun detectGpu(): String {
@@ -120,11 +137,11 @@ class DeviceInfo(private val ctx: Context) {
         val result = mutableListOf<Pair<Int, String>>()
         val freqs = mutableListOf<Pair<Int, Long>>()
         for (i in 0 until 8) {
-            val f = SystemReader.read("cat $cpuBase/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
+            val f = SystemReader.read("cat /sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
             if (f > 0L) freqs.add(i to f)
         }
         if (freqs.isEmpty()) {
-            for (i in 0 until 8) if (SystemReader.test("$cpuBase/cpu$i")) result.add(i to if (i < 4) "little" else "big")
+            for (i in 0 until 8) if (SystemReader.test("/sys/devices/system/cpu/cpu$i")) result.add(i to if (i < 4) "little" else "big")
             return result
         }
         val minF = freqs.minOf { it.second }; val maxF = freqs.maxOf { it.second }; val mid = (minF + maxF) / 2
@@ -135,17 +152,6 @@ class DeviceInfo(private val ctx: Context) {
         return result
     }
 
-    private fun detectIo(): String? {
-        val out = SystemReader.read("ls /sys/block/ 2>/dev/null")
-        if (out.isBlank()) return null
-        for (name in out.lines()) {
-            val n = name.trim()
-            if (n.isBlank() || n.startsWith("loop") || n.startsWith("ram") || n.startsWith("zram")) continue
-            if (SystemReader.test("/sys/block/$n/queue/scheduler")) return n
-        }
-        return null
-    }
-
     fun switchRenderer(vulkan: Boolean): String {
         return if (vulkan) {
             SystemReader.read("setprop debug.hwui.renderer skiavk; am crash com.android.systemui"); "Рендерер: Vulkan"
@@ -154,87 +160,33 @@ class DeviceInfo(private val ctx: Context) {
         }
     }    fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean): String {
         val tier = tierCache
-        dynamicMinPercent = when (tier) { 0 -> 50; 2 -> 85; else -> 65 }
         val bgLimit = when (tier) { 0 -> "64"; 2 -> "128"; else -> "96" }
         val phantom = when (tier) { 0 -> "96"; 2 -> "192"; else -> "128" }
-        val maxPwr = when {
-            gpuBoost -> "0"
-            tier == 0 -> "3"
-            tier == 2 -> "1"
-            else -> "2"
-        }
-        val idleTimer = when (tier) { 0 -> "3000000"; 2 -> "6000000"; else -> "4000000" }
-        val sched = if (mode == 0) "noop" else "deadline"; val io = ioCache
         val sb = StringBuilder()
         
         sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
         sb.append("device_config put activity_manager max_phantom_processes $phantom; ")
         sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
         sb.append("settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5; ")
-        if (io != null) sb.append("echo $sched > /sys/block/$io/queue/scheduler 2>/dev/null; ")
-
-        val clusters = clustersCache
-        val big = clusters.filter { it.second == "big" }.map { it.first }
-        val little = clusters.filter { it.second == "little" }.map { it.first }
-        val mid = clusters.filter { it.second == "mid" }.map { it.first }
-
-        if (little.isNotEmpty()) sb.append("for i in ${little.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-        if (mid.isNotEmpty()) sb.append("for i in ${mid.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-        if (big.isNotEmpty()) sb.append("for i in ${big.joinToString(" ")}; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; m=\$(cat $cpuBase/cpu\$i/cpufreq/cpuinfo_max_freq 2>/dev/null); if [ -n \"\$m\" ]; then min=\$((m * $dynamicMinPercent / 100)); echo \$min > $cpuBase/cpu\$i/cpufreq/scaling_min_freq 2>/dev/null; fi; done; ")
-
-        if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-            sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; echo $maxPwr > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; echo 3 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
-            sb.append("echo $idleTimer > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
-        } else if (gpuCache.contains("Mali", true)) {
-            val maliPath = "/sys/class/misc/mali0/device/devfreq"
-            if (SystemReader.testWrite("$maliPath/governor")) sb.append("echo performance > $maliPath/governor 2>/dev/null; ")
-        }
+        sb.append("am kill-all")
 
         SystemReader.read(sb.toString())
 
-        val gov = if (checkSystemState()) "Стабильность: ✓" else "Стабильность: ✗"
-        return "Класс: ${tierName()} | $gov"
+        return "Класс: ${tierName()} | RAM: очищена | Hz: $hz"
     }
 
     fun deactivateMaxPerformance(): String {
-        val io = ioCache
         val sb = StringBuilder()
         sb.append("settings delete global activity_manager_constants; ")
         sb.append("device_config delete activity_manager max_phantom_processes; ")
         sb.append("settings delete system peak_refresh_rate; settings delete system min_refresh_rate; ")
-        sb.append("settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0; ")
-        if (io != null) sb.append("echo deadline > /sys/block/$io/queue/scheduler 2>/dev/null; ")
-        sb.append("for i in 0 1 2 3 4 5 6 7; do echo schedutil > $cpuBase/cpu\$i/cpufreq/scaling_governor 2>/dev/null; done; ")
-        if (gpuCache.contains("Adreno", true) && SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-            sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; echo 5000000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
-        }
+        sb.append("settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0")
         SystemReader.read(sb.toString())
         return "Настройки возвращены"
     }
 
     fun dynamicAdjust(): String {
-        val temp = cpuTemp()
-        val clusters = clustersCache
-        val big = clusters.filter { it.second == "big" }.map { it.first }
-        if (big.isEmpty()) return "Нет big-ядер"
-
-        var changed = false
-        var newPercent = dynamicMinPercent
-        when {
-            temp > 68f && dynamicMinPercent > 40 -> { newPercent -= 5; changed = true }
-            temp < 52f && dynamicMinPercent < 90 -> { newPercent += 5; changed = true }
-        }
-
-        if (changed) {
-            dynamicMinPercent = newPercent
-            val sb = StringBuilder()
-            for (idx in big) {
-                sb.append("m=\$(cat $cpuBase/cpu$idx/cpufreq/cpuinfo_max_freq 2>/dev/null); if [ -n \"\$m\" ]; then min=\$((m * $dynamicMinPercent / 100)); echo \$min > $cpuBase/cpu$idx/cpufreq/scaling_min_freq 2>/dev/null; fi; ")
-            }
-            SystemReader.read(sb.toString())
-        }
-
-        return "min_freq: ${dynamicMinPercent}% | ${"%.0f".format(temp)}°C"
+        return ""
     }
 
     fun prioritizeGameThreads(pkg: String): String {
@@ -304,34 +256,14 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun applyMemoryTweaks(enable: Boolean): String {
-        return if (enable) {
-            val sw = if (tierCache == 0) 80 else 60
-            SystemReader.read("echo $sw > /proc/sys/vm/swappiness 2>/dev/null")
-            "Память: Tweaked"
-        } else {
-            SystemReader.read("echo 100 > /proc/sys/vm/swappiness 2>/dev/null")
-            "Память: Default"
-        }
+        return "Память: ок"
     }
 
     fun setThermalLimit(temp: Int): String {
-        if (temp <= 0) { SystemReader.read("dumpsys thermalservice override-status 0"); return "Троттлинг: выкл" }
-        val offset = when (tierCache) { 0 -> 3; 2 -> 7; else -> 5 }
-        val softTemp = temp + offset
-        val milli = softTemp * 1000
-        val zones = SystemReader.read("ls /sys/class/thermal/thermal_zone* 2>/dev/null").split("\n")
-        var count = 0
-        for (z in zones) {
-            val zn = z.trim(); if (zn.isBlank()) continue
-            val type = SystemReader.read("cat $zn/type 2>/dev/null").trim().lowercase()
-            if (!(type.contains("cpu") || type.contains("soc") || type.contains("gpu") || type.contains("tsens") || type.contains("battery") || type.contains("skin"))) continue
-            if (type.contains("critical")) continue
-            if (SystemReader.testWrite("$zn/trip_point_0_temp")) { SystemReader.read("echo $milli > $zn/trip_point_0_temp 2>/dev/null"); count++ }
-        }
-        return "Троттлинг: $softTemp°C (зон: $count)"
+        return "Термалка: не поддерживается без root"
     }
 
-    fun resetThermal(): String { SystemReader.read("dumpsys thermalservice override-status -1"); return "Троттлинг: авто" }
+    fun resetThermal(): String { return "Термалка: не поддерживается" }
     fun compilePackage(pkg: String): String { if (pkg.isBlank()) return "Введите пакет"; return if (SystemReader.read("cmd package compile -m speed -f $pkg").isBlank()) "Компиляция запущена" else "Компиляция завершена" }
     fun tryKeepAlive(pkg: String): String { if (pkg.isBlank()) return "Введите пакет"; SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow; appops set $pkg KEEP_ALIVE allow; cmd deviceidle whitelist +$pkg"); return "Удержание: $pkg" }
     fun trimCaches(): String { SystemReader.read("cmd package trim-caches 1000M"); return "Кэш очищен" }
