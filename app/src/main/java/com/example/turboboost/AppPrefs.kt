@@ -64,6 +64,34 @@ class AppPrefs(ctx: Context) {
     fun getBackgroundUri(): String = prefs.getString("bg_uri", "") ?: ""
     fun setBackgroundUri(uri: String) = prefs.edit().putString("bg_uri", uri).apply()
 
+    fun getSavedGames(): List<String> {
+        val raw = prefs.getString("saved_games", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) list.add(arr.getString(i))
+            list
+        } catch (e: Throwable) { emptyList() }
+    }
+
+    fun saveGame(pkg: String) {
+        val list = getSavedGames().toMutableList()
+        if (!list.contains(pkg)) {
+            list.add(pkg)
+            val arr = JSONArray()
+            for (p in list) arr.put(p)
+            prefs.edit().putString("saved_games", arr.toString()).commit()
+        }
+    }
+
+    fun removeGame(pkg: String) {
+        val list = getSavedGames().filter { it != pkg }
+        val arr = JSONArray()
+        for (p in list) arr.put(p)
+        prefs.edit().putString("saved_games", arr.toString()).commit()
+    }
+
     fun getProfiles(): List<GameProfile> {
         val raw = prefs.getString("profiles", "") ?: ""
         if (raw.isBlank()) return emptyList()
@@ -86,9 +114,7 @@ class AppPrefs(ctx: Context) {
                 )
             }
             list
-        } catch (e: Throwable) {
-            emptyList()
-        }
+        } catch (e: Throwable) { emptyList() }
     }
 
     fun saveProfile(p: GameProfile) {
