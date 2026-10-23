@@ -16,17 +16,13 @@ object SystemReader {
     fun checkRoot(): Boolean {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            val errThread = Thread {
-                try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {}
-            }
+            val errThread = Thread { try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {} }
             errThread.isDaemon = true
             errThread.start()
             val out = p.inputStream.bufferedReader().readText()
             p.waitFor()
             out.contains("uid=0")
-        } catch (e: Throwable) {
-            false
-        }
+        } catch (e: Throwable) { false }
     }
 
     fun read(cmd: String): String = read(cmd, TIMEOUT_MS)
@@ -42,31 +38,22 @@ object SystemReader {
         return try {
             val future = executor.submit(task)
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (e: Throwable) {
-            ""
-        }
+        } catch (e: Throwable) { "" }
     }
 
     private fun execRoot(cmd: String): String {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-            val errThread = Thread {
-                try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {}
-            }
+            val errThread = Thread { try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {} }
             errThread.isDaemon = true
             errThread.start()
             val out = p.inputStream.bufferedReader().readText().trim()
-            if (!p.waitFor(5, TimeUnit.SECONDS)) {
-                p.destroyForcibly()
-            }
+            if (!p.waitFor(5, TimeUnit.SECONDS)) p.destroyForcibly()
             out
-        } catch (e: Throwable) {
-            ""
-        }
+        } catch (e: Throwable) { "" }
     }
 
     fun test(path: String): Boolean = read("test -e $path && echo ok").contains("ok")
     fun testWrite(path: String): Boolean = read("test -w $path && echo ok").contains("ok")
-
     fun isReady(): Boolean = rootMode || service != null || (directMode && ShizukuHelper.isAvailable())
 }
