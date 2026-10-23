@@ -9,6 +9,8 @@
 -keep class rikka.shizuku.** { *; }
 -keep class moe.shizuku.** { *; }
 -keep class dev.rikka.shizuku.** { *; }
+-dontwarn rikka.shizuku.**
+-dontwarn moe.shizuku.**
 
 -keep class com.example.turboboost.App { *; }
 -keep class com.example.turboboost.CrashHandler { *; }
@@ -23,10 +25,3 @@
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
-
--keepclassmembers class com.example.turboboost.AppPrefs {
-    <fields>;
-}
--keepclassmembers class com.example.turboboost.DeviceInfo {
-    <fields>;
-}
