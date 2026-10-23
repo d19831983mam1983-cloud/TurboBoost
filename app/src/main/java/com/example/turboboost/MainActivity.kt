@@ -33,17 +33,23 @@ class MainActivity : AppCompatActivity() {
 
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            try {
-                val dm = resources.displayMetrics
-                val bmp = decodeSampledBitmap(uri, dm.widthPixels, dm.heightPixels)
-                if (bmp != null) {
-                    ui.setBackgroundBitmap(bmp)
-                    saveBgToInternal(bmp)
-                } else {
-                    Toast.makeText(this, "Не удалось загрузить", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Загрузка фона...", Toast.LENGTH_SHORT).show()
+            ex.execute {
+                try {
+                    val dm = resources.displayMetrics
+                    val bmp = decodeSampledBitmap(uri, dm.widthPixels, dm.heightPixels)
+                    if (bmp != null) {
+                        saveBgToInternal(bmp)
+                        main.post {
+                            ui.setBackgroundBitmap(bmp)
+                            Toast.makeText(this, "Фон установлен", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        main.post { Toast.makeText(this, "Не удалось загрузить", Toast.LENGTH_SHORT).show() }
+                    }
+                } catch (e: Throwable) {
+                    main.post { Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show() }
                 }
-            } catch (e: Throwable) {
-                Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -190,8 +196,10 @@ class MainActivity : AppCompatActivity() {
         
         ui.setThemeIndex(prefs.getThemeIndex())
         
-        val savedBg = loadBgFromInternal()
-        if (savedBg != null) ui.setBackgroundBitmap(savedBg)
+        ex.execute {
+            val savedBg = loadBgFromInternal()
+            if (savedBg != null) main.post { ui.setBackgroundBitmap(savedBg) }
+        }
         
         ui.onSettingsClick = { openSettings() }
         
