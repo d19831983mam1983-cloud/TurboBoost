@@ -200,8 +200,17 @@ class MainActivity : AppCompatActivity() {
         val launcher = LauncherScreen(this)
         launcher.onBack = { buildMain() }
         launcher.onAddGame = { showAppPicker() }
-        launcher.onGameClick = { pkg ->
+        launcher.onRemoveGame = { pkg ->
+            prefs.removeGame(pkg)
+            openLauncher()
+        }
+        launcher.onGameClick = { pkg, autoOpt ->
             prefs.setLastPackage(pkg)
+            if (autoOpt) {
+                if (!prefs.isActive()) {
+                    toggle()
+                }
+            }
         }
         setContentView(launcher.build(list))
     }
