@@ -253,12 +253,6 @@ class MainActivity : AppCompatActivity() {
         
         ui.setThemeIndex(prefs.getThemeIndex())
         
-        val supported = info.getSupportedHz()
-        ui.setSupportedHz(supported)
-        if (prefs.getTargetHz() !in supported) {
-            prefs.setTargetHz(supported.first())
-        }
-        
         ex.execute {
             val savedBg = loadBgFromInternal()
             if (savedBg != null) main.post { ui.setBackgroundBitmap(savedBg) }
@@ -270,7 +264,7 @@ class MainActivity : AppCompatActivity() {
         val ap = prefs.getActiveProfilePkg()
         ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
         ui.onPackageChanged = { prefs.setLastPackage(it) }
-        ui.setMode(prefs.getPerfMode()); ui.setHz(prefs.getTargetHz())
+        ui.setMode(prefs.getPerfMode())
         if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
         ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
         ui.setStatus("Готов к работе")
@@ -291,7 +285,6 @@ class MainActivity : AppCompatActivity() {
 
         ui.onDiagnostics = { diag() }
         ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
-        ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
         ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage()) } }
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
@@ -373,7 +366,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyProfile(p: GameProfile) {
         prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setTargetHz(p.hz); prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit); prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
-        ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); ui.setHz(p.hz); ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit); ui.setPackageText(p.pkg)
+        ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit); ui.setPackageText(p.pkg)
         ex.execute {
             info.applySense(p.sense)
             if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost, p.pkg)
