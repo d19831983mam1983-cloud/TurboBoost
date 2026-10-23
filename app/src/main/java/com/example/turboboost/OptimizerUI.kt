@@ -64,8 +64,6 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var cardApplied: TextView
     lateinit var statusResult: TextView
     lateinit var senseRow: LinearLayout
-    lateinit var hzRow: LinearLayout
-    lateinit var downscaleRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null
     var onDiagnostics: (() -> Unit)? = null
@@ -79,16 +77,12 @@ class OptimizerUI(private val ctx: Context) {
     var onBgLimitToggle: (() -> Unit)? = null
     var onShowGames: (() -> Unit)? = null
     var onShowProfiles: (() -> Unit)? = null
-    var onHzSelected: ((Int) -> Unit)? = null
-    var onDownscaleSelected: ((Int) -> Unit)? = null
     var onPackageChanged: ((String) -> Unit)? = null
     var onSettingsClick: (() -> Unit)? = null
     var onShowLauncher: (() -> Unit)? = null
 
     var currentSense = -1
     var currentMode = 0
-    var currentHz = 120
-    var currentDownscale = 2
     private var isActive = false
     private var themeIndex = 0
     private var currentGpu = false
@@ -96,9 +90,6 @@ class OptimizerUI(private val ctx: Context) {
     private var currentThreads = false
     private var currentMglru = false
     private var currentJoyose = false
-    private var supportedHz: List<Int> = listOf(60, 90, 120, 144)
-
-    fun setSupportedHz(list: List<Int>) { supportedHz = list }
 
     private fun theme(): ThemePalette.Theme = ThemePalette.get(themeIndex)
 
@@ -138,7 +129,7 @@ class OptimizerUI(private val ctx: Context) {
         setThreadsState(currentThreads)
         setMglruState(currentMglru)
         setJoyoseState(currentJoyose)
-        updHz(); updSense(); updDownscale()
+        updSense()
         if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
     }
 
@@ -204,12 +195,6 @@ class OptimizerUI(private val ctx: Context) {
     btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
     mr.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(38), 1f))
 
-    page1.addView(lbl("Частота экрана:"))
-    hzRow = row(page1, 6)
-    supportedHz.forEach { hz ->
-        hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-    }
-
     val er = row(page1, 6)
     btnGpuBoost = glass("GPU Boost") { onGpuBoostToggle?.invoke() }
     er.addView(btnGpuBoost, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
@@ -220,16 +205,6 @@ class OptimizerUI(private val ctx: Context) {
     senseRow = row(page1, 6)
     listOf("Средний", "Сильный", "Эксп.", "Макс").forEachIndexed { i, n ->
         senseRow.addView(glass(n) { currentSense = i; onSenseSelected?.invoke(i); updSense() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-    }
-
-    page1.addView(lbl("Разрешение рендера (Downscale):"))
-    downscaleRow = row(page1, 6)
-    listOf("Выкл", "90%", "80%", "70%").forEachIndexed { i, n ->
-        downscaleRow.addView(glass(n) { 
-            currentDownscale = i
-            onDownscaleSelected?.invoke(i)
-            updDownscale() 
-        }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
     }
 
     page1.addView(lbl("Пакет игры:"))
@@ -373,8 +348,6 @@ fun setMode(m: Int) {
     fade(btnModePerf, if (m == 0) accentDrawable() else unselDrawable())
     fade(btnModeBal, if (m == 1) accentDrawable() else unselDrawable())
 }
-fun setHz(hz: Int) { currentHz = hz; updHz() }
-fun setDownscaleLevel(level: Int) { currentDownscale = level; updDownscale() }
 fun setPackageText(t: String) { if (t.isNotEmpty()) pkgInput.setText(t) }
 fun setSenseLevel(l: Int) { currentSense = l; updSense() }
 
@@ -389,7 +362,7 @@ fun setActive(a: Boolean) {
     setThreadsState(currentThreads)
     setMglruState(currentMglru)
     setJoyoseState(currentJoyose)
-    updHz(); updSense(); updDownscale()
+    updSense()
 }
 
 fun setGpuBoostState(a: Boolean) { currentGpu = a; fade(btnGpuBoost, if (a) accentDrawable() else unselDrawable()) }
@@ -416,23 +389,10 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(500)
     }
 
-    private fun updHz() { 
-        val m = supportedHz
-        for (i in 0 until hzRow.childCount) {
-            val tv = hzRow.getChildAt(i) as TextView
-            tv.background = if (m[i] == currentHz) accentDrawable() else unselDrawable()
-        }
-    }
     private fun updSense() { 
         for (i in 0 until senseRow.childCount) {
             val tv = senseRow.getChildAt(i) as TextView
             tv.background = if (i == currentSense) accentDrawable() else unselDrawable()
-        }
-    }
-    private fun updDownscale() {
-        for (i in 0 until downscaleRow.childCount) {
-            val tv = downscaleRow.getChildAt(i) as TextView
-            tv.background = if (i == currentDownscale) accentDrawable() else unselDrawable()
         }
     }
 
