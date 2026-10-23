@@ -1,11 +1,8 @@
 package com.example.turboboost
 
-import android.content.ComponentName
 import android.content.Context
-import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
 import rikka.shizuku.Shizuku
 import java.io.BufferedReader
@@ -14,51 +11,17 @@ import java.io.InputStreamReader
 object ShizukuHelper {
 
     private const val REQUEST_CODE = 1001
-    private const val BIND_TIMEOUT_MS = 3000L
     var onPermissionResult: ((Boolean) -> Unit)? = null
     var onServiceReady: ((Boolean) -> Unit)? = null
     var onBindTimeout: (() -> Unit)? = null
 
-    private var bound = false
     private var appContext: Context? = null
-    private var pendingTimeout: Runnable? = null
     private val handler = Handler(Looper.getMainLooper())
 
     private val listener = Shizuku.OnRequestPermissionResultListener { code, result ->
         if (code == REQUEST_CODE) {
             onPermissionResult?.invoke(result == PackageManager.PERMISSION_GRANTED)
         }
-    }
-
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            cancelTimeout()
-            try {
-                SystemReader.service = IUserService.Stub.asInterface(binder)
-                SystemReader.directMode = false
-                bound = true
-                onServiceReady?.invoke(true)
-            } catch (e: Throwable) {
-                enableDirectMode()
-            }
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            cancelTimeout()
-            SystemReader.service = null
-            bound = false
-            enableDirectMode()
-        }
-    }
-
-    private fun args(ctx: Context): Shizuku.UserServiceArgs {
-        return Shizuku.UserServiceArgs(
-            ComponentName(ctx.packageName, UserService::class.java.name)
-        )
-            .daemon(false)
-            .processNameSuffix("exec")
-            .debuggable(false)
-            .version(1)
     }
 
     fun init(ctx: Context) {
@@ -69,11 +32,9 @@ object ShizukuHelper {
     }
 
     fun destroy() {
-        cancelTimeout()
         try {
             Shizuku.removeRequestPermissionResultListener(listener)
         } catch (e: Throwable) {}
-        unbindService()
     }
 
     fun isAvailable(): Boolean {
@@ -97,48 +58,19 @@ object ShizukuHelper {
     }
 
     fun bindService() {
-        val ctx = appContext ?: return
-        if (bound) { onServiceReady?.invoke(true); return }
-        if (!hasPermission()) { onServiceReady?.invoke(false); return }
-        startTimeout()
-        try {
-            Shizuku.bindUserService(args(ctx), connection)
-        } catch (e: Throwable) {
-            cancelTimeout()
-            enableDirectMode()
+        if (!hasPermission()) {
+            onServiceReady?.invoke(false)
+            return
         }
+        enableDirectMode()
     }
 
-    fun unbindService() {
-        val ctx = appContext ?: return
-        if (!bound) return
-        try { Shizuku.unbindUserService(args(ctx), connection, true) } catch (e: Throwable) {}
-        SystemReader.service = null
-        bound = false
-    }
+    fun unbindService() {}
 
     private fun enableDirectMode() {
         SystemReader.directMode = true
         SystemReader.service = null
-        bound = false
         onServiceReady?.invoke(true)
-    }
-
-    private fun startTimeout() {
-        cancelTimeout()
-        val r = Runnable {
-            if (!bound) {
-                enableDirectMode()
-                onBindTimeout?.invoke()
-            }
-        }
-        pendingTimeout = r
-        handler.postDelayed(r, BIND_TIMEOUT_MS)
-    }
-
-    private fun cancelTimeout() {
-        pendingTimeout?.let { handler.removeCallbacks(it) }
-        pendingTimeout = null
     }
 
     fun execDirect(cmd: String): String {
