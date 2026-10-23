@@ -1,696 +1,420 @@
 package com.example.turboboost
 
-import android.app.Dialog
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.Shader
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.TransitionDrawable
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
-import android.text.Editable
-import android.text.InputType
-import android.text.TextWatcher
-import android.view.Gravity
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.view.Window
-import android.view.WindowManager
-import android.view.animation.AnticipateOvershootInterpolator
-import android.widget.EditText
-import android.widget.FrameLayout
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
-import kotlin.math.abs
-import kotlin.math.hypot
-import kotlin.math.sin
-import kotlin.random.Random
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.BatteryManager
+import android.os.Build
+import android.provider.Settings
 
-class OptimizerUI(private val ctx: Context) {
+class DeviceInfo(private val ctx: Context) {
 
-    lateinit var root: FrameLayout
-    lateinit var topBar: FrameLayout
-    lateinit var scroll1: ScrollView
-    lateinit var page1: LinearLayout
-    lateinit var bgView: LiquidBackgroundView
-    lateinit var btnSettings: ImageView
-    lateinit var btnOpt: TextView
-    lateinit var btnDiagnostics: TextView
-    lateinit var btnJoyose: TextView
-    lateinit var btnThreads: TextView
-    lateinit var btnMglru: TextView
-    lateinit var btnGameSpace: TextView
-    lateinit var btnModePerf: TextView
-    lateinit var btnModeBal: TextView
-    lateinit var btnGpuBoost: TextView
-    lateinit var btnBgLimit: TextView
-    lateinit var btnGames: TextView
-    lateinit var btnProfiles: TextView
-    lateinit var btnLauncher: TextView
-    lateinit var pkgInput: EditText
-    lateinit var cardApplied: TextView
-    lateinit var statusResult: TextView
-    lateinit var senseRow: LinearLayout
-    lateinit var downscaleRow: LinearLayout
+    private val chipCache: String by lazy { Build.SOC_MODEL.ifBlank { Build.HARDWARE } }
+    private val gpuCache: String by lazy { detectGpu() }
+    private val clustersCache: List<Pair<Int, String>> by lazy { detectClusters() }
+    private val joyoseCache: Boolean by lazy { hasJoyoseInternal() }
+    private val tierCache: Int by lazy { detectTier() }
+    private val mglruPath = "/sys/kernel/mm/lru_gen/enabled"
 
-    var onToggle: (() -> Unit)? = null
-    var onDiagnostics: (() -> Unit)? = null
-    var onJoyoseToggle: (() -> Unit)? = null
-    var onThreadsToggle: (() -> Unit)? = null
-    var onMglruToggle: (() -> Unit)? = null
-    var onGameSpace: (() -> Unit)? = null
-    var onSenseSelected: ((Int) -> Unit)? = null
-    var onModeSelected: ((Int) -> Unit)? = null
-    var onGpuBoostToggle: (() -> Unit)? = null
-    var onBgLimitToggle: (() -> Unit)? = null
-    var onShowGames: (() -> Unit)? = null
-    var onShowProfiles: (() -> Unit)? = null
-    var onDownscaleSelected: ((Int) -> Unit)? = null
-    var onPackageChanged: ((String) -> Unit)? = null
-    var onSettingsClick: (() -> Unit)? = null
-    var onShowLauncher: (() -> Unit)? = null
+    private fun detectTier(): Int {
+        val chip = chipCache.lowercase()
+        val gpu = gpuCache.lowercase()
+        if (chip.contains("unisoc") || chip.contains("t6") || chip.contains("t7") ||
+            chip.contains("helio g") || chip.contains("mt67") || chip.contains("mt68") ||
+            chip.contains("snapdragon 6") || chip.contains("snapdragon 4") ||
+            gpu.contains("mali-g52") || gpu.contains("mali-g57") || gpu.contains("mali-g3")) return 0
+        if (chip.contains("snapdragon 8 gen") || chip.contains("dimensity 9") ||
+            chip.contains("dimensity 8") || chip.contains("kirin 9") ||
+            gpu.contains("adreno 7") || gpu.contains("adreno 6")) return 2
+        return 1
+    }
 
-    var currentSense = -1
-    var currentMode = 0
-    var currentDownscale = 2
-    private var isActive = false
-    private var themeIndex = 0
-    private var currentGpu = false
-    private var currentBg = false
-    private var currentThreads = false
-    private var currentMglru = false
-    private var currentJoyose = false
+    fun getTier(): Int = tierCache
+    fun tierName(): String = when (tierCache) { 0 -> "Слабый"; 2 -> "Флагман"; else -> "Средний" }
 
-    private fun theme(): ThemePalette.Theme = ThemePalette.get(themeIndex)
+    fun cpuTemp(): Float {
+        val out = SystemReader.read("for z in /sys/class/thermal/thermal_zone*; do t=\$(cat \$z/temp 2>/dev/null); if [ -n \"\$t\" ]; then echo \"\$t\"; fi; done")
+        if (out.isBlank()) return 0f
+        var max = 0f
+        for (line in out.lines()) {
+            val raw = line.trim().toFloatOrNull() ?: continue
+            val v = if (raw > 1000f) raw / 1000f else raw
+            if (v > max && v < 150f) max = v
+        }
+        return max
+    }
 
-    private fun accentDrawable(): GradientDrawable {
-        val t = theme()
-        return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(12).toFloat()
-            colors = intArrayOf(t.primary, t.secondary, t.primary)
-            gradientType = GradientDrawable.LINEAR_GRADIENT
-            orientation = GradientDrawable.Orientation.LEFT_RIGHT
-            setStroke(dp(1), 0xCCFFFFFF.toInt())
+    fun batteryLevel(): Int {
+        val i = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return 100
+        val level = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        if (level < 0 || scale <= 0) return 100
+        return level * 100 / scale
+    }
+
+    fun isCharging(): Boolean {
+        val i = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return false
+        val status = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+    }
+
+    fun chipName(): String = chipCache
+    fun gpuName(): String = gpuCache
+    fun cpuClusters(): List<Pair<Int, String>> = clustersCache
+
+    fun hasJoyose(): Boolean = joyoseCache
+    private fun hasJoyoseInternal(): Boolean = SystemReader.read("pm list packages com.xiaomi.joyose").contains("com.xiaomi.joyose")
+
+    fun disableJoyose(): String {
+        if (!joyoseCache) return "Joyose не найден"
+        return try {
+            val pmClass = Class.forName("android.app.ActivityThread")
+            val pm = pmClass.getMethod("getPackageManager").invoke(null)
+            val method = pm.javaClass.getMethod("setApplicationEnabledSetting", String::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            method.invoke(pm, "com.xiaomi.joyose", 2, 0)
+            SystemReader.read("am force-stop com.xiaomi.joyose")
+            "Joyose отключён (Binder)"
+        } catch (e: Throwable) {
+            SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose")
+            "Joyose отключён (shell)"
         }
     }
 
-    private fun unselDrawable(): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dp(12).toFloat()
-        colors = intArrayOf(0x44FFFFFF, 0x22FFFFFF, 0x33FFFFFF)
-        gradientType = GradientDrawable.LINEAR_GRADIENT
-        orientation = GradientDrawable.Orientation.LEFT_RIGHT
-        setStroke(dp(1), 0x55FFFFFF.toInt())
-    }
-
-    fun setThemeIndex(i: Int) {
-        themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
-        if (!::root.isInitialized) return
-        if (::bgView.isInitialized) bgView.setTheme(themeIndex, isActive)
-        applyThemeToAll()
-    }
-
-    private fun applyThemeToAll() {
-        if (!::root.isInitialized) return
-        setMode(currentMode)
-        setGpuBoostState(currentGpu)
-        setBgLimitState(currentBg)
-        setThreadsState(currentThreads)
-        setMglruState(currentMglru)
-        setJoyoseState(currentJoyose)
-        updSense(); updDownscale()
-        if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
-    }
-
-    fun build(): FrameLayout {
-        root = FrameLayout(ctx)
-        root.setBackgroundColor(Color.parseColor("#05070A"))
-        
-        bgView = LiquidBackgroundView(ctx)
-        root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-
-        val content = FrameLayout(ctx)
-        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-
-        page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
-        scroll1 = ScrollView(ctx).apply { 
-            isFillViewport = true
-            setBackgroundColor(Color.TRANSPARENT)
-            addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-            setPadding(0, dp(80), 0, 0)
-        }
-        content.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-
-        topBar = buildTopBar()
-        content.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-
-        buildMain()
-        animateIn()
-        return root
-    }
-
-    private fun buildTopBar(): FrameLayout {
-        val bar = FrameLayout(ctx)
-        bar.setBackgroundColor(Color.parseColor("#CC05070A"))
-        
-        val h = LinearLayout(ctx).apply { 
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-        bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        
-        val ic = ImageView(ctx).apply { setImageResource(R.drawable.ic_bolt); alpha = 0.9f }
-        h.addView(ic, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(12) })
-        
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, theme().secondary) })
-        col.addView(tv("LIQUID GLASS", 10f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
-        
-        btnSettings = ImageView(ctx).apply {
-            setImageResource(android.R.drawable.ic_menu_preferences)
-            setColorFilter(Color.WHITE)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            setOnClickListener { onSettingsClick?.invoke() }
-        }
-        h.addView(btnSettings, LinearLayout.LayoutParams(dp(44), dp(44)))
-        
-        return bar
-    }
-
-    private fun buildMain() {
-        val mr = row(page1, 6)
-        btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
-        mr.addView(btnModePerf, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-        btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
-        mr.addView(btnModeBal, LinearLayout.LayoutParams(0, dp(38), 1f))
-
-        val er = row(page1, 6)
-        btnGpuBoost = glass("GPU Boost") { onGpuBoostToggle?.invoke() }
-        er.addView(btnGpuBoost, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-        btnBgLimit = glass("Лимит фона") { onBgLimitToggle?.invoke() }
-        er.addView(btnBgLimit, LinearLayout.LayoutParams(0, dp(38), 1f))
-
-        page1.addView(lbl("Сенса:"))
-        senseRow = row(page1, 6)
-        listOf("Средний", "Сильный", "Эксп.", "Макс").forEachIndexed { i, n ->
-            senseRow.addView(glass(n) { currentSense = i; onSenseSelected?.invoke(i); updSense() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-        }
-
-        page1.addView(lbl("Разрешение рендера (FPS):"))
-        downscaleRow = row(page1, 6)
-        listOf("Выкл", "90%", "80%", "70%").forEachIndexed { i, n ->
-            downscaleRow.addView(glass(n) { 
-                currentDownscale = i
-                onDownscaleSelected?.invoke(i)
-                updDownscale() 
-            }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
-        }
-
-        page1.addView(lbl("Пакет игры:"))
-        pkgInput = EditText(ctx).apply {
-            hint = "com.axlebolt.standoff2"
-            setHintTextColor(Color.parseColor("#88FFFFFF"))
-            setTextColor(Color.WHITE)
-            textSize = 13f
-            setSingleLine()
-            inputType = InputType.TYPE_CLASS_TEXT
-            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
-            setPadding(dp(16), dp(10), dp(16), dp(10))
-            setBackgroundColor(Color.TRANSPARENT)
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
-            })
-        }
-        val pkgWrap = FrameLayout(ctx).apply {
-            background = glassBgDrawable(14)
-            addView(pkgInput, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        }
-        page1.addView(pkgWrap, LinearLayout.LayoutParams(MATCH_PARENT, dp(44)).apply { topMargin = dp(8) })
-
-        val r1 = row(page1, 6)
-        btnGames = glass("Игры") { onShowGames?.invoke() }
-        r1.addView(btnGames, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
-        btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
-        r1.addView(btnProfiles, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
-        btnThreads = glass("Потоки CPU") { onThreadsToggle?.invoke() }
-        r1.addView(btnThreads, LinearLayout.LayoutParams(0, dp(42), 1f))
-
-        val r2 = row(page1, 6)
-        btnMglru = glass("MGLRU") { onMglruToggle?.invoke() }
-        r2.addView(btnMglru, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
-        btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }
-        r2.addView(btnGameSpace, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
-        btnJoyose = glass("Xiaomi Boost") { onJoyoseToggle?.invoke() }
-        btnJoyose.visibility = View.GONE
-        r2.addView(btnJoyose, LinearLayout.LayoutParams(0, dp(42), 1f))
-
-        btnLauncher = glass("Мои игры (Лаунчер)") { onShowLauncher?.invoke() }
-        page1.addView(btnLauncher, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
-
-        btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
-        page1.addView(btnDiagnostics, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
-
-        cardApplied = card("Применено: —"); addCard(page1, cardApplied)
-        statusResult = card("Готов к работе"); addCard(page1, statusResult)
-
-        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(16)))
-
-        val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        page1.addView(br, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, accentDrawable()) { onToggle?.invoke() }
-        br.addView(btnOpt, LinearLayout.LayoutParams(MATCH_PARENT, dp(68)))
-    }    private fun animateIn() {
-        for (i in 0 until page1.childCount) {
-            val v = page1.getChildAt(i)
-            v.alpha = 0f
-            v.translationY = dp(40).toFloat()
-            v.scaleX = 0.9f
-            v.scaleY = 0.9f
-            v.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setStartDelay((i * 20).toLong())
-                .setDuration(500)
-                .setInterpolator(AnticipateOvershootInterpolator(1.2f))
-                .start()
+    fun enableJoyose(): String {
+        if (!joyoseCache) return "Joyose не найден"
+        return try {
+            val pmClass = Class.forName("android.app.ActivityThread")
+            val pm = pmClass.getMethod("getPackageManager").invoke(null)
+            val method = pm.javaClass.getMethod("setApplicationEnabledSetting", String::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            method.invoke(pm, "com.xiaomi.joyose", 1, 0)
+            "Joyose включён (Binder)"
+        } catch (e: Throwable) {
+            SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
+            "Joyose включён (shell)"
         }
     }
 
-    fun setBackgroundBitmap(bmp: Bitmap?) {
-        if (::bgView.isInitialized) bgView.setBackgroundImage(bmp)
+    fun isMglruAvailable(): Boolean = SystemReader.test(mglruPath)
+
+    fun toggleMglru(enable: Boolean): String {
+        if (!isMglruAvailable()) return "MGLRU не поддерживается ядром"
+        val v = if (enable) "y" else "n"
+        SystemReader.read("echo $v > $mglruPath")
+        return "MGLRU: ${if (enable) "вкл" else "выкл"}"
     }
 
-    fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
-        val dialog = Dialog(ctx, android.R.style.Theme_Translucent_NoTitleBar)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        
-        val root = FrameLayout(ctx)
-        root.setBackgroundColor(Color.parseColor("#FF000000"))
-        
-        val scroll = ScrollView(ctx)
-        val container = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(40), dp(24), dp(40))
-        }
-        scroll.addView(container)
-        root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { gravity = Gravity.CENTER })
-        
-        container.addView(TextView(ctx).apply {
-            text = title
-            setTextColor(Color.WHITE)
-            textSize = 20f
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(20))
-        })
+    fun checkSystemState(): Boolean {
+        if (!ShizukuHelper.hasPermission()) return false
+        return SystemReader.isReady()
+    }
 
-        val dlgBg = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(24).toFloat()
-            colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x22FFFFFF)
-            gradientType = GradientDrawable.LINEAR_GRADIENT
-            orientation = GradientDrawable.Orientation.TL_BR
-            setStroke(dp(1), 0xAAFFFFFF.toInt())
+    fun detectGpu(): String {
+        if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
+            val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
+            return if (name.isNotBlank()) name else "Adreno"
         }
+        if (SystemReader.test("/sys/class/misc/mali0")) return "Mali"
+        if (SystemReader.test("/sys/class/misc/pvrsrvkm")) return "PowerVR"
+        val sf = SystemReader.read("dumpsys SurfaceFlinger | grep -iE 'GLES|Vulkan'")
+        if (sf.contains("Mali", true)) return "Mali"
+        if (sf.contains("Adreno", true)) return "Adreno"
+        return "неизвестно"
+    }
 
-        items.forEachIndexed { i, item ->
-            val tv = TextView(ctx).apply {
-                text = item
-                setTextColor(Color.WHITE)
-                textSize = 15f
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(16), dp(14), dp(16), dp(14))
-                background = dlgBg
-                setOnClickListener {
-                    performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                    onClick(i)
-                    dialog.dismiss()
-                }
-            }
-            container.addView(tv, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
+    private fun detectClusters(): List<Pair<Int, String>> {
+        val result = mutableListOf<Pair<Int, String>>()
+        val freqs = mutableListOf<Pair<Int, Long>>()
+        for (i in 0 until 8) {
+            val f = SystemReader.read("cat /sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
+            if (f > 0L) freqs.add(i to f)
+        }
+        if (freqs.isEmpty()) {
+            for (i in 0 until 8) if (SystemReader.test("/sys/devices/system/cpu/cpu$i")) result.add(i to if (i < 4) "little" else "big")
+            return result
+        }
+        val minF = freqs.minOf { it.second }; val maxF = freqs.maxOf { it.second }; val mid = (minF + maxF) / 2
+        for ((idx, f) in freqs) {
+            val label = when { f <= mid -> "little"; f >= maxF - (maxF - minF) / 4 -> "big"; else -> "mid" }
+            result.add(idx to label)
+        }
+        return result
+    }
+
+    fun switchRenderer(vulkan: Boolean): String {
+        return if (vulkan) {
+            SystemReader.read("setprop debug.hwui.renderer skiavk; am crash com.android.systemui"); "Рендерер: Vulkan"
+        } else {
+            SystemReader.read("setprop debug.hwui.renderer skiagl; am crash com.android.systemui"); "Рендерер: OpenGL"
+        }
+    }    fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
+        val tier = tierCache
+        val bgLimit = if (mode == 0) "96" else "64"
+        val phantom = if (mode == 0) "512" else "128"
+        val sb = StringBuilder()
+        
+        sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
+        sb.append("device_config put activity_manager max_phantom_processes $phantom; ")
+        sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
+        sb.append("settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5; ")
+        
+        if (pkg.isNotBlank()) {
+            sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
         }
         
-        dialog.setContentView(root)
-        dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED)
-        dialog.window?.setLayout(MATCH_PARENT, WRAP_CONTENT)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.show()
-    }
-
-    fun setMode(m: Int) { 
-        currentMode = m
-        fade(btnModePerf, if (m == 0) accentDrawable() else unselDrawable())
-        fade(btnModeBal, if (m == 1) accentDrawable() else unselDrawable())
-    }
-    fun setDownscaleLevel(level: Int) { currentDownscale = level; updDownscale() }
-    fun setPackageText(t: String) { if (t.isNotEmpty()) pkgInput.setText(t) }
-    fun setSenseLevel(l: Int) { currentSense = l; updSense() }
-    
-    fun setActive(a: Boolean) { 
-        isActive = a
-        btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
-        fade(btnOpt, accentDrawable())
-        if (::bgView.isInitialized) bgView.setActive(a)
-        setMode(currentMode)
-        setGpuBoostState(currentGpu)
-        setBgLimitState(currentBg)
-        setThreadsState(currentThreads)
-        setMglruState(currentMglru)
-        setJoyoseState(currentJoyose)
-        updSense(); updDownscale()
-    }
-    
-    fun setGpuBoostState(a: Boolean) { currentGpu = a; fade(btnGpuBoost, if (a) accentDrawable() else unselDrawable()) }
-    fun setBgLimitState(a: Boolean) { currentBg = a; fade(btnBgLimit, if (a) accentDrawable() else unselDrawable()) }
-    fun setJoyoseState(a: Boolean) { currentJoyose = a; fade(btnJoyose, if (a) accentDrawable() else unselDrawable()) }
-    fun setJoyoseVisible(v: Boolean) { btnJoyose.visibility = if (v) View.VISIBLE else View.GONE }
-    fun setThreadsState(a: Boolean) { currentThreads = a; fade(btnThreads, if (a) accentDrawable() else unselDrawable()) }
-    fun setMglruState(a: Boolean) { currentMglru = a; fade(btnMglru, if (a) accentDrawable() else unselDrawable()) }
-
-    fun setAppliedState(active: Boolean, gov: Boolean) {
-        if (!active) { cardApplied.text = "Применено: —"; return }
-        cardApplied.text = "Применено: RAM очищена"
-    }
-
-    fun setBatteryLowBlock(b: Boolean) { btnOpt.alpha = if (b) 0.4f else 1f }
-    fun setOverheat(warn: Boolean, critical: Boolean) { 
-        if (critical) statusResult.text = "КРИТИЧЕСКИЙ ПЕРЕГРЕВ — выключено"; 
-        else if (warn) statusResult.text = "Перегрев" 
-    }
-    
-    fun setStatus(text: String) { statusResult.text = text }
-
-    private fun fade(v: View, bg: GradientDrawable) {
-        val o = v.background
-        if (o == null) { v.background = bg; return }
-        val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(500)
-    }
-
-    private fun updSense() { 
-        for (i in 0 until senseRow.childCount) {
-            val tv = senseRow.getChildAt(i) as TextView
-            tv.background = if (i == currentSense) accentDrawable() else unselDrawable()
-        }
-    }
-    
-    private fun updDownscale() { 
-        for (i in 0 until downscaleRow.childCount) {
-            val tv = downscaleRow.getChildAt(i) as TextView
-            tv.background = if (i == currentDownscale) accentDrawable() else unselDrawable()
-        }
-    }
-
-    private fun touch(v: View, click: () -> Unit) {
-        v.setOnTouchListener { view, ev ->
-            when (ev.action) {
-                MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start()
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(AnticipateOvershootInterpolator(2f)).start()
-            }
-            false
-        }
-        v.setOnClickListener { 
-            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            click() 
-        }
-    }
-
-    private fun glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = 11f
-        gravity = Gravity.CENTER
-        setPadding(dp(4), 0, dp(4), 0)
-        background = unselDrawable()
-        touch(this, click)
-    }
-
-    private fun bigBtn(text: String, size: Float, bg: GradientDrawable, click: () -> Unit): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.WHITE)
-        textSize = size
-        gravity = Gravity.CENTER
-        setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
-        background = bg
-        touch(this, click)
-    }
-
-    private fun card(text: String): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.parseColor("#EEEEEE"))
-        textSize = 13f
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(16), dp(14), dp(16), dp(14))
-        background = glassBgDrawable(16)
-    }
-
-    private fun glassBgDrawable(radius: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dp(radius).toFloat()
-        colors = intArrayOf(0x55FFFFFF.toInt(), 0x22FFFFFF, 0x44FFFFFF)
-        gradientType = GradientDrawable.LINEAR_GRADIENT
-        orientation = GradientDrawable.Orientation.TL_BR
-        setStroke(dp(1), 0xAAFFFFFF.toInt())
-    }
-
-    private fun addCard(p: LinearLayout, v: View) { p.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) }) }
-    private fun tv(text: String, size: Float, color: Int): TextView = TextView(ctx).apply { this.text = text; setTextColor(color); textSize = size }
-    private fun lbl(text: String): TextView = tv(text, 12f, Color.parseColor("#99FFFFFF")).apply { setPadding(dp(4), dp(10), 0, dp(2)) }
-    private fun row(p: LinearLayout, margin: Int): LinearLayout = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(margin) }) }
-    private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
-
-    class LiquidBackgroundView(context: Context) : View(context), SensorEventListener {
-        private data class Flake(
-            var x: Float, var y: Float, val radius: Float,
-            val speed: Float, val drift: Float, var alpha: Int, var rotation: Float
-        )
-        private val flakes = mutableListOf<Flake>()
-        private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val blobPaint1 = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val blobPaint2 = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val blobPaint3 = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val flakePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val matrix1 = Matrix()
-        private val matrix2 = Matrix()
-        private val matrix3 = Matrix()
-        private val rand = Random(System.currentTimeMillis())
-        private var time = 0f
-        private var active = true
-        private var isActiveMode = false
-        private var themeIndex = 0
-        private var bgBitmap: Bitmap? = null
+        SystemReader.read(sb.toString())
         
-        private var sensorManager: SensorManager? = null
-        private var accelerometer: Sensor? = null
-        private var lastShakeTime = 0L
-        private var lastX = 0f
-        private var lastY = 0f
-        private var lastZ = 0f
-
-        var onShake: (() -> Unit)? = null
-
-        init {
-            sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-            accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (pkg.isNotBlank()) {
+            compilePackageSpeedProfile(pkg)
         }
 
-        fun setBackgroundImage(bmp: Bitmap?) {
-            bgBitmap = bmp
-            invalidate()
+        return "Класс: ${tierName()} | RAM: настроена | Hz: $hz | AOT: да"
+    }
+
+    fun deactivateMaxPerformance(): String {
+        val sb = StringBuilder()
+        sb.append("settings delete global activity_manager_constants; ")
+        sb.append("device_config delete activity_manager max_phantom_processes; ")
+        sb.append("settings delete system peak_refresh_rate; settings delete system min_refresh_rate; ")
+        sb.append("settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0")
+        SystemReader.read(sb.toString())
+        return "Настройки возвращены"
+    }
+
+    fun prioritizeGameThreads(pkg: String): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        val pid = SystemReader.read("pidof $pkg").trim()
+        if (pid.isBlank()) return "Игра не запущена"
+        val allCores = clustersCache.map { it.first }.sorted()
+        if (allCores.isEmpty()) return "Ядра не определены"
+        var mask = 0
+        for (core in allCores) mask = mask or (1 shl core)
+        val hexMask = Integer.toHexString(mask)
+        var tids = SystemReader.read("ps -T -p $pid -o TID").lines().map { it.trim() }.filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
+        if (tids.isEmpty()) {
+            tids = SystemReader.read("top -H -b -n 1 -p $pid").lines().map { it.trim().split(Regex("\\s+")) }.filter { it.size > 1 && it[0].toIntOrNull() != null }.map { it[0] }.filter { it != pid }
         }
+        if (tids.isEmpty()) return "Потоки не найдены"
+        val sb = StringBuilder()
+        for (tid in tids) sb.append("taskset -p $hexMask $tid 2>/dev/null; ")
+        SystemReader.read(sb.toString())
+        return "Игра $pkg: ${tids.size} потоков на ${allCores.size} ядрах"
+    }
 
-        fun setActive(a: Boolean) {
-            isActiveMode = a
-            updateGradients()
-            invalidate()
+    fun pinGameToPrimeCore(pkg: String): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        val pid = SystemReader.read("pidof $pkg").trim()
+        if (pid.isBlank()) return "Игра не запущена"
+        val big = clustersCache.filter { it.second == "big" }.map { it.first }.sorted()
+        if (big.isEmpty()) return "Нет big-ядер"
+        var mask = 0
+        for (core in big) mask = mask or (1 shl core)
+        val hexMask = Integer.toHexString(mask)
+        val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines().map { it.trim() }.filter { it.isNotEmpty() }.mapNotNull { line ->
+            val parts = line.split(Regex("\\s+"))
+            if (parts.size >= 2) {
+                val tid = parts[0].toIntOrNull()
+                val name = parts[1]
+                if (tid != null && tid != pid.toInt()) tid to name else null
+            } else null
         }
+        if (allTids.isEmpty()) return "Потоки не найдены"
+        var target = allTids.firstOrNull { (_, name) -> name.contains("GameThread", true) || name.contains("UnityMain", true) || name == "main" }
+        if (target == null) target = allTids.firstOrNull { (_, name) -> name.contains("RenderThread", true) || name.contains("UnityGfx", true) }
+        if (target == null) target = allTids.firstOrNull()
+        if (target == null) return "Главный поток не найден"
+        val (tid, name) = target
+        SystemReader.read("taskset -p $hexMask $tid 2>/dev/null; renice -n -15 -p $tid 2>/dev/null")
+        return "Отклик: $name (TID $tid) -> big-ядра [${big.joinToString(",")}]"
+    }
 
-        fun setTheme(index: Int, activeMode: Boolean) {
-            themeIndex = index
-            isActiveMode = activeMode
-            updateGradients()
-            invalidate()
+    fun boostInputDispatcher(): String {
+        val sb = StringBuilder()
+        val inputPid = SystemReader.read("pidof inputflinger").trim()
+        if (inputPid.isNotBlank()) {
+            sb.append("renice -n -15 -p $inputPid 2>/dev/null; ")
+            val tids = SystemReader.read("ps -T -p $inputPid -o TID,CMD").lines().map { it.trim() }.filter { it.contains("InputDispatcher", true) }.mapNotNull { it.split(Regex("\\s+")).firstOrNull()?.toIntOrNull() }
+            for (tid in tids) sb.append("renice -n -15 -p $tid 2>/dev/null; ")
         }
+        SystemReader.read(sb.toString())
+        return if (inputPid.isNotBlank()) "InputDispatcher: усилен" else "inputflinger не найден"
+    }
 
-        private fun currentPrimary(): Int {
-            val t = ThemePalette.get(themeIndex)
-            return if (isActiveMode) t.secondary else t.primary
-        }
+    fun boostThreadPriorities(): String {
+        val sb = StringBuilder()
+        val sfNice = when (tierCache) { 0 -> -10; 2 -> -18; else -> -15 }
+        val sysNice = when (tierCache) { 0 -> -5; 2 -> -10; else -> -8 }
+        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
+        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
+        SystemReader.read(sb.toString())
+        return "Приоритеты: усилены"
+    }
 
-        private fun currentSecondary(): Int {
-            val t = ThemePalette.get(themeIndex)
-            return if (isActiveMode) t.primary else t.secondary
-        }
+    fun resetThreadPriorities(): String {
+        val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
+        val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
+        return "Приоритеты: сброшены"
+    }
 
-        private fun updateGradients() {
-            val w = width.toFloat()
-            val h = height.toFloat()
-            if (w <= 0 || h <= 0) return
+    fun restrictPowerKeeper(): String {
+        val pkg = "com.miui.powerkeeper"
+        val installed = SystemReader.read("pm list packages $pkg").contains(pkg)
+        if (!installed) return "PowerKeeper не найден"
+        SystemReader.read("appops set $pkg WRITE_SETTINGS deny; appops set $pkg GET_USAGE_STATS deny; appops set $pkg RUN_IN_BACKGROUND deny")
+        return "PowerKeeper: ограничен"
+    }
 
-            val t = ThemePalette.get(themeIndex)
-            val top = if (isActiveMode) darken(t.secondary) else darken(t.primary)
-            val mid = if (isActiveMode) t.secondary else t.primary
-            val bot = darken(if (isActiveMode) t.primary else t.secondary)
+    fun restorePowerKeeper(): String {
+        val pkg = "com.miui.powerkeeper"
+        SystemReader.read("appops set $pkg WRITE_SETTINGS allow; appops set $pkg GET_USAGE_STATS allow; appops set $pkg RUN_IN_BACKGROUND allow")
+        return "PowerKeeper: восстановлен"
+    }
 
-            bgPaint.shader = LinearGradient(
-                0f, 0f, 0f, h,
-                intArrayOf(0xFF05070A.toInt(), top, mid, bot, 0xFF05070A.toInt()),
-                floatArrayOf(0f, 0.25f, 0.5f, 0.75f, 1f),
-                Shader.TileMode.CLAMP
-            )
-
-            val b1 = if (isActiveMode) t.blob2 else t.blob1
-            val b2 = if (isActiveMode) t.blob3 else t.blob2
-            val b3 = if (isActiveMode) t.blob1 else t.blob3
-
-            blobPaint1.shader = RadialGradient(w * 0.3f, h * 0.3f, w * 0.7f, intArrayOf(b1, 0x00000000), null, Shader.TileMode.CLAMP)
-            blobPaint2.shader = RadialGradient(w * 0.7f, h * 0.6f, w * 0.8f, intArrayOf(b2, 0x00000000), null, Shader.TileMode.CLAMP)
-            blobPaint3.shader = RadialGradient(w * 0.5f, h * 0.9f, w * 0.6f, intArrayOf(b3, 0x00000000), null, Shader.TileMode.CLAMP)
-        }
-
-        private fun darken(c: Int): Int {
-            val r = (Color.red(c) * 0.4f).toInt().coerceIn(0, 255)
-            val g = (Color.green(c) * 0.4f).toInt().coerceIn(0, 255)
-            val b = (Color.blue(c) * 0.4f).toInt().coerceIn(0, 255)
-            return Color.rgb(r, g, b)
-        }
-
-        override fun onAttachedToWindow() {
-            super.onAttachedToWindow()
-            sensorManager?.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
-        }
-
-        override fun onDetachedFromWindow() {
-            super.onDetachedFromWindow()
-            sensorManager?.unregisterListener(this)
-        }
-
-        override fun onVisibilityChanged(changedView: View, visibility: Int) {
-            super.onVisibilityChanged(changedView, visibility)
-            active = visibility == VISIBLE
-            if (active) invalidate()
-        }
-
-        override fun onSensorChanged(event: SensorEvent) {
-            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                val x = event.values[0]
-                val y = event.values[1]
-                val z = event.values[2]
-                val delta = abs(x - lastX) + abs(y - lastY) + abs(z - lastZ)
-                if (delta > 12f) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastShakeTime > 800) {
-                        lastShakeTime = now
-                        val cx = width / 2f
-                        val cy = height / 2f
-                        for (f in flakes) {
-                            val dx = f.x - cx
-                            val dy = f.y - cy
-                            val dist = hypot(dx, dy).coerceAtLeast(1f)
-                            val force = rand.nextFloat() * 18f + 12f
-                            f.x += (dx / dist) * force
-                            f.y += (dy / dist) * force
-                        }
-                        post { onShake?.invoke() }
-                    }
-                }
-                lastX = x; lastY = y; lastZ = z
+    fun cleanupDozeWhitelist(): String {
+        val targets = listOf("com.facebook.katana", "com.facebook.orca", "com.instagram.android")
+        val sb = StringBuilder()
+        for (pkg in targets) {
+            val installed = SystemReader.read("pm list packages $pkg").contains(pkg)
+            if (installed) {
+                SystemReader.read("dumpsys deviceidle whitelist -$pkg")
+                sb.append("$pkg: убран\n")
             }
         }
+        return if (sb.isNotEmpty()) sb.toString() else "Нечего чистить"
+    }
 
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    fun restrictGms(): String {
+        val pkg = "com.google.android.gms"
+        val installed = SystemReader.read("pm list packages $pkg").contains(pkg)
+        if (!installed) return "GMS не найден"
+        SystemReader.read("am set-standby-bucket $pkg rare")
+        return "GMS: rare (экономия)"
+    }
 
-        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            super.onSizeChanged(w, h, oldw, oldh)
-            flakes.clear()
-            for (i in 0 until 30) {
-                flakes.add(
-                    Flake(
-                        rand.nextFloat() * w,
-                        rand.nextFloat() * h,
-                        rand.nextFloat() * 2.5f + 1f,
-                        rand.nextFloat() * 1.5f + 0.5f,
-                        rand.nextFloat() * 0.6f - 0.3f,
-                        100 + rand.nextInt(155),
-                        rand.nextFloat() * 360f
-                    )
-                )
-            }
-            updateGradients()
+    fun restoreGms(): String {
+        SystemReader.read("am set-standby-bucket com.google.android.gms active")
+        return "GMS: active"
+    }
+
+    fun setDownscale(pkg: String, factor: Float): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        val safe = when {
+            factor <= 0f -> "disable"
+            factor < 0.3f -> "0.3"
+            factor > 0.9f -> "0.9"
+            else -> String.format(java.util.Locale.US, "%.2f", factor)
         }
-
-        override fun onDraw(canvas: Canvas) {
-            if (!active) return
-            time += 0.01f
-
-            val bmp = bgBitmap
-            if (bmp != null) {
-                val scale = maxOf(width.toFloat() / bmp.width, height.toFloat() / bmp.height)
-                val dx = (width - bmp.width * scale) / 2f
-                val dy = (height - bmp.height * scale) / 2f
-                canvas.save()
-                canvas.translate(dx, dy)
-                canvas.scale(scale, scale)
-                canvas.drawBitmap(bmp, 0f, 0f, null)
-                canvas.restore()
-            } else {
-                canvas.drawPaint(bgPaint)
-            }
-
-            matrix1.setTranslate(sin(time * 0.5f) * width * 0.3f, kotlin.math.cos(time * 0.7f) * height * 0.2f)
-            blobPaint1.shader?.setLocalMatrix(matrix1)
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint1)
-
-            matrix2.setTranslate(kotlin.math.cos(time * 0.4f) * width * 0.4f, sin(time * 0.6f) * height * 0.3f)
-            blobPaint2.shader?.setLocalMatrix(matrix2)
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint2)
-
-            matrix3.setTranslate(sin(time * 0.3f) * width * 0.2f, kotlin.math.cos(time * 0.5f) * height * 0.4f)
-            blobPaint3.shader?.setLocalMatrix(matrix3)
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), blobPaint3)
-
-            val flakeColor = if (isActiveMode) currentSecondary() else currentPrimary()
-
-            for (f in flakes) {
-                f.y += f.speed
-                f.x += f.drift + sin(time + f.y * 0.01f) * 0.3f
-                f.rotation += 2f
-                if (f.y > height + 10) { f.y = -10f; f.x = rand.nextFloat() * width }
-                if (f.x > width + 10) f.x = -10f
-                if (f.x < -10) f.x = width + 10f
-
-                if (isActiveMode) {
-                    flakePaint.color = Color.argb(f.alpha, Color.red(flakeColor), Color.green(flakeColor), Color.blue(flakeColor))
-                    flakePaint.setShadowLayer(f.radius * 2, 0f, 0f, flakeColor)
-                    canvas.save()
-                    canvas.rotate(f.rotation, f.x, f.y)
-                    canvas.drawOval(f.x - f.radius, f.y - f.radius * 0.5f, f.x + f.radius, f.y + f.radius * 0.5f, flakePaint)
-                    canvas.restore()
-                } else {
-                    flakePaint.color = Color.argb(f.alpha, Color.red(flakeColor), Color.green(flakeColor), Color.blue(flakeColor))
-                    flakePaint.setShadowLayer(f.radius * 3, 0f, 0f, flakeColor)
-                    canvas.drawCircle(f.x, f.y, f.radius, flakePaint)
-                }
-            }
-            invalidate()
+        return try {
+            SystemReader.read("cmd game set --downscale $safe $pkg")
+            if (safe == "disable") "Downscale: выкл" else "Downscale: $safe"
+        } catch (e: Throwable) {
+            "Downscale: ошибка"
         }
+    }
+
+    fun compilePackageSpeedProfile(pkg: String): String {
+        if (pkg.isBlank()) return "Введите пакет"
+        return if (SystemReader.read("cmd package compile -m speed-profile -f $pkg").isBlank()) 
+            "Компиляция запущена" 
+        else "Компиляция завершена"
+    }
+
+    fun runFstrim(): String {
+        SystemReader.read("sm fstrim")
+        return "Fstrim: выполнен"
+    }
+
+    fun unlockGameFps(pkg: String, hz: Int): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        val safeHz = when { hz >= 144 -> 120; hz >= 120 -> 120; hz >= 90 -> 90; else -> 60 }
+        SystemReader.read("cmd game mode performance $pkg; cmd game set --fps $safeHz $pkg; device_config put game_overlay $pkg mode=2,fps=$safeHz")
+        return "Игра $pkg: Performance | FPS cap $safeHz"
+    }
+
+    fun resetGameFps(pkg: String): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        SystemReader.read("cmd game mode standard $pkg; device_config delete game_overlay $pkg")
+        return "Игра $pkg: standard"
+    }
+
+    fun applySense(level: Int): String {
+        val tier = tierCache
+        val slop: Int; val longPress: Int; val multiPress: Int; val pointer: Int; val pressure: String; val touchRate: Int
+        when (level) {
+            0 -> { slop = 8; longPress = 350; multiPress = 280; pointer = if (tier == 0) 2 else 3; pressure = "0.8"; touchRate = 120 }
+            1 -> { slop = 7; longPress = 300; multiPress = 250; pointer = if (tier == 0) 3 else 5; pressure = "0.5"; touchRate = if (tier == 0) 120 else 180 }
+            2 -> { slop = 6; longPress = 250; multiPress = 220; pointer = if (tier == 0) 5 else 7; pressure = "0.1"; touchRate = if (tier == 0) 180 else 240 }
+            else -> { slop = 5; longPress = 200; multiPress = 200; pointer = if (tier == 0) 6 else 8; pressure = "0.05"; touchRate = if (tier == 0) 240 else 300 }
+        }
+        SystemReader.read("settings put secure touch_slop $slop; settings put secure long_press_timeout $longPress; settings put secure multi_press_timeout $multiPress; settings put secure pointer_speed $pointer; settings put system pointer_speed $pointer; settings put system touch.pressure.scale $pressure")
+        SystemReader.read("settings put system touch_sampling_rate $touchRate")
+        return "Сенса: ${arrayOf("Плавная", "Быстрая", "Резкая", "Макс")[level]} (${touchRate} Гц)"
+    }
+
+    fun applySurfaceFlingerBoost(enable: Boolean): String {
+        return if (enable) {
+            SystemReader.read("setprop debug.sf.auto_latch_unsignaled true")
+            "SurfaceFlinger: Boost"
+        } else {
+            SystemReader.read("setprop debug.sf.auto_latch_unsignaled false")
+            "SurfaceFlinger: Default"
+        }
+    }
+
+    fun compilePackage(pkg: String): String { 
+        if (pkg.isBlank()) return "Введите пакет"
+        return if (SystemReader.read("cmd package compile -m speed -f $pkg").isBlank()) "Компиляция запущена" else "Компиляция завершена"
+    }
+
+    fun tryKeepAlive(pkg: String): String { 
+        if (pkg.isBlank()) return "Введите пакет"
+        SystemReader.read("appops set $pkg RUN_IN_BACKGROUND allow; appops set $pkg KEEP_ALIVE allow; cmd deviceidle whitelist +$pkg")
+        return "Удержание: $pkg"
+    }
+
+    fun trimCaches(): String { 
+        SystemReader.read("cmd package trim-caches 1000M")
+        return "Кэш очищен"
+    }
+
+    fun restrictBackground(): String { 
+        SystemReader.read("settings put global background_process_limit 2")
+        return "Фон ограничен"
+    }
+
+    fun restoreBackground(): String { 
+        SystemReader.read("settings delete global background_process_limit")
+        return "Фон восстановлен"
+    }
+
+    fun listGames(): List<Pair<String, String>> {
+        val pm = ctx.packageManager
+        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val result = mutableListOf<Pair<String, String>>()
+        for (a in apps) {
+            if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
+            result.add(a.packageName to pm.getApplicationLabel(a).toString())
+        }
+        return result.sortedBy { it.second.lowercase() }
+    }
+
+    fun openGameSpace(): String {
+        val pkgs = listOf("com.miui.securitycenter", "com.coloros.gamespace", "com.coloros.gamespaceui", "com.transsion.game", "com.transsion.gamemode")
+        for (pkg in pkgs) {
+            try {
+                val i = ctx.packageManager.getLaunchIntentForPackage(pkg)
+                if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(i); return "Game Turbo открыт" }
+            } catch (e: Throwable) {}
+        }
+        return "Game Space не найден"
+    }
+
+    fun openDeveloperOptions() {
+        try { 
+            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+        } catch (e: Exception) {}
     }
 }
