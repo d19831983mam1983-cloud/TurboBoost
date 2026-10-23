@@ -56,7 +56,9 @@ object SystemReader {
             errThread.isDaemon = true
             errThread.start()
             val out = p.inputStream.bufferedReader().readText().trim()
-            p.waitFor()
+            if (!p.waitFor(5, TimeUnit.SECONDS)) {
+                p.destroyForcibly()
+            }
             out
         } catch (e: Throwable) {
             ""
