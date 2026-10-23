@@ -72,12 +72,7 @@ class DeviceInfo(private val ctx: Context) {
         return try {
             val pmClass = Class.forName("android.app.ActivityThread")
             val pm = pmClass.getMethod("getPackageManager").invoke(null)
-            val method = pm.javaClass.getMethod(
-                "setApplicationEnabledSetting",
-                String::class.java,
-                Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType
-            )
+            val method = pm.javaClass.getMethod("setApplicationEnabledSetting", String::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
             method.invoke(pm, "com.xiaomi.joyose", 2, 0)
             SystemReader.read("am force-stop com.xiaomi.joyose")
             "Joyose отключён (Binder)"
@@ -92,12 +87,7 @@ class DeviceInfo(private val ctx: Context) {
         return try {
             val pmClass = Class.forName("android.app.ActivityThread")
             val pm = pmClass.getMethod("getPackageManager").invoke(null)
-            val method = pm.javaClass.getMethod(
-                "setApplicationEnabledSetting",
-                String::class.java,
-                Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType
-            )
+            val method = pm.javaClass.getMethod("setApplicationEnabledSetting", String::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
             method.invoke(pm, "com.xiaomi.joyose", 1, 0)
             "Joyose включён (Binder)"
         } catch (e: Throwable) {
@@ -158,21 +148,28 @@ class DeviceInfo(private val ctx: Context) {
         } else {
             SystemReader.read("setprop debug.hwui.renderer skiagl; am crash com.android.systemui"); "Рендерер: OpenGL"
         }
-    }    fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean): String {
+    }    fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
         val tier = tierCache
-        val bgLimit = when (tier) { 0 -> "64"; 2 -> "128"; else -> "96" }
-        val phantom = when (tier) { 0 -> "96"; 2 -> "192"; else -> "128" }
+        val bgLimit = if (mode == 0) "96" else "64"
+        val phantom = if (mode == 0) "512" else "128"
         val sb = StringBuilder()
         
         sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
         sb.append("device_config put activity_manager max_phantom_processes $phantom; ")
         sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
         sb.append("settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5; ")
-        sb.append("am kill-all")
-
+        
+        if (pkg.isNotBlank()) {
+            sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
+        }
+        
         SystemReader.read(sb.toString())
+        
+        if (pkg.isNotBlank()) {
+            compilePackage(pkg)
+        }
 
-        return "Класс: ${tierName()} | RAM: очищена | Hz: $hz"
+        return "Класс: ${tierName()} | RAM: настроена | Hz: $hz | AOT: да"
     }
 
     fun deactivateMaxPerformance(): String {
@@ -189,36 +186,19 @@ class DeviceInfo(private val ctx: Context) {
         if (pkg.isBlank()) return "Пакет не указан"
         val pid = SystemReader.read("pidof $pkg").trim()
         if (pid.isBlank()) return "Игра не запущена"
-
         val allCores = clustersCache.map { it.first }.sorted()
         if (allCores.isEmpty()) return "Ядра не определены"
-
         var mask = 0
-        for (core in allCores) {
-            mask = mask or (1 shl core)
-        }
+        for (core in allCores) mask = mask or (1 shl core)
         val hexMask = Integer.toHexString(mask)
-
-        var tids = SystemReader.read("ps -T -p $pid -o TID").lines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
-
+        var tids = SystemReader.read("ps -T -p $pid -o TID").lines().map { it.trim() }.filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
         if (tids.isEmpty()) {
-            tids = SystemReader.read("top -H -b -n 1 -p $pid").lines()
-                .map { it.trim().split(Regex("\\s+")) }
-                .filter { it.size > 1 && it[0].toIntOrNull() != null }
-                .map { it[0] }
-                .filter { it != pid }
+            tids = SystemReader.read("top -H -b -n 1 -p $pid").lines().map { it.trim().split(Regex("\\s+")) }.filter { it.size > 1 && it[0].toIntOrNull() != null }.map { it[0] }.filter { it != pid }
         }
-
         if (tids.isEmpty()) return "Потоки не найдены"
-
         val sb = StringBuilder()
-        for (tid in tids) {
-            sb.append("taskset -p $hexMask $tid 2>/dev/null; ")
-        }
+        for (tid in tids) sb.append("taskset -p $hexMask $tid 2>/dev/null; ")
         SystemReader.read(sb.toString())
-
         return "Игра $pkg: ${tids.size} потоков на ${allCores.size} ядрах"
     }
 
@@ -226,49 +206,27 @@ class DeviceInfo(private val ctx: Context) {
         if (pkg.isBlank()) return "Пакет не указан"
         val pid = SystemReader.read("pidof $pkg").trim()
         if (pid.isBlank()) return "Игра не запущена"
-
         val big = clustersCache.filter { it.second == "big" }.map { it.first }.sorted()
         if (big.isEmpty()) return "Нет big-ядер"
-
         var mask = 0
-        for (core in big) {
-            mask = mask or (1 shl core)
-        }
+        for (core in big) mask = mask or (1 shl core)
         val hexMask = Integer.toHexString(mask)
-
-        val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .mapNotNull { line ->
-                val parts = line.split(Regex("\\s+"))
-                if (parts.size >= 2) {
-                    val tid = parts[0].toIntOrNull()
-                    val name = parts[1]
-                    if (tid != null && tid != pid.toInt()) tid to name else null
-                } else null
-            }
-
+        val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines().map { it.trim() }.filter { it.isNotEmpty() }.mapNotNull { line ->
+            val parts = line.split(Regex("\\s+"))
+            if (parts.size >= 2) {
+                val tid = parts[0].toIntOrNull()
+                val name = parts[1]
+                if (tid != null && tid != pid.toInt()) tid to name else null
+            } else null
+        }
         if (allTids.isEmpty()) return "Потоки не найдены"
-
-        var target = allTids.firstOrNull { (_, name) ->
-            name.contains("GameThread", true) || name.contains("UnityMain", true) || name == "main"
-        }
-        if (target == null) {
-            target = allTids.firstOrNull { (_, name) ->
-                name.contains("RenderThread", true) || name.contains("UnityGfx", true)
-            }
-        }
-        if (target == null) {
-            target = allTids.firstOrNull()
-        }
-
+        var target = allTids.firstOrNull { (_, name) -> name.contains("GameThread", true) || name.contains("UnityMain", true) || name == "main" }
+        if (target == null) target = allTids.firstOrNull { (_, name) -> name.contains("RenderThread", true) || name.contains("UnityGfx", true) }
+        if (target == null) target = allTids.firstOrNull()
         if (target == null) return "Главный поток не найден"
-
         val (tid, name) = target
         SystemReader.read("taskset -p $hexMask $tid 2>/dev/null; renice -n -15 -p $tid 2>/dev/null")
-
-        val coreNames = big.joinToString(",")
-        return "Отклик: $name (TID $tid) -> big-ядра [$coreNames]"
+        return "Отклик: $name (TID $tid) -> big-ядра [${big.joinToString(",")}]"
     }
 
     fun boostInputDispatcher(): String {
@@ -276,13 +234,8 @@ class DeviceInfo(private val ctx: Context) {
         val inputPid = SystemReader.read("pidof inputflinger").trim()
         if (inputPid.isNotBlank()) {
             sb.append("renice -n -15 -p $inputPid 2>/dev/null; ")
-            val tids = SystemReader.read("ps -T -p $inputPid -o TID,CMD").lines()
-                .map { it.trim() }
-                .filter { it.contains("InputDispatcher", true) }
-                .mapNotNull { it.split(Regex("\\s+")).firstOrNull()?.toIntOrNull() }
-            for (tid in tids) {
-                sb.append("renice -n -15 -p $tid 2>/dev/null; ")
-            }
+            val tids = SystemReader.read("ps -T -p $inputPid -o TID,CMD").lines().map { it.trim() }.filter { it.contains("InputDispatcher", true) }.mapNotNull { it.split(Regex("\\s+")).firstOrNull()?.toIntOrNull() }
+            for (tid in tids) sb.append("renice -n -15 -p $tid 2>/dev/null; ")
         }
         SystemReader.read(sb.toString())
         return if (inputPid.isNotBlank()) "InputDispatcher: усилен" else "inputflinger не найден"
@@ -290,8 +243,8 @@ class DeviceInfo(private val ctx: Context) {
 
     fun boostThreadPriorities(): String {
         val sb = StringBuilder()
-        val sfNice = when (tierCache) { 0 -> -10; 2 -> -15; else -> -12 }
-        val sysNice = when (tierCache) { 0 -> -5; 2 -> -8; else -> -6 }
+        val sfNice = when (tierCache) { 0 -> -10; 2 -> -18; else -> -15 }
+        val sysNice = when (tierCache) { 0 -> -5; 2 -> -10; else -> -8 }
         val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
         val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
         SystemReader.read(sb.toString())
@@ -408,45 +361,13 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun listGames(): List<Pair<String, String>> {
-        val popular = listOf(
-            "com.tencent.ig" to "PUBG Mobile",
-            "com.pubg.krmobile" to "PUBG KR",
-            "com.rekoo.pubgm" to "PUBG (ReKoo)",
-            "com.vng.pubgmobile" to "PUBG VN",
-            "com.axlebolt.standoff2" to "Standoff 2",
-            "com.ScarletWork.CounterFlame" to "CounterFlame",
-            "com.tencent.stc.cfl" to "CrossFire: Legends",
-            "com.tencent.tmgp.cf" to "CrossFire (CN)",
-            "com.supercell.brawlstars" to "Brawl Stars",
-            "com.supercell.clashofclans" to "Clash of Clans",
-            "com.supercell.clashroyale" to "Clash Royale",
-            "com.wargaming.wot.blitz" to "Tanks Blitz",
-            "com.riotgames.league.wildrift" to "League of Legends: Wild Rift",
-            "com.mobile.legends" to "Mobile Legends",
-            "com.miHoYo.GenshinImpact" to "Genshin Impact",
-            "com.miHoYo.hkrpg" to "Honkai: Star Rail",
-            "com.epicgames.fortnite" to "Fortnite",
-            "com.activision.callofduty.shooter" to "Call of Duty: Mobile",
-            "com.gameloft.android.ANMP.GloftA9HM" to "Asphalt 9",
-            "com.ea.gp.apexlegendsmobilefps" to "Apex Legends Mobile",
-            "com.roblox.client" to "Roblox"
-        )
-
         val pm = ctx.packageManager
-        val installed = pm.getInstalledApplications(PackageManager.GET_META_DATA).map { it.packageName }.toSet()
-        val result = mutableListOf<Pair<String, String>>()
-
-        for ((pkg, name) in popular) {
-            if (installed.contains(pkg)) result.add(pkg to name)
-        }
-
         val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val result = mutableListOf<Pair<String, String>>()
         for (a in apps) {
-            if (a.flags and ApplicationInfo.FLAG_SYSTEM != 0 || a.category != ApplicationInfo.CATEGORY_GAME) continue
-            if (result.any { it.first == a.packageName }) continue
+            if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
             result.add(a.packageName to pm.getApplicationLabel(a).toString())
         }
-
         return result.sortedBy { it.second.lowercase() }
     }
 
