@@ -5,13 +5,13 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import android.widget.Toast
@@ -34,11 +34,16 @@ class MainActivity : AppCompatActivity() {
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             try {
-                val bmp = MediaStore.Images.Media.getBitmap(contentResolver, uri)
-                ui.setBackgroundBitmap(bmp)
-                saveBgToInternal(bmp)
+                val dm = resources.displayMetrics
+                val bmp = decodeSampledBitmap(uri, dm.widthPixels, dm.heightPixels)
+                if (bmp != null) {
+                    ui.setBackgroundBitmap(bmp)
+                    saveBgToInternal(bmp)
+                } else {
+                    Toast.makeText(this, "Не удалось загрузить", Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Throwable) {
-                Toast.makeText(this, "Не удалось загрузить", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -121,6 +126,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun decodeSampledBitmap(uri: Uri, reqWidth: Int, reqHeight: Int): Bitmap? {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+            options.inJustDecodeBounds = false
+            contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        } catch (e: Throwable) { null }
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val (height, width) = options.outHeight to options.outWidth
+        var inSampleSize = 1
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
+    }
+
     private fun saveBgToInternal(bmp: Bitmap) {
         try {
             val f = java.io.File(filesDir, "bg_custom.png")
@@ -131,7 +159,7 @@ class MainActivity : AppCompatActivity() {
     private fun loadBgFromInternal(): Bitmap? {
         return try {
             val f = java.io.File(filesDir, "bg_custom.png")
-            if (f.exists()) android.graphics.BitmapFactory.decodeFile(f.absolutePath) else null
+            if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
         } catch (e: Throwable) { null }
     }
 
@@ -152,7 +180,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildMain() {
-        if (uiBuilt && ::ui.isInitialized && ::prefs.isInitialized) {
+        if (uiBuilt) {
             setContentView(ui.build())
         } else {
             uiBuilt = true
