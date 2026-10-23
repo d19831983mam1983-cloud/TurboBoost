@@ -18,6 +18,22 @@ class DeviceInfo(private val ctx: Context) {
     private val tierCache: Int by lazy { detectTier() }
     private val mglruPath = "/sys/kernel/mm/lru_gen/enabled"
 
+    fun getSupportedHz(): List<Int> {
+        return try {
+            val dm = ctx.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
+            val display = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+            val modes = display.supportedModes
+            val rates = mutableSetOf<Int>()
+            for (m in modes) {
+                val hz = Math.round(m.refreshRate)
+                if (hz in 30..240) rates.add(hz)
+            }
+            if (rates.isEmpty()) listOf(60) else rates.sorted()
+        } catch (e: Throwable) {
+            listOf(60, 90, 120, 144)
+        }
+    }
+
     private fun detectTier(): Int {
         val chip = chipCache.lowercase()
         val gpu = gpuCache.lowercase()
