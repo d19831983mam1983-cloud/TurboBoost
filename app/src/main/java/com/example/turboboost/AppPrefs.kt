@@ -64,6 +64,9 @@ class AppPrefs(ctx: Context) {
     fun getBackgroundUri(): String = prefs.getString("bg_uri", "") ?: ""
     fun setBackgroundUri(uri: String) = prefs.edit().putString("bg_uri", uri).apply()
 
+    fun getDownscaleLevel(): Int = prefs.getInt("downscale_level", 2)
+    fun setDownscaleLevel(level: Int) = prefs.edit().putInt("downscale_level", level).apply()
+
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
         if (raw.isBlank()) return emptyList()
