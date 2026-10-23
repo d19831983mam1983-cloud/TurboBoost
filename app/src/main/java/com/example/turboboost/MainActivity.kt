@@ -258,6 +258,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.getTargetHz() !in supported) {
             prefs.setTargetHz(supported.first())
         }
+        ui.setDownscaleLevel(prefs.getDownscaleLevel())
         
         ex.execute {
             val savedBg = loadBgFromInternal()
@@ -297,6 +298,20 @@ class MainActivity : AppCompatActivity() {
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
         ui.onShowGames = { ex.execute { val g = info.listGames(); main.post { games(g) } } }
         ui.onShowProfiles = { profiles() }
+        ui.onDownscaleSelected = { level ->
+            prefs.setDownscaleLevel(level)
+            val p = prefs.getLastPackage()
+            if (p.isNotBlank() && prefs.isActive()) {
+                val factor = when (level) {
+                    0 -> 0f
+                    1 -> 0.9f
+                    2 -> 0.8f
+                    3 -> 0.7f
+                    else -> 0.8f
+                }
+                async { info.setDownscale(p, factor) }
+            }
+        }
         ui.onToggle = { if (!busy) toggle() }
 
         ui.setActive(prefs.isActive())
@@ -409,7 +424,17 @@ class MainActivity : AppCompatActivity() {
                     val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost(), p)
                     if (p.isNotBlank()) info.unlockGameFps(p, hz)
                     if (p.isNotBlank()) info.pinGameToPrimeCore(p)
-                    if (p.isNotBlank()) info.setDownscale(p, 0.8f)
+                    if (p.isNotBlank()) {
+                        val level = prefs.getDownscaleLevel()
+                        val factor = when (level) {
+                            0 -> 0f
+                            1 -> 0.9f
+                            2 -> 0.8f
+                            3 -> 0.7f
+                            else -> 0.8f
+                        }
+                        info.setDownscale(p, factor)
+                    }
                     info.runFstrim()
                     if (prefs.isBackgroundLimit()) info.restrictBackground()
                     info.applySurfaceFlingerBoost(true)
