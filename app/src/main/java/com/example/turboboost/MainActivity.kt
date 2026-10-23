@@ -3,6 +3,7 @@ package com.example.turboboost
 import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -185,6 +186,52 @@ class MainActivity : AppCompatActivity() {
         setContentView(settings.build())
     }
 
+    private fun openLauncher() {
+        val saved = prefs.getSavedGames()
+        val pm = packageManager
+        val list = mutableListOf<Pair<String, String>>()
+        for (pkg in saved) {
+            try {
+                val label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                list.add(pkg to label)
+            } catch (e: Throwable) {}
+        }
+        
+        val launcher = LauncherScreen(this)
+        launcher.onBack = { buildMain() }
+        launcher.onAddGame = { showAppPicker() }
+        launcher.onGameClick = { pkg ->
+            prefs.setLastPackage(pkg)
+        }
+        setContentView(launcher.build(list))
+    }
+
+    private fun showAppPicker() {
+        ex.execute {
+            val pm = packageManager
+            val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            val list = mutableListOf<Pair<String, String>>()
+            for (a in apps) {
+                if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
+                val label = pm.getApplicationLabel(a).toString()
+                list.add(a.packageName to label)
+            }
+            val sorted = list.sortedBy { it.second.lowercase() }
+            main.post {
+                val names = sorted.map { it.second }.toTypedArray()
+                AlertDialog.Builder(this)
+                    .setTitle("Выберите игру")
+                    .setItems(names) { _, idx ->
+                        val pkg = sorted[idx].first
+                        prefs.saveGame(pkg)
+                        openLauncher()
+                    }
+                    .setNegativeButton("Отмена", null)
+                    .show()
+            }
+        }
+    }
+
     private fun buildMain() {
         if (uiBuilt) {
             setContentView(ui.build())
@@ -202,6 +249,7 @@ class MainActivity : AppCompatActivity() {
         }
         
         ui.onSettingsClick = { openSettings() }
+        ui.onShowLauncher = { openLauncher() }
         
         val ap = prefs.getActiveProfilePkg()
         ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
@@ -226,11 +274,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         ui.onDiagnostics = { diag() }
-        ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost()); main.post { ui.setStatus(r) } } }
-        ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost()); main.post { ui.setStatus(r) } } }
+        ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
+        ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
         ui.onPresetSelected = { preset(it) }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
-        ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e) } }
+        ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage()) } }
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
         ui.onShowGames = { ex.execute { val g = info.listGames(); main.post { games(g) } } }
         ui.onShowProfiles = { profiles() }
@@ -287,7 +335,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.isActive()) {
             if (!ready()) return
             ex.execute {
-                val r = info.activateMaxPerformance(hz, m, g)
+                val r = info.activateMaxPerformance(hz, m, g, prefs.getLastPackage())
                 info.applySense(s)
                 if (b) info.restrictBackground() else info.restoreBackground()
                 main.post { ui.setStatus("Пресет применён: $r") }
@@ -329,7 +377,7 @@ class MainActivity : AppCompatActivity() {
         ui.setMode(p.mode); if (p.sense >= 0) ui.setSenseLevel(p.sense); ui.setHz(p.hz); ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit); ui.setPackageText(p.pkg)
         ex.execute {
             info.applySense(p.sense)
-            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost)
+            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost, p.pkg)
             if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
         }
     }
@@ -359,7 +407,7 @@ class MainActivity : AppCompatActivity() {
             if (uiBuilt) ui.setStatus("Оптимизация...")
             ex.execute {
                 try {
-                    val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost())
+                    val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost(), p)
                     if (p.isNotBlank()) info.unlockGameFps(p, hz)
                     if (p.isNotBlank()) info.pinGameToPrimeCore(p)
                     if (prefs.isBackgroundLimit()) info.restrictBackground()
