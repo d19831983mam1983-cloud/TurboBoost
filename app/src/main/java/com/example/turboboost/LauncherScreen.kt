@@ -1,5 +1,6 @@
 package com.example.turboboost
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -18,7 +19,8 @@ class LauncherScreen(private val ctx: Context) {
 
     var onBack: (() -> Unit)? = null
     var onAddGame: (() -> Unit)? = null
-    var onGameClick: ((String) -> Unit)? = null
+    var onGameClick: ((String, Boolean) -> Unit)? = null
+    var onRemoveGame: ((String) -> Unit)? = null
 
     fun build(games: List<Pair<String, String>>): FrameLayout {
         val root = FrameLayout(ctx)
@@ -61,12 +63,17 @@ class LauncherScreen(private val ctx: Context) {
                     background = glassItem()
                     setOnClickListener {
                         performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-                        val intent = ctx.packageManager.getLaunchIntentForPackage(pkg)
-                        if (intent != null) {
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            ctx.startActivity(intent)
-                            onGameClick?.invoke(pkg)
-                        }
+                        showLaunchDialog(pkg, name)
+                    }
+                    setOnLongClickListener {
+                        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        AlertDialog.Builder(ctx)
+                            .setTitle("Удалить игру?")
+                            .setMessage(name)
+                            .setPositiveButton("Удалить") { _, _ -> onRemoveGame?.invoke(pkg) }
+                            .setNegativeButton("Отмена", null)
+                            .show()
+                        true
                     }
                 }
                 content.addView(btn, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
@@ -95,6 +102,35 @@ class LauncherScreen(private val ctx: Context) {
         root.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
         return root
+    }
+
+    private fun showLaunchDialog(pkg: String, name: String) {
+        AlertDialog.Builder(ctx)
+            .setTitle("Запустить $name?")
+            .setMessage("Включить оптимизацию перед запуском?")
+            .setPositiveButton("Запустить с оптимизацией") { _, _ ->
+                launchGame(pkg, true)
+            }
+            .setNeutralButton("Просто запустить") { _, _ ->
+                launchGame(pkg, false)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun launchGame(pkg: String, autoOptimize: Boolean) {
+        val intent = ctx.packageManager.getLaunchIntentForPackage(pkg)
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+            onGameClick?.invoke(pkg, autoOptimize)
+        } else {
+            AlertDialog.Builder(ctx)
+                .setTitle("Ошибка")
+                .setMessage("Не удалось запустить игру.")
+                .setPositiveButton("ОК", null)
+                .show()
+        }
     }
 
     private fun buildTopBar(): FrameLayout {
