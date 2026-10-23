@@ -59,6 +59,7 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnBgLimit: TextView
     lateinit var btnGames: TextView
     lateinit var btnProfiles: TextView
+    lateinit var btnLauncher: TextView
     lateinit var pkgInput: EditText
     lateinit var cardApplied: TextView
     lateinit var statusResult: TextView
@@ -82,6 +83,7 @@ class OptimizerUI(private val ctx: Context) {
     var onHzSelected: ((Int) -> Unit)? = null
     var onPackageChanged: ((String) -> Unit)? = null
     var onSettingsClick: (() -> Unit)? = null
+    var onShowLauncher: (() -> Unit)? = null
 
     var currentSense = -1
     var currentMode = 0
@@ -262,6 +264,9 @@ class OptimizerUI(private val ctx: Context) {
     btnJoyose = glass("Xiaomi Boost") { onJoyoseToggle?.invoke() }
     btnJoyose.visibility = View.GONE
     r2.addView(btnJoyose, LinearLayout.LayoutParams(0, dp(42), 1f))
+
+    btnLauncher = glass("Мои игры (Лаунчер)") { onShowLauncher?.invoke() }
+    page1.addView(btnLauncher, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
 
     btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
     page1.addView(btnDiagnostics, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
