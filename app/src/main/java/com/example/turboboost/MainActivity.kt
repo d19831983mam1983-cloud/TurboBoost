@@ -95,7 +95,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bind() {
-        ShizukuHelper.onServiceReady = { r -> main.post { if (r) buildMain() else blocked() } }
+        ShizukuHelper.onServiceReady = { r -> main.post { if (r) buildMain() else if (!uiBuilt) blocked() } }
         if (SystemReader.rootMode) buildMain() else ShizukuHelper.bindService()
     }
 
@@ -240,9 +240,7 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
         }
-    }
-
-    private fun buildMain() {
+    }    private fun buildMain() {
         if (uiBuilt) {
             setContentView(ui.build())
         } else {
@@ -319,7 +317,9 @@ class MainActivity : AppCompatActivity() {
         ui.setActive(prefs.isActive())
         if (prefs.isActive()) alive(true)
         refresh(); loop()
-    }    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
+    }
+
+    private fun async(b: () -> String) { ex.execute { val r = b(); main.post { ui.setStatus(r) } } }
 
     private fun games(g: List<Pair<String, String>>) {
         if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
