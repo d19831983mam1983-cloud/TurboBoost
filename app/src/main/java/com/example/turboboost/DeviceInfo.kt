@@ -182,7 +182,7 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read(sb.toString())
         
         if (pkg.isNotBlank()) {
-            compilePackage(pkg)
+            compilePackageSpeedProfile(pkg)
         }
 
         return "Класс: ${tierName()} | RAM: настроена | Hz: $hz | AOT: да"
@@ -311,6 +311,30 @@ class DeviceInfo(private val ctx: Context) {
     fun restoreGms(): String {
         SystemReader.read("am set-standby-bucket com.google.android.gms active")
         return "GMS: active"
+    }
+
+    fun setDownscale(pkg: String, factor: Float): String {
+        if (pkg.isBlank()) return "Пакет не указан"
+        val safe = when {
+            factor <= 0f -> "disable"
+            factor < 0.3f -> "0.3"
+            factor > 0.9f -> "0.9"
+            else -> String.format(java.util.Locale.US, "%.2f", factor)
+        }
+        SystemReader.read("cmd game set --downscale $safe $pkg")
+        return if (safe == "disable") "Downscale: выкл" else "Downscale: $safe"
+    }
+
+    fun compilePackageSpeedProfile(pkg: String): String {
+        if (pkg.isBlank()) return "Введите пакет"
+        return if (SystemReader.read("cmd package compile -m speed-profile -f $pkg").isBlank()) 
+            "Компиляция (speed-profile) запущена" 
+        else "Компиляция завершена"
+    }
+
+    fun runFstrim(): String {
+        SystemReader.read("sm fstrim")
+        return "Fstrim: выполнен"
     }
 
     fun unlockGameFps(pkg: String, hz: Int): String {
