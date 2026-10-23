@@ -95,7 +95,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bind() {
-        ShizukuHelper.onServiceReady = { r -> main.post { if (r) buildMain() else blocked() } }
+        ShizukuHelper.onServiceReady = { r -> 
+            main.post { 
+                if (r) buildMain() else blocked() 
+            } 
+        }
         if (SystemReader.rootMode) buildMain() else ShizukuHelper.bindService()
     }
 
