@@ -253,6 +253,12 @@ class MainActivity : AppCompatActivity() {
         
         ui.setThemeIndex(prefs.getThemeIndex())
         
+        val supported = info.getSupportedHz()
+        ui.setSupportedHz(supported)
+        if (prefs.getTargetHz() !in supported) {
+            prefs.setTargetHz(supported.first())
+        }
+        
         ex.execute {
             val savedBg = loadBgFromInternal()
             if (savedBg != null) main.post { ui.setBackgroundBitmap(savedBg) }
