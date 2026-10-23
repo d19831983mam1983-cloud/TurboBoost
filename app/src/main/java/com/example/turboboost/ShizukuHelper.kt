@@ -14,7 +14,7 @@ import java.io.InputStreamReader
 object ShizukuHelper {
 
     private const val REQUEST_CODE = 1001
-    private const val BIND_TIMEOUT_MS = 10000L
+    private const val BIND_TIMEOUT_MS = 3000L
     var onPermissionResult: ((Boolean) -> Unit)? = null
     var onServiceReady: ((Boolean) -> Unit)? = null
     var onBindTimeout: (() -> Unit)? = null
@@ -39,7 +39,7 @@ object ShizukuHelper {
                 bound = true
                 onServiceReady?.invoke(true)
             } catch (e: Throwable) {
-                onServiceReady?.invoke(false)
+                enableDirectMode()
             }
         }
 
@@ -47,7 +47,7 @@ object ShizukuHelper {
             cancelTimeout()
             SystemReader.service = null
             bound = false
-            onServiceReady?.invoke(false)
+            enableDirectMode()
         }
     }
 
@@ -77,11 +77,7 @@ object ShizukuHelper {
     }
 
     fun isAvailable(): Boolean {
-        return try {
-            Shizuku.pingBinder()
-        } catch (e: Throwable) {
-            false
-        }
+        return try { Shizuku.pingBinder() } catch (e: Throwable) { false }
     }
 
     fun hasPermission(): Boolean {
@@ -89,33 +85,21 @@ object ShizukuHelper {
             if (!Shizuku.pingBinder()) return false
             if (Shizuku.isPreV11()) return true
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Throwable) {
-            false
-        }
+        } catch (e: Throwable) { false }
     }
 
     fun requestPermission() {
         try {
-            if (!Shizuku.pingBinder()) {
-                onPermissionResult?.invoke(false)
-                return
-            }
-            if (Shizuku.isPreV11() || hasPermission()) {
-                onPermissionResult?.invoke(true)
-                return
-            }
+            if (!Shizuku.pingBinder()) { onPermissionResult?.invoke(false); return }
+            if (Shizuku.isPreV11() || hasPermission()) { onPermissionResult?.invoke(true); return }
             Shizuku.requestPermission(REQUEST_CODE)
-        } catch (e: Throwable) {
-            onPermissionResult?.invoke(false)
-        }
+        } catch (e: Throwable) { onPermissionResult?.invoke(false) }
     }
 
     fun bindService() {
         val ctx = appContext ?: return
-        if (bound || !hasPermission()) {
-            onServiceReady?.invoke(bound)
-            return
-        }
+        if (bound) { onServiceReady?.invoke(true); return }
+        if (!hasPermission()) { onServiceReady?.invoke(false); return }
         startTimeout()
         try {
             Shizuku.bindUserService(args(ctx), connection)
@@ -128,15 +112,15 @@ object ShizukuHelper {
     fun unbindService() {
         val ctx = appContext ?: return
         if (!bound) return
-        try {
-            Shizuku.unbindUserService(args(ctx), connection, true)
-        } catch (e: Throwable) {}
+        try { Shizuku.unbindUserService(args(ctx), connection, true) } catch (e: Throwable) {}
         SystemReader.service = null
         bound = false
     }
 
     private fun enableDirectMode() {
         SystemReader.directMode = true
+        SystemReader.service = null
+        bound = false
         onServiceReady?.invoke(true)
     }
 
@@ -166,17 +150,13 @@ object ShizukuHelper {
                 String::class.java
             )
             method.isAccessible = true
-            val process = method.invoke(
-                null,
-                arrayOf("sh", "-c", cmd),
-                null,
-                null
-            ) as? Process ?: return ""
+            val process = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as? Process ?: return ""
+            val errThread = Thread { try { process.errorStream.bufferedReader().readText() } catch (e: Throwable) {} }
+            errThread.isDaemon = true
+            errThread.start()
             val out = BufferedReader(InputStreamReader(process.inputStream)).readText().trim()
             process.waitFor()
             out
-        } catch (e: Throwable) {
-            ""
-        }
+        } catch (e: Throwable) { "" }
     }
 }
