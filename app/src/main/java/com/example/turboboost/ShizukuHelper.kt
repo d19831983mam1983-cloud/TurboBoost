@@ -14,7 +14,7 @@ import java.io.InputStreamReader
 object ShizukuHelper {
 
     private const val REQUEST_CODE = 1001
-    private const val BIND_TIMEOUT_MS = 8000L
+    private const val BIND_TIMEOUT_MS = 10000L
     var onPermissionResult: ((Boolean) -> Unit)? = null
     var onServiceReady: ((Boolean) -> Unit)? = null
     var onBindTimeout: (() -> Unit)? = null
@@ -39,7 +39,7 @@ object ShizukuHelper {
                 bound = true
                 onServiceReady?.invoke(true)
             } catch (e: Throwable) {
-                enableDirectMode()
+                onServiceReady?.invoke(false)
             }
         }
 
@@ -47,11 +47,7 @@ object ShizukuHelper {
             cancelTimeout()
             SystemReader.service = null
             bound = false
-            if (SystemReader.directMode) {
-                onServiceReady?.invoke(true)
-            } else {
-                onServiceReady?.invoke(false)
-            }
+            onServiceReady?.invoke(false)
         }
     }
 
@@ -116,12 +112,8 @@ object ShizukuHelper {
 
     fun bindService() {
         val ctx = appContext ?: return
-        if (bound) {
-            onServiceReady?.invoke(true)
-            return
-        }
-        if (!hasPermission()) {
-            onServiceReady?.invoke(false)
+        if (bound || !hasPermission()) {
+            onServiceReady?.invoke(bound)
             return
         }
         startTimeout()
@@ -145,8 +137,6 @@ object ShizukuHelper {
 
     private fun enableDirectMode() {
         SystemReader.directMode = true
-        SystemReader.service = null
-        bound = false
         onServiceReady?.invoke(true)
     }
 
@@ -182,13 +172,6 @@ object ShizukuHelper {
                 null,
                 null
             ) as? Process ?: return ""
-            
-            val errThread = Thread {
-                try { process.errorStream.bufferedReader().readText() } catch (e: Throwable) {}
-            }
-            errThread.isDaemon = true
-            errThread.start()
-            
             val out = BufferedReader(InputStreamReader(process.inputStream)).readText().trim()
             process.waitFor()
             out
