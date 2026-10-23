@@ -206,6 +206,7 @@ class MainActivity : AppCompatActivity() {
         }
         launcher.onGameClick = { pkg, autoOpt ->
             prefs.setLastPackage(pkg)
+            ui.setPackageText(pkg)
             if (autoOpt) {
                 if (!prefs.isActive()) {
                     toggle()
