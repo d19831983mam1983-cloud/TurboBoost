@@ -292,7 +292,6 @@ class MainActivity : AppCompatActivity() {
         ui.onDiagnostics = { diag() }
         ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
         ui.onHzSelected = { hz -> prefs.setTargetHz(hz); ui.setHz(hz); if (prefs.isActive()) ex.execute { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
-        ui.onPresetSelected = { preset(it) }
         ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
         ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) ex.execute { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage()) } }
         ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
@@ -341,22 +340,6 @@ class MainActivity : AppCompatActivity() {
     private fun ready(): Boolean {
         if (!SystemReader.isReady()) { Toast.makeText(this, "Нет доступа (Root/Shizuku)", Toast.LENGTH_SHORT).show(); return false }
         return true
-    }
-
-    private fun preset(p: Int) {
-        var m = 1; var s = 0; var g = false; var b = false; var hz = 60
-        when (p) { 1 -> { m = 0; s = 1; g = true; b = true; hz = 120 }; 2 -> { m = 0; s = 3; g = true; b = true; hz = 144 } }
-        prefs.setPerfMode(m); prefs.setSenseLevel(s); prefs.setGpuBoost(g); prefs.setBackgroundLimit(b); prefs.setTargetHz(hz)
-        ui.setMode(m); ui.setSenseLevel(s); ui.setGpuBoostState(g); ui.setBgLimitState(b); ui.setHz(hz); ui.setPreset(p)
-        if (prefs.isActive()) {
-            if (!ready()) return
-            ex.execute {
-                val r = info.activateMaxPerformance(hz, m, g, prefs.getLastPackage())
-                info.applySense(s)
-                if (b) info.restrictBackground() else info.restoreBackground()
-                main.post { ui.setStatus("Пресет применён: $r") }
-            }
-        } else ui.setStatus("Пресет выбран, нажмите ОПТИМИЗИРОВАТЬ")
     }
 
     private fun profiles() {
