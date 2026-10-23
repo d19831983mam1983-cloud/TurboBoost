@@ -165,6 +165,7 @@ class DeviceInfo(private val ctx: Context) {
             SystemReader.read("setprop debug.hwui.renderer skiagl; am crash com.android.systemui"); "Рендерер: OpenGL"
         }
     }    fun activateMaxPerformance(hz: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
+        val safePkg = pkg.trim().replace(" ", "")
         val tier = tierCache
         val bgLimit = if (mode == 0) "96" else "64"
         val phantom = if (mode == 0) "512" else "128"
@@ -175,14 +176,14 @@ class DeviceInfo(private val ctx: Context) {
         sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
         sb.append("settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5; ")
         
-        if (pkg.isNotBlank()) {
-            sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
+        if (safePkg.isNotBlank()) {
+            sb.append("cmd appops set $safePkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$safePkg; ")
         }
         
         SystemReader.read(sb.toString())
         
-        if (pkg.isNotBlank()) {
-            compilePackageSpeedProfile(pkg)
+        if (safePkg.isNotBlank()) {
+            compilePackageSpeedProfile(safePkg)
         }
 
         return "Класс: ${tierName()} | RAM: настроена | Hz: $hz | AOT: да"
@@ -321,8 +322,12 @@ class DeviceInfo(private val ctx: Context) {
             factor > 0.9f -> "0.9"
             else -> String.format(java.util.Locale.US, "%.2f", factor)
         }
-        SystemReader.read("cmd game set --downscale $safe $pkg")
-        return if (safe == "disable") "Downscale: выкл" else "Downscale: $safe"
+        return try {
+            SystemReader.read("cmd game set --downscale $safe $pkg")
+            if (safe == "disable") "Downscale: выкл" else "Downscale: $safe"
+        } catch (e: Throwable) {
+            "Downscale: ошибка"
+        }
     }
 
     fun compilePackageSpeedProfile(pkg: String): String {
