@@ -2,9 +2,9 @@ package com.example.turboboost
 
 import android.content.Context
 import androidx.annotation.Keep
-import com.example.turboboost.IUserService
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 @Keep
@@ -23,12 +23,14 @@ class UserService : IUserService.Stub {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
             val errThread = Thread {
-                try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {}
+                try {
+                    BufferedReader(InputStreamReader(p.errorStream)).use { it.readText() }
+                } catch (e: Throwable) {}
             }
             errThread.isDaemon = true
             errThread.start()
             val out = BufferedReader(InputStreamReader(p.inputStream)).use { it.readText().trim() }
-            if (!p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
+            if (!p.waitFor(5, TimeUnit.SECONDS)) {
                 p.destroyForcibly()
             }
             out
