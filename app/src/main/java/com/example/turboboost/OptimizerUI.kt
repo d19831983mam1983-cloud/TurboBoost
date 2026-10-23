@@ -96,6 +96,9 @@ class OptimizerUI(private val ctx: Context) {
     private var currentThreads = false
     private var currentMglru = false
     private var currentJoyose = false
+    private var supportedHz: List<Int> = listOf(60, 90, 120, 144)
+
+    fun setSupportedHz(list: List<Int>) { supportedHz = list }
 
     private fun theme(): ThemePalette.Theme = ThemePalette.get(themeIndex)
 
@@ -209,7 +212,7 @@ class OptimizerUI(private val ctx: Context) {
 
     page1.addView(lbl("Частота экрана:"))
     hzRow = row(page1, 6)
-    listOf(60, 90, 120, 144).forEach { hz ->
+    supportedHz.forEach { hz ->
         hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
     }
 
@@ -416,7 +419,7 @@ fun setStatus(text: String) { statusResult.text = text }    private fun fade(v: 
         }
     }
     private fun updHz() { 
-        val m = listOf(60, 90, 120, 144)
+        val m = supportedHz
         for (i in 0 until hzRow.childCount) {
             val tv = hzRow.getChildAt(i) as TextView
             tv.background = if (m[i] == currentHz) accentDrawable() else unselDrawable()
