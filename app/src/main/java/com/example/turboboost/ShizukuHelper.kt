@@ -24,9 +24,6 @@ object ShizukuHelper {
     @Volatile var onBindTimeout: (() -> Unit)? = null
 
     @Volatile private var bound = false
-    @Volatile private var destroyed = false
-    @Volatile private var binding = false
-    @Volatile private var unbindAt = 0L
     private var appContext: Context? = null
     private var initialized = false
     private var pendingTimeout: Runnable? = null
@@ -54,8 +51,6 @@ object ShizukuHelper {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             cancelTimeout()
-            binding = false
-            if (destroyed) return
             if (binder == null || !binder.pingBinder()) {
                 postMain { enableDirectMode() }
                 return
@@ -73,8 +68,6 @@ object ShizukuHelper {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             cancelTimeout()
-            binding = false
-            if (destroyed || System.currentTimeMillis() - unbindAt < 2000L) return
             SystemReader.service = null
             bound = false
             postMain { enableDirectMode() }
@@ -87,7 +80,6 @@ object ShizukuHelper {
 
     fun init(ctx: Context) {
         appContext = ctx.applicationContext
-        destroyed = false
         if (initialized) return
         initialized = true
         try {
@@ -98,10 +90,6 @@ object ShizukuHelper {
     }
 
     fun destroy() {
-        destroyed = true
-        onPermissionResult = null
-        onServiceReady = null
-        onBindTimeout = null
         cancelTimeout()
         try {
             Shizuku.removeRequestPermissionResultListener(permissionListener)
@@ -134,11 +122,8 @@ object ShizukuHelper {
 
     fun bindService() {
         val ctx = appContext ?: return
-        if (destroyed) return
         if (bound) { postMain { onServiceReady?.invoke(true) }; return }
-        if (binding) return
         if (!hasPermission()) { postMain { onServiceReady?.invoke(false) }; return }
-        binding = true
         startTimeout()
         try {
             Shizuku.bindUserService(args(ctx), connection)
@@ -152,16 +137,12 @@ object ShizukuHelper {
     fun unbindService() {
         val ctx = appContext ?: return
         cancelTimeout()
-        unbindAt = System.currentTimeMillis()
-        binding = false
         try { Shizuku.unbindUserService(args(ctx), connection, true) } catch (_: Throwable) {}
         SystemReader.service = null
         bound = false
     }
 
     private fun enableDirectMode() {
-        binding = false
-        if (destroyed) return
         SystemReader.service = null
         SystemReader.directMode = true
         onServiceReady?.invoke(true)
@@ -170,7 +151,7 @@ object ShizukuHelper {
     private fun startTimeout() {
         cancelTimeout()
         val r = Runnable {
-            if (!bound && !destroyed) { enableDirectMode(); onBindTimeout?.invoke() }
+            if (!bound) { enableDirectMode(); onBindTimeout?.invoke() }
         }
         pendingTimeout = r
         handler.postDelayed(r, BIND_TIMEOUT_MS)
@@ -179,7 +160,9 @@ object ShizukuHelper {
     private fun cancelTimeout() {
         pendingTimeout?.let { handler.removeCallbacks(it) }
         pendingTimeout = null
-    }    private val newProcessString by lazy {
+    }
+
+    private val newProcessString by lazy {
         try {
             Shizuku::class.java.getDeclaredMethod(
                 "newProcess",

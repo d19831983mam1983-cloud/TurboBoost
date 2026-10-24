@@ -191,12 +191,12 @@ class SettingsScreen(private val ctx: Context) {
 
         override fun onAttachedToWindow() {
             super.onAttachedToWindow()
-            sensorManager?.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+            try { if (accelerometer != null) sensorManager?.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI) } catch (_: Throwable) {}
         }
 
         override fun onDetachedFromWindow() {
             super.onDetachedFromWindow()
-            sensorManager?.unregisterListener(this)
+            try { sensorManager?.unregisterListener(this) } catch (_: Throwable) {}
         }
 
         override fun onVisibilityChanged(changedView: View, visibility: Int) {

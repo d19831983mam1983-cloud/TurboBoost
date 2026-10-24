@@ -28,6 +28,7 @@ class KeepAliveService : Service() {
             val notification = buildNotification()
             if (Build.VERSION.SDK_INT >= 34) ServiceCompat.startForeground(this, notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(notificationId, notification)
         } catch (e: Throwable) {
+            // Android 12+: foreground start from background is forbidden; HiOS/Transsion also kills aggressively
             try { stopSelf() } catch (_: Throwable) {}
             return START_NOT_STICKY
         }
