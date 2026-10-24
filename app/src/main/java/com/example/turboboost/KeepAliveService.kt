@@ -22,16 +22,21 @@ class KeepAliveService : Service() {
         if (intent?.action == "STOP") {
             val prefs = AppPrefs(this); val info = DeviceInfo(this)
             try { info.deactivateMaxPerformance(); info.applySurfaceFlingerBoost(false); info.applyMemoryTweaks(false) } catch (e: Throwable) {}
-            prefs.setActive(false); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(); return START_NOT_STICKY
+            prefs.setActive(false); try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}; stopSelf(); return START_NOT_STICKY
         }
-        val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= 34) ServiceCompat.startForeground(this, notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(notificationId, notification)
-        return START_STICKY
+        try {
+            val notification = buildNotification()
+            if (Build.VERSION.SDK_INT >= 34) ServiceCompat.startForeground(this, notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) else startForeground(notificationId, notification)
+        } catch (e: Throwable) {
+            try { stopSelf() } catch (_: Throwable) {}
+            return START_NOT_STICKY
+        }
+        return START_NOT_STICKY
     }
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "TurboBoost", NotificationManager.IMPORTANCE_LOW); channel.setShowBadge(false); val manager = getSystemService(NotificationManager::class.java); manager.createNotificationChannel(channel)
+            val channel = NotificationChannel(channelId, "TurboBoost", NotificationManager.IMPORTANCE_LOW); channel.setShowBadge(false); val manager = getSystemService(NotificationManager::class.java); manager?.createNotificationChannel(channel)
         }
     }
 
