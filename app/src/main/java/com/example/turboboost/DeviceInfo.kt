@@ -71,14 +71,28 @@ class DeviceInfo(private val ctx: Context) {
         return 1
     }
 
-    /** Refresh rates the panel really supports (Techno panels are mostly 60/90 Hz). */
+    /** Refresh rates the panel really supports (many devices are 60/90/120 Hz only, so 144 must be hidden there). */
+    @Suppress("DEPRECATION")
     fun supportedHz(): List<Int> {
-        return try {
+        val rates = ArrayList<Int>()
+        try {
             val dm = ctx.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
             val d = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY)
-            val l = d.supportedModes.map { Math.round(it.refreshRate) }.filter { it >= 30 }.distinct().sorted()
-            if (l.isEmpty()) listOf(60) else l
-        } catch (e: Throwable) { listOf(60) }
+            if (d != null) {
+                d.supportedModes.forEach { rates.add(Math.round(it.refreshRate)) }
+                rates.add(Math.round(d.refreshRate))
+            }
+        } catch (e: Throwable) {
+        }
+        if (rates.isEmpty()) {
+            try {
+                val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                rates.add(Math.round(wm.defaultDisplay.refreshRate))
+            } catch (e: Throwable) {
+            }
+        }
+        val l = rates.filter { it >= 30 }.distinct().sorted()
+        return if (l.isEmpty()) listOf(60) else l
     }
 
     fun clampHz(hz: Int): Int {
@@ -258,6 +272,8 @@ class DeviceInfo(private val ctx: Context) {
     fun deactivateMaxPerformance(): String {
         SystemReader.read("settings delete global activity_manager_constants; device_config delete activity_manager max_phantom_processes; settings delete system peak_refresh_rate; settings delete system min_refresh_rate; settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0")
         gpuBoost(false)
+        resetSense()
+        restorePing()
         return "Настройки возвращены"
     }
 
@@ -347,6 +363,126 @@ class DeviceInfo(private val ctx: Context) {
 
     fun restoreGms(): String { SystemReader.read("am set-standby-bucket com.google.android.gms active"); return "GMS: active" }
 
+    private fun pingPrefs() = ctx.getSharedPreferences("turbo_ping", Context.MODE_PRIVATE)
+
+    /** Ставит настройку и запоминает прежнее значение, чтобы потом вернуть как было. */
+    private fun saveAndSet(ns: String, key: String, value: String) {
+        val p = pingPrefs()
+        val pk = "prev|$ns|$key"
+        if (!p.contains(pk)) {
+            val prev = SystemReader.read("settings get $ns $key").trim()
+            p.edit().putString(pk, if (prev.isEmpty()) "null" else prev).apply()
+        }
+        SystemReader.read("settings put $ns $key $value")
+    }
+
+    /**
+     * Максимальная оптимизация пинга (всё без root, всё обратимо):
+     * режим низкой задержки Wi-Fi, отключение фонового сканирования сетей,
+     * экономия фонового трафика (Data Saver) и отключение авто-переключения Wi-Fi/моб. сеть.
+     */
+    fun optimizePing(): String {
+        SystemReader.read("cmd wifi force-low-latency-mode enabled 2>/dev/null; cmd wifi force-hi-perf-mode enabled 2>/dev/null")
+        saveAndSet("global", "wifi_scan_always_enabled", "0")
+        saveAndSet("global", "ble_scan_always_enabled", "0")
+        saveAndSet("global", "wifi_networks_available_notification_on", "0")
+        saveAndSet("global", "wifi_sleep_policy", "2")
+        saveAndSet("secure", "adaptive_connectivity_enabled", "0")
+        val p = pingPrefs()
+        if (!p.getBoolean("ds_by_us", false)) {
+            val st = SystemReader.read("cmd netpolicy get restrict-background")
+            if (st.contains("disabled", ignoreCase = true)) {
+                SystemReader.read("cmd netpolicy set restrict-background true")
+                p.edit().putBoolean("ds_by_us", true).apply()
+            }
+        }
+        return "Пинг: оптимизирован"
+    }
+
+    fun restorePing(): String {
+        SystemReader.read("cmd wifi force-low-latency-mode disabled 2>/dev/null; cmd wifi force-hi-perf-mode disabled 2>/dev/null")
+        val p = pingPrefs()
+        val e = p.edit()
+        for ((k, v) in p.all) {
+            if (!k.startsWith("prev|")) continue
+            val parts = k.split("|")
+            if (parts.size != 3) continue
+            val value = v as? String ?: continue
+            if (value == "null") SystemReader.read("settings delete ${parts[1]} ${parts[2]}")
+            else SystemReader.read("settings put ${parts[1]} ${parts[2]} $value")
+            e.remove(k)
+        }
+        if (p.getBoolean("ds_by_us", false)) {
+            SystemReader.read("cmd netpolicy set restrict-background false")
+            e.remove("ds_by_us")
+        }
+        e.apply()
+        return "Пинг: настройки возвращены"
+    }
+
+    /** Время TCP-соединения до Cloudflare и Google (примерно равно RTT). Вызывать не из главного потока. */
+    fun pingTest(): String {
+        val hosts = listOf("1.1.1.1", "8.8.8.8")
+        val times = ArrayList<Long>()
+        for (h in hosts) {
+            for (i in 0 until 4) {
+                val sock = java.net.Socket()
+                try {
+                    val t0 = System.nanoTime()
+                    sock.connect(java.net.InetSocketAddress(h, 443), 1500)
+                    times.add((System.nanoTime() - t0) / 1_000_000L)
+                } catch (e: Throwable) {
+                } finally {
+                    try { sock.close() } catch (e: Throwable) {}
+                }
+            }
+        }
+        if (times.isEmpty()) return "Пинг: нет сети"
+        val sorted = times.sorted()
+        val med = sorted[sorted.size / 2]
+        return "Пинг ~$med мс (мин ${sorted.first()}, макс ${sorted.last()})"
+    }
+
+    private fun even(v: Int): Int = if (v % 2 == 0) v else v - 1
+
+    /**
+     * Реально меняет разрешение экрана через wm size / wm density (работает на всех версиях Android).
+     * gfxScalePct: 100 = без изменений, 80 = «Классика», 50 = «Картошка».
+     * stretch: 0 = выкл, 1 = 5:4, 2 = 4:3 (в альбомной ориентации, высота остаётся как у выбранного разрешения).
+     */
+    fun applyDisplay(gfxScalePct: Int, stretch: Int): String {
+        if (gfxScalePct >= 100 && stretch == 0) return resetDisplay()
+        val sizeOut = SystemReader.read("wm size")
+        val m = Regex("Physical size:\\s*(\\d+)x(\\d+)").find(sizeOut) ?: return "Экран: не удалось узнать размер"
+        val pw = m.groupValues[1].toInt()
+        val ph = m.groupValues[2].toInt()
+        val shortSide = Math.min(pw, ph)
+        val longSide = Math.max(pw, ph)
+        val scale = gfxScalePct.coerceIn(30, 100) / 100f
+        val newShort = even(Math.max(360, (shortSide * scale).toInt()))
+        val newLong = when (stretch) {
+            1 -> even((newShort * 5f / 4f).toInt())
+            2 -> even((newShort * 4f / 3f).toInt())
+            else -> even(Math.max(newShort, (longSide * scale).toInt()))
+        }
+        val size = if (pw <= ph) "${newShort}x${newLong}" else "${newLong}x${newShort}"
+        val densOut = SystemReader.read("wm density")
+        val dens = Regex("Physical density:\\s*(\\d+)").find(densOut)?.groupValues?.get(1)?.toIntOrNull()
+        val cmd = StringBuilder("wm size $size")
+        if (dens != null) {
+            val nd = Math.max(120, (dens * newShort.toFloat() / shortSide).toInt())
+            cmd.append("; wm density $nd")
+        }
+        SystemReader.read(cmd.toString())
+        val st = when (stretch) { 1 -> " (5:4)"; 2 -> " (4:3)"; else -> "" }
+        return "Экран: $size$st"
+    }
+
+    fun resetDisplay(): String {
+        SystemReader.read("wm size reset; wm density reset")
+        return "Экран: сброшен"
+    }
+
     fun setDownscale(pkg: String, factor: Float): String {
         if (pkg.isBlank()) return "Пакет не указан"
         val safe = when { factor <= 0f -> "disable"; factor < 0.3f -> "0.3"; factor > 0.9f -> "0.9"; else -> String.format(java.util.Locale.US, "%.2f", factor) }
@@ -370,17 +506,49 @@ class DeviceInfo(private val ctx: Context) {
 
     fun resetGameFps(pkg: String): String { if (pkg.isBlank()) return "Пакет не указан"; SystemReader.read("cmd game mode standard $pkg; device_config delete game_overlay $pkg"); return "standard" }
 
+    /**
+     * Уровни сенсы: 0 Средний, 1 Сильный, 2 Эксп., 3 Макс.
+     * Остались только настройки, которые Android реально читает (раньше часть была «пустышками»:
+     * touch_slop и touch.pressure.scale система не использует, а pointer_speed допускает -7..7).
+     * «Макс» дополнительно убирает всё, что тормозит или сглаживает ввод: энергосбережение,
+     * оверлеи касаний, фиксирует режим производительности.
+     */
     fun applySense(level: Int): String {
-        val tier = tier(); val slop: Int; val longPress: Int; val multiPress: Int; val pointer: Int; val pressure: String; val touchRate: Int
-        when (level) {
-            0 -> { slop = 8; longPress = 350; multiPress = 280; pointer = if (tier == 0) 2 else 3; pressure = "0.8"; touchRate = 120 }
-            1 -> { slop = 7; longPress = 300; multiPress = 250; pointer = if (tier == 0) 3 else 5; pressure = "0.5"; touchRate = if (tier == 0) 120 else 180 }
-            2 -> { slop = 6; longPress = 250; multiPress = 220; pointer = if (tier == 0) 5 else 7; pressure = "0.1"; touchRate = if (tier == 0) 180 else 240 }
-            else -> { slop = 5; longPress = 200; multiPress = 200; pointer = if (tier == 0) 6 else 8; pressure = "0.05"; touchRate = if (tier == 0) 240 else 300 }
+        val lv = level.coerceIn(0, 3)
+        val tier = tier()
+        val longPress: Int
+        val multiPress: Int
+        val pointer: Int
+        val touchRate: Int
+        when (lv) {
+            0 -> { longPress = 350; multiPress = 280; pointer = if (tier == 0) 2 else 3; touchRate = 120 }
+            1 -> { longPress = 300; multiPress = 250; pointer = if (tier == 0) 3 else 5; touchRate = if (tier == 0) 120 else 180 }
+            2 -> { longPress = 250; multiPress = 220; pointer = if (tier == 0) 5 else 6; touchRate = if (tier == 0) 180 else 240 }
+            else -> { longPress = 200; multiPress = 200; pointer = 7; touchRate = if (tier == 0) 240 else 300 }
         }
-        SystemReader.read("settings put secure touch_slop $slop; settings put secure long_press_timeout $longPress; settings put secure multi_press_timeout $multiPress; settings put secure pointer_speed $pointer; settings put system pointer_speed $pointer; settings put system touch.pressure.scale $pressure")
-        SystemReader.read("settings put system touch_sampling_rate $touchRate")
-        return "Сенса: ${arrayOf("Плавная", "Быстрая", "Резкая", "Макс")[level]} (${touchRate} Гц)"
+        val sb = StringBuilder()
+        sb.append("settings put secure long_press_timeout $longPress; ")
+        sb.append("settings put secure multi_press_timeout $multiPress; ")
+        sb.append("settings put system pointer_speed $pointer; ")
+        sb.append("settings put system touch_sampling_rate $touchRate; ")
+        if (lv == 3) {
+            // максимум: никакого энергосбережения и сглаживания, чтобы флики и ваншоты были резкими
+            sb.append("settings put global low_power 0; ")
+            sb.append("settings put global automatic_power_save_mode 0; ")
+            sb.append("settings put system show_touches 0; settings put system pointer_location 0; ")
+            sb.append("cmd power set-fixed-performance-mode-enabled true 2>/dev/null; ")
+        } else {
+            sb.append("cmd power set-fixed-performance-mode-enabled false 2>/dev/null; ")
+        }
+        SystemReader.read(sb.toString())
+        val name = arrayOf("Средний", "Сильный", "Эксп.", "Макс")[lv]
+        return if (lv == 3) "Сенса: $name (${touchRate} Гц). В игре: Aim Smoothing = 0, ускорение = 0"
+        else "Сенса: $name (${touchRate} Гц)"
+    }
+
+    fun resetSense(): String {
+        SystemReader.read("settings delete secure long_press_timeout; settings delete secure multi_press_timeout; settings delete system pointer_speed; settings delete system touch_sampling_rate; cmd power set-fixed-performance-mode-enabled false 2>/dev/null")
+        return "Сенса: сброшена"
     }
 
     fun applySurfaceFlingerBoost(enable: Boolean): String {
@@ -395,7 +563,7 @@ class DeviceInfo(private val ctx: Context) {
 
     fun listGames(): List<Pair<String, String>> {
         val pm = ctx.packageManager; val result = mutableListOf<Pair<String, String>>()
-        for (a in pm.getInstalledApplications(PackageManager.GET_META_DATA)) { if (pm.getLaunchIntentForPackage(a.packageName) == null) continue; result.add(a.packageName to pm.getApplicationLabel(a).toString()) }
+        for (a in pm.getInstalledApplications(PackageManager.GET_META_DATA)) { if (pm.getLaunchIntentForPackage(a.packageName) == null) continue; val label = pm.getApplicationLabel(a).toString(); if (GameBlocklist.isBlocked(a.packageName, label)) continue; result.add(a.packageName to label) }
         return result.sortedBy { it.second.lowercase() }
     }
 

@@ -112,6 +112,14 @@ class SettingsScreen(private val ctx: Context) {
             bottomMargin = dp(8)
         })
 
+        val verName = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (_: Throwable) { "?" }
+        content.addView(tv("TurboBoost v$verName", 12f, Color.parseColor("#88FFFFFF")).apply {
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
+            topMargin = dp(16)
+            bottomMargin = dp(24)
+        })
+
         val topBar = buildTopBar()
         root.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
 

@@ -43,6 +43,130 @@ class MainActivity : AppCompatActivity() {
         } catch (_: RejectedExecutionException) {}
     }
 
+    private val store by lazy { AccountStore(this) }
+
+    private val pickAvatar = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) saveProfileImage(uri, true)
+    }
+    private val pickBanner = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) saveProfileImage(uri, false)
+    }
+
+    private fun saveProfileImage(uri: Uri, avatar: Boolean) {
+        val acc = store.current() ?: return
+        Toast.makeText(this, "Загрузка...", Toast.LENGTH_SHORT).show()
+        bg {
+            try {
+                val raw = if (avatar) decodeSampledBitmap(uri, 512, 512) else decodeSampledBitmap(uri, 1280, 720)
+                if (raw != null) {
+                    val f: java.io.File
+                    if (avatar) {
+                        val side = Math.min(raw.width, raw.height)
+                        var sq = Bitmap.createBitmap(raw, (raw.width - side) / 2, (raw.height - side) / 2, side, side)
+                        if (side > 512) sq = Bitmap.createScaledBitmap(sq, 512, 512, true)
+                        f = java.io.File(filesDir, "avatar_" + acc.id + ".png")
+                        f.outputStream().use { sq.compress(Bitmap.CompressFormat.PNG, 95, it) }
+                    } else {
+                        f = java.io.File(filesDir, "banner_" + acc.id + ".png")
+                        f.outputStream().use { raw.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+                    }
+                    store.setImage(acc.id, avatar, f.absolutePath)
+                    main.post { if (!destroyed) openProfile() }
+                } else {
+                    main.post { Toast.makeText(this, "Не удалось открыть картинку", Toast.LENGTH_SHORT).show() }
+                }
+            } catch (e: Throwable) {
+                Log.e("TurboBoost", "profile image", e)
+            }
+        }
+    }
+
+    private fun openProfile() {
+        val screen = ProfileScreen(this, store, prefs.getSavedGames().size)
+        screen.onBack = { buildMain() }
+        screen.onPickAvatar = { pickAvatar.launch("image/*") }
+        screen.onPickBanner = { pickBanner.launch("image/*") }
+        screen.onOpenAdmin = { openAdminPanel() }
+        screen.onRefresh = { openProfile() }
+        screen.onIdClick = { showAdminUnlock() }
+        setContentView(screen.build())
+    }
+
+    /** Тап по ID в профиле: ввод админ-ID (ПСИХОЗ или Owner) и пароля. */
+    private fun showAdminUnlock() {
+        val me = store.current() ?: return
+        if (me.isAdmin) {
+            try {
+                AlertDialog.Builder(this)
+                    .setTitle("Админ-доступ")
+                    .setItems(arrayOf("Открыть админ-панель", "Выйти из админки")) { _, which ->
+                        if (which == 0) {
+                            openAdminPanel()
+                        } else {
+                            store.revokeAdmin(me.id)
+                            openProfile()
+                        }
+                    }
+                    .setNegativeButton("Закрыть", null)
+                    .show()
+            } catch (_: Throwable) {
+            }
+            return
+        }
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val box = android.widget.LinearLayout(this)
+        box.orientation = android.widget.LinearLayout.VERTICAL
+        box.setPadding(pad, pad / 2, pad, 0)
+        val idInput = android.widget.EditText(this)
+        idInput.hint = "ID админа"
+        idInput.isSingleLine = true
+        val passInput = android.widget.EditText(this)
+        passInput.hint = "Пароль"
+        passInput.isSingleLine = true
+        passInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        box.addView(idInput)
+        box.addView(passInput)
+        try {
+            AlertDialog.Builder(this)
+                .setTitle("Вход для админов")
+                .setView(box)
+                .setPositiveButton("Войти") { _, _ ->
+                    val idText = idInput.text.toString()
+                    val pw = passInput.text.toString()
+                    bg {
+                        val r = AdminAuth.verify(this, idText, pw)
+                        main.post {
+                            if (destroyed) return@post
+                            when (r) {
+                                1, 2 -> {
+                                    store.grantAdmin(me.id, r)
+                                    Toast.makeText(this, "Админ-доступ открыт", Toast.LENGTH_SHORT).show()
+                                    openProfile()
+                                }
+                                -1 -> Toast.makeText(this, "Слишком много попыток. Подожди пару минут", Toast.LENGTH_LONG).show()
+                                else -> Toast.makeText(this, "Неверный ID или пароль", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun openAdminPanel() {
+        val me = store.current()
+        if (me == null || !me.isAdmin) {
+            Toast.makeText(this, "Нет доступа", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val panel = AdminPanelScreen(this, store, me.id)
+        panel.onBack = { openProfile() }
+        panel.onRefresh = { openAdminPanel() }
+        setContentView(panel.build())
+    }
+
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             Toast.makeText(this, "Загрузка фона...", Toast.LENGTH_SHORT).show()
@@ -79,6 +203,16 @@ class MainActivity : AppCompatActivity() {
         ShizukuHelper.onBindTimeout = { main.post { if (!uiBuilt) blocked() } }
         showSplash()
         showPendingCrash()
+    }
+
+    private fun gfxScale(g: Int): Int = when (g) { 1 -> 80; 2 -> 50; else -> 100 }
+
+    /** Применяет графику + растяжку сразу и по-настоящему (wm size / wm density). */
+    private fun applyDisplayNow() {
+        val g = prefs.getGfx()
+        val st = prefs.getStretch()
+        ui.setStatus("Применяю экран...")
+        async { info.applyDisplay(gfxScale(g), st) }
     }
 
     private fun showPendingCrash() {
@@ -295,6 +429,7 @@ class MainActivity : AppCompatActivity() {
             for (a in apps) {
                 if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
                 val label = pm.getApplicationLabel(a).toString()
+                if (GameBlocklist.isBlocked(a.packageName, label)) continue
                 list.add(a.packageName to label)
             }
             val sorted = list.sortedBy { it.second.lowercase() }
@@ -327,6 +462,8 @@ class MainActivity : AppCompatActivity() {
         ui.setThemeIndex(prefs.getThemeIndex())
         ui.setHz(info.clampHz(prefs.getTargetHz()))
         ui.setDownscaleLevel(prefs.getDownscaleLevel())
+        ui.setGfx(prefs.getGfx())
+        ui.setStretch(prefs.getStretch())
         
         bg {
             val savedBg = loadBgFromInternal()
@@ -335,7 +472,9 @@ class MainActivity : AppCompatActivity() {
         
         ui.onSettingsClick = { openSettings() }
         ui.onSenseFinder = { openSenseFinder() }
+        ui.onPingTest = { ui.setStatus("Проверяю пинг..."); async { info.pingTest() } }
         ui.onShowLauncher = { openLauncher() }
+        ui.onShowProfile = { openProfile() }
         
         val ap = prefs.getActiveProfilePkg()
         ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
@@ -377,6 +516,9 @@ class MainActivity : AppCompatActivity() {
         ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
         ui.onShowProfiles = { profiles() }
         
+        ui.onGfxSelected = { g -> prefs.setGfx(g); applyDisplayNow() }
+        ui.onStretchSelected = { st -> prefs.setStretch(st); applyDisplayNow() }
+
         ui.onDownscaleSelected = { level ->
             prefs.setDownscaleLevel(level)
             val p = prefs.getLastPackage()
@@ -520,6 +662,9 @@ class MainActivity : AppCompatActivity() {
                     if (prefs.isBackgroundLimit()) info.restrictBackground()
                     info.applySurfaceFlingerBoost(true)
                     info.boostInputDispatcher()
+                    info.optimizePing()
+                    val senseLv = prefs.getSenseLevel()
+                    if (senseLv >= 0) info.applySense(senseLv)
                     info.restrictPowerKeeper()
                     info.cleanupDozeWhitelist()
                     info.restrictGms()

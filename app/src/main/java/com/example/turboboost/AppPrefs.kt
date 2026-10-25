@@ -12,8 +12,8 @@ class AppPrefs(ctx: Context) {
     fun setActive(v: Boolean) = prefs.edit().putBoolean("active", v).apply()
     fun getTargetHz(): Int = prefs.getInt("target_hz", 120)
     fun setTargetHz(hz: Int) = prefs.edit().putInt("target_hz", hz).apply()
-    fun getLastPackage(): String = prefs.getString("last_pkg", "") ?: ""
-    fun setLastPackage(pkg: String) { prefs.edit().putString("last_pkg", pkg ?: "").commit() }
+    fun getLastPackage(): String { val v = prefs.getString("last_pkg", "") ?: ""; return if (GameBlocklist.isBlocked(v)) "" else v }
+    fun setLastPackage(pkg: String) { val v = pkg ?: ""; prefs.edit().putString("last_pkg", if (GameBlocklist.isBlocked(v)) "" else v).commit() }
     fun getSenseLevel(): Int = prefs.getInt("sense_level", -1)
     fun setSenseLevel(level: Int) = prefs.edit().putInt("sense_level", level).apply()
     fun getThermalLevel(): Int = prefs.getInt("thermal_level", -1)
@@ -40,15 +40,19 @@ class AppPrefs(ctx: Context) {
     fun setBackgroundUri(uri: String) = prefs.edit().putString("bg_uri", uri ?: "").apply()
     fun getDownscaleLevel(): Int = prefs.getInt("downscale_level", 2)
     fun setDownscaleLevel(level: Int) = prefs.edit().putInt("downscale_level", level).apply()
+    fun getGfx(): Int = prefs.getInt("gfx_preset", 0)
+    fun setGfx(v: Int) = prefs.edit().putInt("gfx_preset", v).apply()
+    fun getStretch(): Int = prefs.getInt("stretch_mode", 0)
+    fun setStretch(v: Int) = prefs.edit().putInt("stretch_mode", v).apply()
 
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
         if (raw.isBlank()) return emptyList()
-        return try { val arr = JSONArray(raw); val list = mutableListOf<String>(); for (i in 0 until arr.length()) { val s = arr.optString(i, ""); if (s.isNotBlank()) list.add(s) }; list } catch (e: Throwable) { emptyList() }
+        return try { val arr = JSONArray(raw); val list = mutableListOf<String>(); for (i in 0 until arr.length()) { val s = arr.optString(i, ""); if (s.isNotBlank() && !GameBlocklist.isBlocked(s)) list.add(s) }; list } catch (e: Throwable) { emptyList() }
     }
 
     fun saveGame(pkg: String) {
-        if (pkg.isBlank()) return
+        if (pkg.isBlank() || GameBlocklist.isBlocked(pkg)) return
         val list = getSavedGames().toMutableList()
         if (!list.contains(pkg)) { list.add(pkg); val arr = JSONArray(); for (p in list) arr.put(p); prefs.edit().putString("saved_games", arr.toString()).commit() }
     }
@@ -74,7 +78,7 @@ class AppPrefs(ctx: Context) {
     }
 
     fun saveProfile(p: GameProfile) {
-        if (p.pkg.isBlank()) return
+        if (p.pkg.isBlank() || GameBlocklist.isBlocked(p.pkg)) return
         val list = getProfiles().toMutableList(); list.removeAll { it.pkg == p.pkg }; list.add(p)
         val arr = JSONArray(); for (item in list) { val o = JSONObject(); o.put("pkg", item.pkg); o.put("mode", item.mode); o.put("sense", item.sense); o.put("thermal", item.thermal); o.put("turbo", item.turbo); o.put("hz", item.hz); o.put("gpuBoost", item.gpuBoost); o.put("bgLimit", item.bgLimit); arr.put(o) }
         prefs.edit().putString("profiles", arr.toString()).commit()

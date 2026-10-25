@@ -58,10 +58,15 @@ class OptimizerUI(private val ctx: Context) {
     var onHzSelected: ((Int) -> Unit)? = null; var onDownscaleSelected: ((Int) -> Unit)? = null
     var onPackageChanged: ((String) -> Unit)? = null; var onSettingsClick: (() -> Unit)? = null
     var onShowLauncher: (() -> Unit)? = null
+    var onShowProfile: (() -> Unit)? = null
     var onSenseFinder: (() -> Unit)? = null
 
     var currentSense = -1; var currentMode = 0; var currentHz = 120; var currentDownscale = 2
     var maxHz = 144
+    var currentGfx = 0; var currentStretch = 0
+    var onPingTest: (() -> Unit)? = null
+    var onGfxSelected: ((Int) -> Unit)? = null; var onStretchSelected: ((Int) -> Unit)? = null
+    lateinit var gfxRow: LinearLayout; lateinit var stretchRow: LinearLayout
     private var isActive = false; private var themeIndex = 0; private var currentGpu = false
     private var currentBg = false; private var currentThreads = false; private var currentMglru = false; private var currentJoyose = false
 
@@ -95,6 +100,8 @@ class OptimizerUI(private val ctx: Context) {
         if (::hzRow.isInitialized) updHz()
         if (::senseRow.isInitialized) updSense()
         if (::downscaleRow.isInitialized) updDownscale()
+        if (::gfxRow.isInitialized) updGfx()
+        if (::stretchRow.isInitialized) updStretch()
         if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
     }
 
@@ -161,11 +168,25 @@ class OptimizerUI(private val ctx: Context) {
         }
         val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
         page1.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
+        val pingBtn = glass("Проверить пинг") { onPingTest?.invoke() }
+        page1.addView(pingBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
         page1.addView(lbl("Разрешение рендера (FPS):"))
         downscaleRow = row(page1, 6)
         listOf("Выкл", "90%", "80%", "70%").forEachIndexed { i, n ->
             downscaleRow.addView(glass(n) { currentDownscale = i; onDownscaleSelected?.invoke(i); updDownscale() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
+        }
+
+        page1.addView(lbl("Графика (разрешение экрана):"))
+        gfxRow = row(page1, 6)
+        listOf("Выкл", "Классика", "Картошка").forEachIndexed { i, n ->
+            gfxRow.addView(glass(n) { currentGfx = i; onGfxSelected?.invoke(i); updGfx() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
+        }
+
+        page1.addView(lbl("Растяжка экрана:"))
+        stretchRow = row(page1, 6)
+        listOf("Выкл", "5:4", "4:3").forEachIndexed { i, n ->
+            stretchRow.addView(glass(n) { currentStretch = i; onStretchSelected?.invoke(i); updStretch() }, LinearLayout.LayoutParams(0, dp(38), 1f).apply { marginEnd = dp(6) })
         }
 
         page1.addView(lbl("Пакет игры:"))
@@ -177,7 +198,15 @@ class OptimizerUI(private val ctx: Context) {
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
+                override fun afterTextChanged(s: Editable?) {
+                    val t = s?.toString()?.trim() ?: ""
+                    if (GameBlocklist.isBlocked(t)) {
+                        s?.clear()
+                        android.widget.Toast.makeText(ctx, GameBlocklist.MESSAGE, android.widget.Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    onPackageChanged?.invoke(t)
+                }
             })
         }
         val pkgWrap = FrameLayout(ctx).apply { background = glassBgDrawable(14); addView(pkgInput, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)) }
@@ -202,11 +231,13 @@ class OptimizerUI(private val ctx: Context) {
 
         btnLauncher = glass("Мои игры (Лаунчер)") { onShowLauncher?.invoke() }
         page1.addView(btnLauncher, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
+        val btnProfile = glass("Профиль") { onShowProfile?.invoke() }
+        page1.addView(btnProfile, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
         btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
         page1.addView(btnDiagnostics, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
 
         cardApplied = card("Применено: —"); addCard(page1, cardApplied)
-        statusResult = card("Готов к работе"); addCard(page1, statusResult)
+        statusResult = card("Готов к работе · v${appVer()}"); addCard(page1, statusResult)
         page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(16)))
 
         val br = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -254,6 +285,8 @@ fun setActive(a: Boolean) {
     if (::hzRow.isInitialized) updHz()
     if (::senseRow.isInitialized) updSense()
     if (::downscaleRow.isInitialized) updDownscale()
+        if (::gfxRow.isInitialized) updGfx()
+        if (::stretchRow.isInitialized) updStretch()
 }
 
 fun setGpuBoostState(a: Boolean) { currentGpu = a; if (::btnGpuBoost.isInitialized) fade(btnGpuBoost, if (a) accentDrawable() else unselDrawable()) }
@@ -272,6 +305,11 @@ private fun applyHzLimit() { if (!::hzRow.isInitialized) return; val m = listOf(
 
 private fun updHz() { val m = listOf(60, 90, 120, 144); if (!::hzRow.isInitialized) return; for (i in 0 until hzRow.childCount) { val tv = hzRow.getChildAt(i) as TextView; tv.background = if (m[i] == currentHz) accentDrawable() else unselDrawable() } }
 private fun updSense() { if (!::senseRow.isInitialized) return; for (i in 0 until senseRow.childCount) { val tv = senseRow.getChildAt(i) as TextView; tv.background = if (i == currentSense) accentDrawable() else unselDrawable() } }
+private fun appVer(): String = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (_: Throwable) { "?" }
+private fun updGfx() { if (!::gfxRow.isInitialized) return; for (i in 0 until gfxRow.childCount) { val tv = gfxRow.getChildAt(i) as TextView; tv.background = if (i == currentGfx) accentDrawable() else unselDrawable() } }
+private fun updStretch() { if (!::stretchRow.isInitialized) return; for (i in 0 until stretchRow.childCount) { val tv = stretchRow.getChildAt(i) as TextView; tv.background = if (i == currentStretch) accentDrawable() else unselDrawable() } }
+fun setGfx(v: Int) { currentGfx = v; if (::gfxRow.isInitialized) updGfx() }
+fun setStretch(v: Int) { currentStretch = v; if (::stretchRow.isInitialized) updStretch() }
 private fun updDownscale() { if (!::downscaleRow.isInitialized) return; for (i in 0 until downscaleRow.childCount) { val tv = downscaleRow.getChildAt(i) as TextView; tv.background = if (i == currentDownscale) accentDrawable() else unselDrawable() } }
 
 private fun touch(v: View, click: () -> Unit) {

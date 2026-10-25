@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -78,6 +79,13 @@ class SenseFinderScreen(private val ctx: Context) {
     private lateinit var resultBox: LinearLayout
 
     private val finishRunnable = Runnable { finishStep() }
+
+    private var activeId = -1
+    private var lastHx = 0f
+    private var lastHy = 0f
+    private var lastHt = 0L
+    private var hoverOn = false
+    private var mouseUsed = false
 
     fun build(): View {
         try {
@@ -210,46 +218,134 @@ class SenseFinderScreen(private val ctx: Context) {
         )
 
         root.setOnTouchListener { _, ev -> handleTouch(ev) }
+        // мышь / трекпад (движение без нажатия) и клавиатура
+        root.setOnHoverListener { _, ev -> handleHover(ev) }
+        root.isFocusable = true
+        root.isFocusableInTouchMode = true
+        root.setOnKeyListener { _, keyCode, ev ->
+            if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            when (keyCode) {
+                KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BACK -> {
+                    finish()
+                    true
+                }
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_SPACE -> {
+                    if (idx == -1 || idx >= steps.size) {
+                        onAction()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+        root.post { try { root.requestFocus() } catch (_: Throwable) {} }
         showStep()
         return root
     }
 
+    private fun noteSource(ev: MotionEvent) {
+        try {
+            if (ev.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE ||
+                ev.isFromSource(android.view.InputDevice.SOURCE_MOUSE)
+            ) mouseUsed = true
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun applyMove(st: Step, dx: Float, dy: Float) {
+        if (st.dYaw != 0f) {
+            val sgn = if (st.dYaw > 0f) 1f else -1f
+            yaw = (yaw + dx * TURN_K).coerceIn(-360f, 360f)
+            axisSum += dx * sgn
+        } else {
+            val sgn = if (st.dPitch > 0f) 1f else -1f
+            pitch = (pitch - dy * TURN_K).coerceIn(-90f, 90f)
+            axisSum += -dy * sgn
+        }
+        world.yaw = yaw
+        world.pitch = pitch
+        world.invalidate()
+    }
+
+    private fun scheduleFinish(delayMs: Long) {
+        if (axisSum >= MIN_PX) {
+            root.removeCallbacks(finishRunnable)
+            root.postDelayed(finishRunnable, delayMs)
+        }
+    }
+
+    private fun endStroke(ev: MotionEvent) {
+        if (tracking) stepMs += (ev.eventTime - strokeStart).toFloat()
+        tracking = false
+        activeId = -1
+        scheduleFinish(700L)
+    }
+
+    /** Палец, стилус или мышь с зажатой кнопкой. */
     private fun handleTouch(ev: MotionEvent): Boolean {
         if (idx < 0 || idx >= steps.size || locked) return false
         val st = steps[idx]
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                noteSource(ev)
                 root.removeCallbacks(finishRunnable)
                 strokeStart = ev.eventTime
+                activeId = ev.getPointerId(0)
                 lastX = ev.x
                 lastY = ev.y
                 tracking = true
             }
             MotionEvent.ACTION_MOVE -> {
                 if (!tracking) return true
-                val dx = ev.x - lastX
-                val dy = ev.y - lastY
-                lastX = ev.x
-                lastY = ev.y
-                if (st.dYaw != 0f) {
-                    val sgn = if (st.dYaw > 0f) 1f else -1f
-                    yaw = (yaw + dx * TURN_K).coerceIn(-360f, 360f)
-                    axisSum += dx * sgn
-                } else {
-                    val sgn = if (st.dPitch > 0f) 1f else -1f
-                    pitch = (pitch - dy * TURN_K).coerceIn(-90f, 90f)
-                    axisSum += -dy * sgn
-                }
-                world.yaw = yaw
-                world.pitch = pitch
-                world.invalidate()
+                val pi = ev.findPointerIndex(activeId)
+                if (pi < 0) return true
+                val x = ev.getX(pi)
+                val y = ev.getY(pi)
+                applyMove(st, x - lastX, y - lastY)
+                lastX = x
+                lastY = y
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (tracking) stepMs += (ev.eventTime - strokeStart).toFloat()
-                tracking = false
-                if (axisSum >= MIN_PX) {
-                    root.postDelayed(finishRunnable, 700L)
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (ev.getPointerId(ev.actionIndex) == activeId) endStroke(ev)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> endStroke(ev)
+        }
+        return true
+    }
+
+    /** Мышь или трекпад без нажатия кнопки: крутим камеру по движению курсора. */
+    private fun handleHover(ev: MotionEvent): Boolean {
+        if (idx < 0 || idx >= steps.size || locked) return false
+        noteSource(ev)
+        val st = steps[idx]
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_HOVER_ENTER -> {
+                lastHx = ev.x
+                lastHy = ev.y
+                lastHt = ev.eventTime
+                hoverOn = true
+            }
+            MotionEvent.ACTION_HOVER_MOVE -> {
+                if (!hoverOn) {
+                    lastHx = ev.x
+                    lastHy = ev.y
+                    lastHt = ev.eventTime
+                    hoverOn = true
+                    return true
                 }
+                root.removeCallbacks(finishRunnable)
+                val dt = (ev.eventTime - lastHt).coerceIn(0L, 100L)
+                stepMs += dt.toFloat()
+                applyMove(st, ev.x - lastHx, ev.y - lastHy)
+                lastHx = ev.x
+                lastHy = ev.y
+                lastHt = ev.eventTime
+                scheduleFinish(900L)
+            }
+            MotionEvent.ACTION_HOVER_EXIT -> {
+                hoverOn = false
             }
         }
         return true
@@ -371,7 +467,9 @@ class SenseFinderScreen(private val ctx: Context) {
             resultBox.visibility = View.VISIBLE
             hintTv.text =
                 "Standoff 2 → Настройки → Управление: выставь эти три значения.\n" +
-                "Ориентировочно: подстрой на ±0.2, если нужно."
+                "Если в игре есть Aim Smoothing (сглаживание), поставь 0.00, иначе прицел «плавает».\n" +
+                "Ориентировочно: подстрой на ±0.2, если нужно." +
+                (if (mouseUsed) "\nВвод мышью: для мыши значения менее точны." else "")
             actionBtn.visibility = View.VISIBLE
             actionBtn.text = "СКОПИРОВАТЬ И ВЫЙТИ"
             world.showLabels = true
@@ -459,6 +557,7 @@ class SenseFinderScreen(private val ctx: Context) {
         } catch (_: Throwable) {
             400f
         }
+        if (mouseUsed) dpi = 400f // у мыши нет физического dpi, берём типичное значение
         val inchPerDeg = ppd / dpi
         // опорная точка: типичная сенса 2.30 соответствует примерно 0.0167 дюйма на градус
         val sens = r2((2.30f * 0.0167f / inchPerDeg).coerceIn(0.30f, SENS_MAX))
