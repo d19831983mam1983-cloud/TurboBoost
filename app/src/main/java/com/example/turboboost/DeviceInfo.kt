@@ -61,7 +61,7 @@ class DeviceInfo(private val ctx: Context) {
     private fun detectTierInternal(): Int {
         val chip = chip().lowercase()
         val gpu = gpu().lowercase()
-        if (chip.contains("unisoc") || chip.contains("t6") || chip.contains("t7") ||
+        if (chip.contains("unisoc") || Regex("(^|[^a-z])t[67]\\d{2}").containsMatchIn(chip) ||
             chip.contains("helio g") || chip.contains("mt67") || chip.contains("mt68") ||
             chip.contains("snapdragon 6") || chip.contains("snapdragon 4") ||
             gpu.contains("mali-g52") || gpu.contains("mali-g57") || gpu.contains("mali-g3")) return 0
@@ -290,9 +290,31 @@ class DeviceInfo(private val ctx: Context) {
         }
     }
 
+    private fun firstPid(pkg: String): Int? =
+        SystemReader.read("pidof $pkg").trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull()
+
+    /** Пакет приложения на экране (через Shizuku/root), пусто если не удалось определить. */
+    fun foregroundPackage(): String {
+        val out = SystemReader.read("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+        if (out.isBlank()) return ""
+        val re = Regex("u\\d+\\s+([A-Za-z0-9_.]+)/")
+        for (line in out.lines()) {
+            if (line.contains("mCurrentFocus")) {
+                val m = re.find(line)
+                if (m != null) return m.groupValues[1]
+            }
+        }
+        for (line in out.lines()) {
+            val m = re.find(line)
+            if (m != null) return m.groupValues[1]
+        }
+        return ""
+    }
+
     fun prioritizeGameThreads(pkg: String): String {
         if (pkg.isBlank()) return "Пакет не указан"
-        val pid = SystemReader.read("pidof $pkg").trim(); if (pid.isBlank()) return "Игра не запущена"
+        val pidInt = firstPid(pkg) ?: return "Игра не запущена"
+        val pid = pidInt.toString()
         val allCores = clusters().map { it.first }.sorted(); if (allCores.isEmpty()) return "Ядра не определены"
         var mask = 0; for (core in allCores) mask = mask or (1 shl core); val hexMask = Integer.toHexString(mask)
         var tids = SystemReader.read("ps -T -p $pid -o TID").lines().map { it.trim() }.filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
@@ -304,7 +326,7 @@ class DeviceInfo(private val ctx: Context) {
 
     fun pinGameToPrimeCore(pkg: String): String {
         if (pkg.isBlank()) return "Пакет не указан"
-        val pid = SystemReader.read("pidof $pkg").trim(); if (pid.isBlank()) return "Игра не запущена"
+        val pidInt = firstPid(pkg) ?: return "Игра не запущена"; val pid = pidInt.toString()
         val big = clusters().filter { it.second == "big" }.map { it.first }.sorted(); if (big.isEmpty()) return "Нет big-ядер"
         var mask = 0; for (core in big) mask = mask or (1 shl core); val hexMask = Integer.toHexString(mask)
         val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines().map { it.trim() }.filter { it.isNotEmpty() }.mapNotNull { line ->
@@ -475,11 +497,13 @@ class DeviceInfo(private val ctx: Context) {
         }
         SystemReader.read(cmd.toString())
         val st = when (stretch) { 1 -> " (5:4)"; 2 -> " (4:3)"; else -> "" }
+        AppPrefs(ctx).setDisplayTweaked(true)
         return "Экран: $size$st"
     }
 
     fun resetDisplay(): String {
         SystemReader.read("wm size reset; wm density reset")
+        AppPrefs(ctx).setDisplayTweaked(false)
         return "Экран: сброшен"
     }
 
@@ -576,5 +600,28 @@ class DeviceInfo(private val ctx: Context) {
 
     fun openDeveloperOptions() {
         try { val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(intent) } catch (e: Exception) {}
+    }
+
+    /**
+     * Полный обратимый откат ВСЕГО, что приложение могло включить.
+     * Единая точка выхода: выключение тумблером, автоотключение по батарее/перегреву,
+     * смахивание приложения, тайл шторки, авто-сессия. Безопасно вызывать повторно.
+     */
+    fun revertAll(pkg: String, prefs: AppPrefs): String {
+        deactivateMaxPerformance()
+        if (pkg.isNotBlank()) {
+            resetGameFps(pkg)
+            setDownscale(pkg, 0f)
+            SystemReader.read("cmd deviceidle whitelist -$pkg")
+        }
+        restoreBackground()
+        restoreGms()
+        restorePowerKeeper()
+        applySurfaceFlingerBoost(false)
+        resetThreadPriorities()
+        if (prefs.isDisplayTweaked()) { resetDisplay() }
+        prefs.setActive(false)
+        OpLog.log("Полный откат${if (pkg.isNotBlank()) " ($pkg)" else ""}")
+        return "Всё возвращено к исходному"
     }
 }

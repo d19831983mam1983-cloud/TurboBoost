@@ -58,6 +58,9 @@ object AdminAuth {
             sp.edit().putInt("fails", 0).putLong("lock_until", 0L).apply()
             return kind
         }
+        // счётчик ошибок крутим только при верно введённом ID (иначе можно случайно
+        // заблокировать вход подбором несуществующих ID)
+        if (kind == 0) return 0
         val fails = sp.getInt("fails", 0) + 1
         val e = sp.edit()
         if (fails >= 5) e.putInt("fails", 0).putLong("lock_until", now + 120000L) else e.putInt("fails", fails)

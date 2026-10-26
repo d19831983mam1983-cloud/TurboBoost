@@ -2,6 +2,7 @@ package com.example.turboboost
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -13,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.Toast
@@ -167,6 +169,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(panel.build())
     }
 
+    private val pickBackup = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) bg { val r = BackupRestore.importJson(this, uri); main.post { Toast.makeText(this, r, Toast.LENGTH_LONG).show() } }
+    }
+
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             Toast.makeText(this, "Загрузка фона...", Toast.LENGTH_SHORT).show()
@@ -198,7 +204,12 @@ class MainActivity : AppCompatActivity() {
         ui.maxHz = info.supportedHz().maxOrNull() ?: 60
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             try { ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2001) } catch (_: Throwable) {}
+        OpLog.init(this)
         try { ShizukuHelper.init(this) } catch (_: Throwable) {}
+        // Shizuku может подняться позже приложения — перепроверяем, когда биндер пришёл
+        ShizukuHelper.onBinderReceived = { main.post { if (!uiBuilt && splashDone) check() } }
+        // после выдачи разрешения в диалоге Shizuku — сразу перепроверяем, без перезахода
+        ShizukuHelper.onPermissionResult = { granted -> main.post { if (granted && !uiBuilt) check() } }
         ShizukuHelper.onPermissionResult = { g -> main.post { if (g) bind() else blocked() } }
         ShizukuHelper.onBindTimeout = { main.post { if (!uiBuilt) blocked() } }
         showSplash()
@@ -303,8 +314,8 @@ class MainActivity : AppCompatActivity() {
             text = "Нет Root или Shizuku.\n\nЗапустите Shizuku, выдайте разрешение и нажмите «Проверить снова»."
             setTextColor(Color.parseColor("#AAFFFFFF")); textSize = 15f; gravity = android.view.Gravity.CENTER
         }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
-        box.addView(makeBtn("ОТКРЫТЬ SHIZUKU", "#7BA7F5") { openShizuku() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
-        box.addView(makeBtn("ПРОВЕРИТЬ СНОВА", "#5B8DEF") { check() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
+        box.addView(makeBtn("ОТКРЫТЬ SHIZUKU", "#F2580A") { openShizuku() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 40 })
+        box.addView(makeBtn("ПРОВЕРИТЬ СНОВА", "#FF8A3D") { check() }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
         setContentView(box)
     }
 
@@ -377,6 +388,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun openSettings() {
         val settings = SettingsScreen(this)
+        settings.setFeatureStates(prefs.isAutoSession(), prefs.isOverlayEnabled(), hasUsageAccess(), prefs.isGameOverlay())
         settings.onBack = { buildMain() }
         settings.onThemeSelected = { idx ->
             prefs.setThemeIndex(idx)
@@ -388,7 +400,91 @@ class MainActivity : AppCompatActivity() {
             ui.setBackgroundBitmap(null)
             try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
         }
+        settings.onAutoSessionToggle = { on ->
+            prefs.setAutoSession(on)
+            if (on) {
+                if (!hasUsageAccess()) {
+                    Toast.makeText(this, "Выдайте доступ к статистике использования", Toast.LENGTH_LONG).show()
+                    try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {}
+                }
+                if (prefs.isActive()) alive(true)
+            }
+        }
+        settings.onOverlayToggle = { on ->
+            prefs.setOverlayEnabled(on)
+            if (on) {
+                if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
+                    try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
+                } else {
+                    Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
+                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
+                }
+            } else {
+                try { startService(Intent(this, MonitorOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
+            }
+        }
+        settings.onRequestUsageAccess = {
+            try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {}
+        }
+        settings.onExportBackup = {
+            bg {
+                val f = BackupRestore.exportJson(this)
+                main.post {
+                    if (f != null) BackupRestore.share(this, f)
+                    else Toast.makeText(this, "Не удалось создать бэкап", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        settings.onImportBackup = { pickBackup.launch("application/json") }
+        settings.onShowLog = { showLogDialog() }
+        settings.onGameOverlayToggle = { on ->
+            prefs.setGameOverlay(on)
+            if (on) {
+                if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
+                    try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
+                } else {
+                    Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
+                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
+                }
+            } else {
+                try { startService(Intent(this, GameOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
+            }
+        }
         setContentView(settings.build())
+    }
+
+    private fun hasUsageAccess(): Boolean {
+        return try {
+            val appOps = getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            val mode = if (Build.VERSION.SDK_INT >= 29)
+                appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+            else
+                @Suppress("DEPRECATION") appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+            mode == android.app.AppOpsManager.MODE_ALLOWED
+        } catch (_: Throwable) { false }
+    }
+
+    private fun showLogDialog() {
+        try {
+            val items = OpLog.entries()
+            val text = if (items.isEmpty()) "Журнал пуст" else items.joinToString("\n")
+            val scroll = android.widget.ScrollView(this)
+            val tv = android.widget.TextView(this).apply {
+                this.text = text
+                setTextIsSelectable(true)
+                setTextColor(Color.parseColor("#E0E0E0"))
+                textSize = 12f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setPadding(40, 30, 40, 30)
+            }
+            scroll.addView(tv)
+            AlertDialog.Builder(this)
+                .setTitle("Журнал операций")
+                .setView(scroll)
+                .setPositiveButton("ОК", null)
+                .setNegativeButton("Очистить") { _, _ -> OpLog.clear() }
+                .show()
+        } catch (_: Throwable) {}
     }
 
     private fun openLauncher() {
@@ -537,6 +633,12 @@ class MainActivity : AppCompatActivity() {
 
         ui.setActive(prefs.isActive())
         if (prefs.isActive()) alive(true)
+        if (prefs.isOverlayEnabled() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
+            try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
+        }
+        if (prefs.isGameOverlay() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
+            try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
+        }
         refresh(); loop()
     }
 
@@ -626,7 +728,7 @@ class MainActivity : AppCompatActivity() {
         val timeoutRunnable = Runnable {
             if (busy) { busy = false; if (uiBuilt) ui.setStatus("Готово (таймаут)") }
         }
-        main.postDelayed(timeoutRunnable, 15000)
+        main.postDelayed(timeoutRunnable, 30000)
         
         if (!prefs.isActive() && info.batteryLevel() <= 10) { 
             Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show()
@@ -668,11 +770,14 @@ class MainActivity : AppCompatActivity() {
                     info.restrictPowerKeeper()
                     info.cleanupDozeWhitelist()
                     info.restrictGms()
+                    OpLog.log("Турбо: включено (пакет: ${if (p.isBlank()) "—" else p})")
                     main.removeCallbacks(timeoutRunnable)
-                    main.post { 
+                    main.post {
                         busy = false
-                        if (!uiBuilt) return@post
-                        prefs.setActive(true); ui.setActive(true); ui.setStatus(r); alive(true); refresh() 
+                        // состояние сохраняем всегда, даже если сейчас открыт другой экран
+                        prefs.setActive(true)
+                        alive(true)
+                        if (uiBuilt) { ui.setActive(true); ui.setStatus(r); refresh() }
                     }
                 } catch (e: Throwable) {
                     main.removeCallbacks(timeoutRunnable)
@@ -683,18 +788,13 @@ class MainActivity : AppCompatActivity() {
             if (uiBuilt) ui.setStatus("Отключение...")
             bg {
                 try {
-                    val r = info.deactivateMaxPerformance()
-                    if (p.isNotBlank()) info.setDownscale(p, 0f)
-                    if (p.isNotBlank()) info.resetGameFps(p)
-                    if (prefs.isBackgroundLimit()) info.restoreBackground()
-                    info.applySurfaceFlingerBoost(false)
-                    info.restorePowerKeeper()
-                    info.restoreGms()
+                    val r = info.revertAll(p, prefs)
+                    OpLog.log("Турбо: выключено")
                     main.removeCallbacks(timeoutRunnable)
-                    main.post { 
+                    main.post {
                         busy = false
-                        if (!uiBuilt) return@post
-                        prefs.setActive(false); ui.setActive(false); ui.setStatus(r); alive(false); refresh() 
+                        alive(false)
+                        if (uiBuilt) { ui.setActive(false); ui.setStatus(r); refresh() }
                     }
                 } catch (e: Throwable) {
                     main.removeCallbacks(timeoutRunnable)
@@ -743,13 +843,20 @@ class MainActivity : AppCompatActivity() {
                 main.post {
                     try {
                         if (!uiBuilt) return@post
-                        ui.setOverheat(temp > 75f, false)
+                        ui.setOverheat(temp > 75f && temp <= 85f, temp > 85f)
                         ui.setBatteryLowBlock(bat <= 10)
-                        if (active && bat <= 10) {
+                        if (active && temp > 85f) {
+                            busy = true
+                            ui.setOverheat(true, true)
+                            bg {
+                                info.revertAll(prefs.getLastPackage(), prefs)
+                                main.post { ui.setActive(false); ui.setAppliedState(false, false); ui.setStatus("КРИТИЧЕСКИЙ ПЕРЕГРЕВ — всё откачено"); busy = false; alive(false) }
+                            }
+                        } else if (active && bat <= 10) {
                             busy = true
                             bg {
-                                info.deactivateMaxPerformance()
-                                main.post { prefs.setActive(false); ui.setActive(false); ui.setAppliedState(false, false); ui.setStatus("Автоотключение: батарея ≤ 10%"); busy = false; alive(false) }
+                                info.revertAll(prefs.getLastPackage(), prefs)
+                                main.post { ui.setActive(false); ui.setAppliedState(false, false); ui.setStatus("Автоотключение: батарея ≤ 10% — всё откачено"); busy = false; alive(false) }
                             }
                         }
                     } catch (e: Throwable) { Log.e("TurboBoost", "ui", e) }
@@ -778,7 +885,11 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         destroyed = true
         main.removeCallbacksAndMessages(null)
-        ShizukuHelper.destroy()
+        ShizukuHelper.onServiceReady = null
+        ShizukuHelper.onPermissionResult = null
+        ShizukuHelper.onBindTimeout = null
+        // фоновым службам (авто-сессия, оверлей, плитка) нужен Shizuku: не отключаем его, пока они работают
+        if (!prefs.isActive() && !prefs.isAutoSession() && !prefs.isGameOverlay()) ShizukuHelper.destroy()
         ex.shutdown()
         super.onDestroy()
     }

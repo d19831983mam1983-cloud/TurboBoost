@@ -22,6 +22,7 @@ object ShizukuHelper {
     @Volatile var onPermissionResult: ((Boolean) -> Unit)? = null
     @Volatile var onServiceReady: ((Boolean) -> Unit)? = null
     @Volatile var onBindTimeout: (() -> Unit)? = null
+    @Volatile var onBinderReceived: (() -> Unit)? = null
 
     @Volatile private var bound = false
     private var appContext: Context? = null
@@ -42,10 +43,25 @@ object ShizukuHelper {
             }
         }
 
-    private val binderReceivedListener = Shizuku.OnBinderReceivedListener { }
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        try { onBinderReceived?.invoke() } catch (_: Throwable) {}
+    }
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
         SystemReader.service = null
         bound = false
+        scheduleRebind()
+    }
+
+    private val rebindRunnable = Runnable {
+        if (!bound && !SystemReader.rootMode && hasPermission()) {
+            try { bindService() } catch (_: Throwable) {}
+        }
+    }
+
+    /** Автопереподключение UserService через 2 с после обрыва Shizuku. */
+    private fun scheduleRebind() {
+        try { handler.removeCallbacks(rebindRunnable) } catch (_: Throwable) {}
+        handler.postDelayed(rebindRunnable, 2000L)
     }
 
     private val connection = object : ServiceConnection {

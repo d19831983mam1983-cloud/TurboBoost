@@ -158,7 +158,7 @@ class SenseFinderScreen(private val ctx: Context) {
         overlay.addView(titleTv, titleLp)
 
         degTv = TextView(ctx)
-        degTv.setTextColor(Color.parseColor("#5B8DEF"))
+        degTv.setTextColor(Color.parseColor("#F2580A"))
         degTv.textSize = 24f
         degTv.gravity = Gravity.CENTER
         degTv.typeface = Typeface.DEFAULT_BOLD
