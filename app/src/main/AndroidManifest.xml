@@ -8,7 +8,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
-    
+
+    <!-- 2.0: авто-сессия (обнаружение запущенной игры) -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- 2.0: оверлей-монитор -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <application
@@ -38,6 +43,42 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="optimization_mode" />
         </service>
+
+        <!-- 2.0: тайл быстрых настроек (шторка) -->
+        <service
+            android:name=".TurboTileService"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <!-- 2.0: плавающий монитор поверх игр -->
+        <service
+            android:name=".MonitorOverlayService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- 2.0: игровой оверлей (водяной знак + прицел + снег) -->
+        <service
+            android:name=".GameOverlayService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- 2.0: экспорт бэкапа через share-диалог -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <meta-data
             android:name="moe.shizuku.client.V3_SUPPORT"
