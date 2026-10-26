@@ -10,8 +10,8 @@ android {
         applicationId = "com.example.turboboost"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.9"
+        versionCode = 21
+        versionName = "2.1"
     }
     signingConfigs {
         create("release") {

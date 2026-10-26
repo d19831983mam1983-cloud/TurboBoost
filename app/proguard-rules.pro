@@ -25,3 +25,4 @@
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+-keep class com.example.turboboost.SenseFinderScreen { *; }
