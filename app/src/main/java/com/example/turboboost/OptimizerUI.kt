@@ -169,9 +169,10 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     fun build(): FrameLayout {
-        root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
-        bgView = LiquidBackgroundView(ctx)
-        root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+    root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
+    bgView = LiquidBackgroundView(ctx)
+    bgView.setTheme(themeIndex, isActive)
+    root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         val content = FrameLayout(ctx)
         root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
