@@ -386,9 +386,9 @@ class MainActivity : AppCompatActivity() {
             val r = info.applyCustomSense(
                 prefs.getPointerSpeed(),
                 prefs.getSenseTouchRate(),
-                prefs.isSenseSmooth(),
-                prefs.isSenseNoInertia(),
-                prefs.isSenseRawInput()
+                prefs.isTouchPredictionOff(),
+                prefs.isTouchBlockingZero(),
+                prefs.isMotionAggregationOff()
             )
             prefs.setSenseLevel(-1)
             Toast.makeText(this, r, Toast.LENGTH_SHORT).show()
@@ -399,9 +399,9 @@ class MainActivity : AppCompatActivity() {
             val r = info.resetCustomSense()
             prefs.setPointerSpeed(0)
             prefs.setSenseTouchRate(0)
-            prefs.setSenseSmooth(false)
-            prefs.setSenseNoInertia(false)
-            prefs.setSenseRawInput(false)
+            prefs.setTouchPredictionOff(false)
+            prefs.setTouchBlockingZero(false)
+            prefs.setMotionAggregationOff(false)
             Toast.makeText(this, r, Toast.LENGTH_SHORT).show()
         }
         setContentView(screen.build())
@@ -793,9 +793,9 @@ private fun games(g: List<Pair<String, String>>) {
                         info.applyCustomSense(
                             prefs.getPointerSpeed(),
                             prefs.getSenseTouchRate(),
-                            prefs.isSenseSmooth(),
-                            prefs.isSenseNoInertia(),
-                            prefs.isSenseRawInput()
+                            prefs.isTouchPredictionOff(),
+                            prefs.isTouchBlockingZero(),
+                            prefs.isMotionAggregationOff()
                         )
                     } else if (senseLv >= 0) info.applySense(senseLv)
                     info.restrictPowerKeeper()
