@@ -81,6 +81,10 @@ class OptimizerUI(private val ctx: Context) {
     private fun theme(): ThemePalette.Theme = ThemePalette.get(themeIndex)
     private fun isGrid(): Boolean = theme().isGrid
 
+    fun setThemeIndexBeforeBuild(i: Int) {
+        themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
+    }
+
     private fun gridButton(active: Boolean): Drawable {
         val t = theme()
         val fill = if (active)
@@ -286,77 +290,77 @@ class OptimizerUI(private val ctx: Context) {
         btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
         r1.addView(btnProfiles, lpf())
         btnLauncher = glass("Лаунчер") { onShowLauncher?.invoke() }
-        r1.addView(btnLauncher, lpl())
+        r1.addView(btnLauncher, lpl())    val sMode = section("РЕЖИМ")
+    val mr = row(sMode, 4)
+    btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
+    mr.addView(btnModePerf, lpf())
+    btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
+    mr.addView(btnModeBal, lpl())
+    sMode.addView(lbl("Частота экрана, Гц"))
+    hzRow = row(sMode, 2)
+    listOf(60, 90, 120, 144).forEach { hz ->
+        hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, lpf())
+    }
+    applyHzLimit()
+    btnGpuBoost = toggleRow(sMode, "GPU Boost") { onGpuBoostToggle?.invoke() }
+    btnBgLimit = toggleRow(sMode, "Лимит фона") { onBgLimitToggle?.invoke() }
 
-        val sMode = section("РЕЖИМ")
-        val mr = row(sMode, 4)
-        btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }
-        mr.addView(btnModePerf, lpf())
-        btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
-        mr.addView(btnModeBal, lpl())
-        sMode.addView(lbl("Частота экрана, Гц"))
-        hzRow = row(sMode, 2)
-        listOf(60, 90, 120, 144).forEach { hz ->
-            hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, lpf())
-        }
-        applyHzLimit()
-        btnGpuBoost = toggleRow(sMode, "GPU Boost") { onGpuBoostToggle?.invoke() }
-        btnBgLimit = toggleRow(sMode, "Лимит фона") { onBgLimitToggle?.invoke() }
+    val sSense = section("СЕНСА")
+    senseRow = row(sSense, 4)
+    senseNames.forEachIndexed { i, n ->
+        val lvl = senseLevels[i]
+        senseRow.addView(glass(n) {
+            if (lvl == -1) {
+                currentSense = -1
+                isCustomSense = true
+                onSenseCustom?.invoke()
+            } else {
+                currentSense = lvl
+                isCustomSense = false
+                onSenseSelected?.invoke(lvl)
+            }
+            updSense()
+        }, lpf())
+    }
+    val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
+    sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
-        val sSense = section("СЕНСА")
-        senseRow = row(sSense, 4)
-        senseNames.forEachIndexed { i, n ->
-            val lvl = senseLevels[i]
-            senseRow.addView(glass(n) {
-                if (lvl == -1) {
-                    currentSense = -1
-                    isCustomSense = true
-                    onSenseCustom?.invoke()
-                } else {
-                    currentSense = lvl
-                    isCustomSense = false
-                    onSenseSelected?.invoke(lvl)
-                }
-                updSense()
-            }, lpf())
-        }
-        val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
-        sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
+    val sGfx = section("ГРАФИКА И ЭКРАН")
+    sGfx.addView(lbl("Разрешение рендера (FPS)"))
+    downscaleRow = row(sGfx, 2)
+    listOf("Выкл", "90%", "80%", "70%").forEachIndexed { i, n ->
+        downscaleRow.addView(glass(n) { currentDownscale = i; onDownscaleSelected?.invoke(i); updDownscale() }, lpf())
+    }
+    sGfx.addView(lbl("Пресет графики"))
+    gfxRow = row(sGfx, 2)
+    listOf("Выкл", "Классика", "Картошка").forEachIndexed { i, n ->
+        gfxRow.addView(glass(n) { currentGfx = i; onGfxSelected?.invoke(i); updGfx() }, lpf())
+    }
+    sGfx.addView(lbl("Растяжка экрана"))
+    stretchRow = row(sGfx, 2)
+    listOf("Выкл", "5:4", "4:3").forEachIndexed { i, n ->
+        stretchRow.addView(glass(n) { currentStretch = i; onStretchSelected?.invoke(i); updStretch() }, lpf())
+    }
 
-        val sGfx = section("ГРАФИКА И ЭКРАН")
-        sGfx.addView(lbl("Разрешение рендера (FPS)"))
-        downscaleRow = row(sGfx, 2)
-        listOf("Выкл", "90%", "80%", "70%").forEachIndexed { i, n ->
-            downscaleRow.addView(glass(n) { currentDownscale = i; onDownscaleSelected?.invoke(i); updDownscale() }, lpf())
-        }
-        sGfx.addView(lbl("Пресет графики"))
-        gfxRow = row(sGfx, 2)
-        listOf("Выкл", "Классика", "Картошка").forEachIndexed { i, n ->
-            gfxRow.addView(glass(n) { currentGfx = i; onGfxSelected?.invoke(i); updGfx() }, lpf())
-        }
-        sGfx.addView(lbl("Растяжка экрана"))
-        stretchRow = row(sGfx, 2)
-        listOf("Выкл", "5:4", "4:3").forEachIndexed { i, n ->
-            stretchRow.addView(glass(n) { currentStretch = i; onStretchSelected?.invoke(i); updStretch() }, lpf())
-        }
+    val sSys = section("СИСТЕМА")
+    btnThreads = toggleRow(sSys, "Потоки CPU") { onThreadsToggle?.invoke() }
+    btnMglru = toggleRow(sSys, "MGLRU") { onMglruToggle?.invoke() }
+    btnJoyose = toggleRow(sSys, "Xiaomi Boost") { onJoyoseToggle?.invoke() }
+    btnJoyose.visibility = View.GONE
+    val r4 = row(sSys, 8)
+    val pingBtn = glass("Пинг-тест") { onPingTest?.invoke() }
+    r4.addView(pingBtn, lpf())
+    btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }
+    r4.addView(btnGameSpace, lpf())
+    btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
+    r4.addView(btnDiagnostics, lpl())
+    val btnProfile = glass("Мой аккаунт") { onShowProfile?.invoke() }
+    sSys.addView(btnProfile, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
-        val sSys = section("СИСТЕМА")
-        btnThreads = toggleRow(sSys, "Потоки CPU") { onThreadsToggle?.invoke() }
-        btnMglru = toggleRow(sSys, "MGLRU") { onMglruToggle?.invoke() }
-        btnJoyose = toggleRow(sSys, "Xiaomi Boost") { onJoyoseToggle?.invoke() }
-        btnJoyose.visibility = View.GONE
-        val r4 = row(sSys, 8)
-        val pingBtn = glass("Пинг-тест") { onPingTest?.invoke() }
-        r4.addView(pingBtn, lpf())
-        btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }
-        r4.addView(btnGameSpace, lpf())
-        btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
-        r4.addView(btnDiagnostics, lpl())
-        val btnProfile = glass("Мой аккаунт") { onShowProfile?.invoke() }
-        sSys.addView(btnProfile, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
+    page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
+}
 
-        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
-    }private fun animateIn() {
+private fun animateIn() {
     for (i in 0 until page1.childCount) {
         val v = page1.getChildAt(i); v.alpha = 0f; v.translationY = dp(40).toFloat(); v.scaleX = 0.9f; v.scaleY = 0.9f
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setStartDelay((i * 20).toLong()).setDuration(500).setInterpolator(AnticipateOvershootInterpolator(1.2f)).start()
