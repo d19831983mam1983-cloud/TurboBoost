@@ -589,69 +589,6 @@ class DeviceInfo(private val ctx: Context) {
         return "Удержание: $ms мс"
     }
 
-    fun applyTouchSensitivity(enable: Boolean): String {
-        return if (enable) {
-            SystemReader.read("settings put secure touch_sensitivity_enhancement 1; settings put secure touch_sensitivity 1")
-            "Сенсор: усилен (Xiaomi)"
-        } else {
-            SystemReader.read("settings delete secure touch_sensitivity_enhancement; settings delete secure touch_sensitivity")
-            "Сенсор: стандарт"
-        }
-    }
-
-    fun applyAntiMistouch(enable: Boolean): String {
-        return if (enable) {
-            SystemReader.read("settings put secure anti_mistouch 1; settings put secure edge_touch_mode 0")
-            "Защита от нажатий: включена"
-        } else {
-            SystemReader.read("settings delete secure anti_mistouch; settings delete secure edge_touch_mode")
-            "Защита от нажатий: выкл"
-        }
-    }
-
-    fun applyGameTurboPreset(preset: Int): String {
-        val sb = StringBuilder()
-        when (preset) {
-            0 -> sb.append("settings put global game_turbo_mode standard; ")
-            1 -> sb.append("settings put global game_turbo_mode performance; ")
-            2 -> sb.append("settings put global game_turbo_mode performance; settings put global game_turbo_pro_mode 1; ")
-            3 -> sb.append("settings put global game_turbo_mode battery; ")
-        }
-        SystemReader.read(sb.toString())
-        val name = arrayOf("Стандарт", "Производительность", "Максимум", "Батарея")[preset.coerceIn(0, 3)]
-        return "Game Turbo: $name"
-    }
-
-    fun applyGtWifiOpt(enable: Boolean): String {
-        return if (enable) {
-            SystemReader.read("settings put global game_turbo_wifi_opt 1")
-            "Game Turbo: Wi-Fi оптимизация вкл"
-        } else {
-            SystemReader.read("settings delete global game_turbo_wifi_opt")
-            "Game Turbo: Wi-Fi оптимизация выкл"
-        }
-    }
-
-    fun applyGtTouchBoost(enable: Boolean): String {
-        return if (enable) {
-            SystemReader.read("settings put secure touch_sensitivity_enhancement 1; settings put global game_turbo_touch_boost 1")
-            "Game Turbo: усиление сенсора вкл"
-        } else {
-            SystemReader.read("settings delete secure touch_sensitivity_enhancement; settings delete global game_turbo_touch_boost")
-            "Game Turbo: усиление сенсора выкл"
-        }
-    }
-
-    fun applyGtBrightnessLock(enable: Boolean): String {
-        return if (enable) {
-            SystemReader.read("settings put system screen_brightness_mode 0; settings put global game_turbo_brightness_lock 1")
-            "Game Turbo: яркость зафиксирована"
-        } else {
-            SystemReader.read("settings delete global game_turbo_brightness_lock")
-            "Game Turbo: авто-яркость возвращена"
-        }
-    }
-
     fun applyGtGpuTuner(enable: Boolean): String {
         return if (enable) {
             SystemReader.read("settings put global GPUTUNER_SWITCH true")
@@ -663,8 +600,8 @@ class DeviceInfo(private val ctx: Context) {
     }
 
     fun resetGameTurbo(): String {
-        SystemReader.read("settings delete global game_turbo_mode; settings delete global game_turbo_pro_mode; settings delete global game_turbo_wifi_opt; settings delete global game_turbo_touch_boost; settings delete global game_turbo_brightness_lock; settings delete global GPUTUNER_SWITCH")
-        return "Game Turbo: настройки сброшены"
+        SystemReader.read("settings delete global GPUTUNER_SWITCH")
+        return "Game Turbo: GPU Tuner сброшен"
     }
 
     fun applySurfaceFlingerBoost(enable: Boolean): String {
@@ -699,8 +636,6 @@ class DeviceInfo(private val ctx: Context) {
         resetCustomSense()
         resetAnimationScale()
         applyLongPress(400)
-        applyTouchSensitivity(false)
-        applyAntiMistouch(false)
         resetGameTurbo()
         if (pkg.isNotBlank()) {
             resetGameFps(pkg)
