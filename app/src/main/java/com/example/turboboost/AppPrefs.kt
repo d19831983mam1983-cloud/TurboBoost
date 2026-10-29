@@ -188,6 +188,26 @@ class AppPrefs(ctx: Context) {
     fun isMotionAggregationOff(): Boolean = prefs.getBoolean("motion_aggregation_off", false)
     fun setMotionAggregationOff(v: Boolean) = prefs.edit().putBoolean("motion_aggregation_off", v).apply()
 
+    fun getAnimScale(): Int = prefs.getInt("sense_anim_scale", 100).coerceIn(50, 100)
+    fun setAnimScale(v: Int) = prefs.edit().putInt("sense_anim_scale", v.coerceIn(50, 100)).apply()
+    fun getLongPressTimeout(): Int = prefs.getInt("sense_long_press", 400).coerceIn(200, 700)
+    fun setLongPressTimeout(v: Int) = prefs.edit().putInt("sense_long_press", v.coerceIn(200, 700)).apply()
+    fun isTouchSensitivityEnhance(): Boolean = prefs.getBoolean("touch_sensitivity_enhance", false)
+    fun setTouchSensitivityEnhance(v: Boolean) = prefs.edit().putBoolean("touch_sensitivity_enhance", v).apply()
+    fun isAntiMistouch(): Boolean = prefs.getBoolean("anti_mistouch", false)
+    fun setAntiMistouch(v: Boolean) = prefs.edit().putBoolean("anti_mistouch", v).apply()
+
+    fun getGameTurboPreset(): Int = prefs.getInt("gt_preset", 0).coerceIn(0, 3)
+    fun setGameTurboPreset(v: Int) = prefs.edit().putInt("gt_preset", v.coerceIn(0, 3)).apply()
+    fun isGtWifiOpt(): Boolean = prefs.getBoolean("gt_wifi_opt", false)
+    fun setGtWifiOpt(v: Boolean) = prefs.edit().putBoolean("gt_wifi_opt", v).apply()
+    fun isGtTouchBoost(): Boolean = prefs.getBoolean("gt_touch_boost", false)
+    fun setGtTouchBoost(v: Boolean) = prefs.edit().putBoolean("gt_touch_boost", v).apply()
+    fun isGtBrightnessLock(): Boolean = prefs.getBoolean("gt_brightness_lock", false)
+    fun setGtBrightnessLock(v: Boolean) = prefs.edit().putBoolean("gt_brightness_lock", v).apply()
+    fun isGtGpuTuner(): Boolean = prefs.getBoolean("gt_gpu_tuner", false)
+    fun setGtGpuTuner(v: Boolean) = prefs.edit().putBoolean("gt_gpu_tuner", v).apply()
+
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
         if (raw.isBlank()) return emptyList()
