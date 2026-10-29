@@ -17,14 +17,6 @@ class ToggleRow(context: Context, title: String) : LinearLayout(context) {
         get() = switch.onColor
         set(v) { switch.onColor = v }
 
-    var doubleBorder: Boolean
-        get() = switch.doubleBorder
-        set(v) { switch.doubleBorder = v }
-
-    var borderColor: Int
-        get() = switch.borderColor
-        set(v) { switch.borderColor = v }
-
     private val titleView: TextView
     private val bgDrawable: GradientDrawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
@@ -68,8 +60,7 @@ class ToggleRow(context: Context, title: String) : LinearLayout(context) {
     fun setOnInstant(value: Boolean) { switch.setOn(value, false) }
 
     fun applyGridStyle(active: Boolean, border: Int) {
-        doubleBorder = true
-        borderColor = border
+        switch.doubleBorder = false
         bgDrawable.colors = if (active)
             intArrayOf(0xFF4A4A4A.toInt(), 0xFF3A3A3A.toInt())
         else
@@ -81,7 +72,7 @@ class ToggleRow(context: Context, title: String) : LinearLayout(context) {
     }
 
     fun clearGridStyle() {
-        doubleBorder = false
+        switch.doubleBorder = false
         bgDrawable.colors = intArrayOf(0x1AFFFFFF, 0x10FFFFFF)
         bgDrawable.orientation = GradientDrawable.Orientation.TL_BR
         bgDrawable.setStroke(dp(1), 0x22FFFFFF)
