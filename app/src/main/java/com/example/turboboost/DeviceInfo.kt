@@ -71,7 +71,6 @@ class DeviceInfo(private val ctx: Context) {
         return 1
     }
 
-    /** Refresh rates the panel really supports (many devices are 60/90/120 Hz only, so 144 must be hidden there). */
     @Suppress("DEPRECATION")
     fun supportedHz(): List<Int> {
         val rates = ArrayList<Int>()
@@ -224,15 +223,15 @@ class DeviceInfo(private val ctx: Context) {
         val sb = StringBuilder()
         if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
             if (enable) {
+                sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
                 sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
                 sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
-                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
                 sb.append("echo 10000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
                 sb.append("echo performance > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
                 SystemReader.read(sb.toString())
                 return "GPU: boost"
             } else {
-                sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
+                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
                 sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
                 sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
                 sb.append("echo 64 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
@@ -255,7 +254,9 @@ class DeviceInfo(private val ctx: Context) {
             }
         }
         return "GPU: не поддерживается"
-    }    fun activateMaxPerformance(hzRaw: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
+    }
+
+    fun activateMaxPerformance(hzRaw: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
         val hz = clampHz(hzRaw)
         val bgLimit = if (mode == 0) "96" else "64"; val phantom = if (mode == 0) "512" else "128"; val sb = StringBuilder()
         sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
@@ -279,10 +280,7 @@ class DeviceInfo(private val ctx: Context) {
 
     fun applyMemoryTweaks(enable: Boolean): String {
         return if (enable) {
-            val mode = 0
-            val bgLimit = if (mode == 0) "96" else "64"
-            val phantom = if (mode == 0) "512" else "128"
-            SystemReader.read("settings put global activity_manager_constants max_cached_processes=$bgLimit; device_config put activity_manager max_phantom_processes $phantom")
+            SystemReader.read("settings put global activity_manager_constants max_cached_processes=96; device_config put activity_manager max_phantom_processes 512")
             "RAM: настроена"
         } else {
             SystemReader.read("settings delete global activity_manager_constants; device_config delete activity_manager max_phantom_processes")
@@ -293,7 +291,6 @@ class DeviceInfo(private val ctx: Context) {
     private fun firstPid(pkg: String): Int? =
         SystemReader.read("pidof $pkg").trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull()
 
-    /** Пакет приложения на экране (через Shizuku/root), пусто если не удалось определить. */
     fun foregroundPackage(): String {
         val out = SystemReader.read("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
         if (out.isBlank()) return ""
@@ -361,9 +358,7 @@ class DeviceInfo(private val ctx: Context) {
         val surface = SystemReader.read("pidof surfaceflinger"); if (surface.isNotBlank()) SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
         val sys = SystemReader.read("pidof system_server"); if (sys.isNotBlank()) SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
         return "Приоритеты: сброшены"
-    }
-
-    fun restrictPowerKeeper(): String {
+    }    fun restrictPowerKeeper(): String {
         val pkg = "com.miui.powerkeeper"; if (!SystemReader.read("pm list packages $pkg").contains(pkg)) return "PowerKeeper не найден"
         SystemReader.read("appops set $pkg WRITE_SETTINGS deny; appops set $pkg GET_USAGE_STATS deny; appops set $pkg RUN_IN_BACKGROUND deny"); return "PowerKeeper: ограничен"
     }
@@ -387,7 +382,6 @@ class DeviceInfo(private val ctx: Context) {
 
     private fun pingPrefs() = ctx.getSharedPreferences("turbo_ping", Context.MODE_PRIVATE)
 
-    /** Ставит настройку и запоминает прежнее значение, чтобы потом вернуть как было. */
     private fun saveAndSet(ns: String, key: String, value: String) {
         val p = pingPrefs()
         val pk = "prev|$ns|$key"
@@ -398,11 +392,6 @@ class DeviceInfo(private val ctx: Context) {
         SystemReader.read("settings put $ns $key $value")
     }
 
-    /**
-     * Максимальная оптимизация пинга (всё без root, всё обратимо):
-     * режим низкой задержки Wi-Fi, отключение фонового сканирования сетей,
-     * экономия фонового трафика (Data Saver) и отключение авто-переключения Wi-Fi/моб. сеть.
-     */
     fun optimizePing(): String {
         SystemReader.read("cmd wifi force-low-latency-mode enabled 2>/dev/null; cmd wifi force-hi-perf-mode enabled 2>/dev/null")
         saveAndSet("global", "wifi_scan_always_enabled", "0")
@@ -442,7 +431,6 @@ class DeviceInfo(private val ctx: Context) {
         return "Пинг: настройки возвращены"
     }
 
-    /** Время TCP-соединения до Cloudflare и Google (примерно равно RTT). Вызывать не из главного потока. */
     fun pingTest(): String {
         val hosts = listOf("1.1.1.1", "8.8.8.8")
         val times = ArrayList<Long>()
@@ -467,11 +455,6 @@ class DeviceInfo(private val ctx: Context) {
 
     private fun even(v: Int): Int = if (v % 2 == 0) v else v - 1
 
-    /**
-     * Реально меняет разрешение экрана через wm size / wm density (работает на всех версиях Android).
-     * gfxScalePct: 100 = без изменений, 80 = «Классика», 50 = «Картошка».
-     * stretch: 0 = выкл, 1 = 5:4, 2 = 4:3 (в альбомной ориентации, высота остаётся как у выбранного разрешения).
-     */
     fun applyDisplay(gfxScalePct: Int, stretch: Int): String {
         if (gfxScalePct >= 100 && stretch == 0) return resetDisplay()
         val sizeOut = SystemReader.read("wm size")
@@ -530,13 +513,6 @@ class DeviceInfo(private val ctx: Context) {
 
     fun resetGameFps(pkg: String): String { if (pkg.isBlank()) return "Пакет не указан"; SystemReader.read("cmd game mode standard $pkg; device_config delete game_overlay $pkg"); return "standard" }
 
-    /**
-     * Уровни сенсы: 0 Средний, 1 Сильный, 2 Эксп., 3 Макс.
-     * Остались только настройки, которые Android реально читает (раньше часть была «пустышками»:
-     * touch_slop и touch.pressure.scale система не использует, а pointer_speed допускает -7..7).
-     * «Макс» дополнительно убирает всё, что тормозит или сглаживает ввод: энергосбережение,
-     * оверлеи касаний, фиксирует режим производительности.
-     */
     fun applySense(level: Int): String {
         val lv = level.coerceIn(0, 3)
         val tier = tier()
@@ -556,7 +532,6 @@ class DeviceInfo(private val ctx: Context) {
         sb.append("settings put system pointer_speed $pointer; ")
         sb.append("settings put system touch_sampling_rate $touchRate; ")
         if (lv == 3) {
-            // максимум: никакого энергосбережения и сглаживания, чтобы флики и ваншоты были резкими
             sb.append("settings put global low_power 0; ")
             sb.append("settings put global automatic_power_save_mode 0; ")
             sb.append("settings put system show_touches 0; settings put system pointer_location 0; ")
@@ -573,6 +548,43 @@ class DeviceInfo(private val ctx: Context) {
     fun resetSense(): String {
         SystemReader.read("settings delete secure long_press_timeout; settings delete secure multi_press_timeout; settings delete system pointer_speed; settings delete system touch_sampling_rate; cmd power set-fixed-performance-mode-enabled false 2>/dev/null")
         return "Сенса: сброшена"
+    }
+
+    fun applyCustomSense(pointerSpeed: Int, touchRate: Int, smooth: Boolean, noInertia: Boolean, rawInput: Boolean): String {
+        val ps = pointerSpeed.coerceIn(-5, 5)
+        val sb = StringBuilder()
+        sb.append("settings put system pointer_speed $ps; ")
+        if (touchRate > 0) sb.append("settings put system touch_sampling_rate $touchRate; ")
+        else sb.append("settings delete system touch_sampling_rate; ")
+        if (smooth) {
+            sb.append("setprop debug.input.pointer_acceleration 0; ")
+            sb.append("setprop persist.sys.input.pointer_acceleration 0; ")
+        } else {
+            sb.append("setprop debug.input.pointer_acceleration 1; ")
+        }
+        if (noInertia) {
+            sb.append("setprop debug.input.touch_filter 0; ")
+            sb.append("settings put secure touch_filter 0; ")
+        } else {
+            sb.append("setprop debug.input.touch_filter 1; ")
+            sb.append("settings delete secure touch_filter; ")
+        }
+        if (rawInput) {
+            sb.append("setprop debug.input.raw_input 1; ")
+            sb.append("settings put secure raw_input 1; ")
+        } else {
+            sb.append("setprop debug.input.raw_input 0; ")
+            sb.append("settings delete secure raw_input; ")
+        }
+        SystemReader.read(sb.toString())
+        return "Сенса: кастом (PS $ps" + (if (touchRate > 0) ", $touchRate Гц" else "") +
+            (if (smooth) ", ровная" else "") + (if (noInertia) ", без инерции" else "") +
+            (if (rawInput) ", raw" else "") + ")"
+    }
+
+    fun resetCustomSense(): String {
+        SystemReader.read("settings put system pointer_speed 0; settings delete system touch_sampling_rate; setprop debug.input.pointer_acceleration 1; setprop debug.input.touch_filter 1; setprop debug.input.raw_input 0; settings delete secure touch_filter; settings delete secure raw_input")
+        return "Сенса: кастом сброшена"
     }
 
     fun applySurfaceFlingerBoost(enable: Boolean): String {
@@ -602,11 +614,6 @@ class DeviceInfo(private val ctx: Context) {
         try { val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS); intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(intent) } catch (e: Exception) {}
     }
 
-    /**
-     * Полный обратимый откат ВСЕГО, что приложение могло включить.
-     * Единая точка выхода: выключение тумблером, автоотключение по батарее/перегреву,
-     * смахивание приложения, тайл шторки, авто-сессия. Безопасно вызывать повторно.
-     */
     fun revertAll(pkg: String, prefs: AppPrefs): String {
         deactivateMaxPerformance()
         if (pkg.isNotBlank()) {
