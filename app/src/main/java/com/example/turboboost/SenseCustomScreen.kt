@@ -1,12 +1,10 @@
 package com.example.turboboost
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -19,7 +17,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import kotlin.random.Random
 
 class SenseCustomScreen(
     private val ctx: Context,
@@ -86,6 +83,7 @@ class SenseCustomScreen(
         root = FrameLayout(ctx)
         root.setBackgroundColor(if (isGrid) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A"))
         bg = BgView(ctx)
+        bg.setTheme(prefs.getThemeIndex())
         root.addView(bg, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
         val content = LinearLayout(ctx).apply {
@@ -100,21 +98,52 @@ class SenseCustomScreen(
         }
         root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-        content.addView(section("ЧУВСТВИТЕЛЬНОСТЬ"))
+        val sensSection = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        sensSection.addView(sectionHeader("ЧУВСТВИТЕЛЬНОСТЬ"))
+        sensSection.addView(stepperRow("Pointer Speed", { prefs.getPointerSpeed().toString() }, { d -> prefs.setPointerSpeed(prefs.getPointerSpeed() + d) }),
+            LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+        sensSection.addView(rateBlock(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        content.addView(sensSection, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
-        content.addView(stepperRow(
-            "Pointer Speed",
-            { prefs.getPointerSpeed().toString() },
-            { d -> prefs.setPointerSpeed(prefs.getPointerSpeed() + d) }
-        ))
+        val smoothSection = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        smoothSection.addView(sectionHeader("СГЛАЖИВАНИЕ"))
+        val row1 = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        row1.addView(compactToggle(
+            "Без предикта",
+            "Отключает предсказание движения",
+            prefs.isTouchPredictionOff()
+        ) { prefs.setTouchPredictionOff(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
+        row1.addView(compactToggle(
+            "Мгновенный тач",
+            "Убирает минимальную задержку",
+            prefs.isTouchBlockingZero()
+        ) { prefs.setTouchBlockingZero(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        smoothSection.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
 
-        content.addView(rateRow())
-
-        content.addView(section("СГЛАЖИВАНИЕ"))
-
-        content.addView(toggleRow("Ровная сенса", "Отключает ускорение указателя — движение строго 1:1", prefs.isSenseSmooth()) { prefs.setSenseSmooth(it) })
-        content.addView(toggleRow("Убрать инерцию", "Отключает фильтр сглаживания — палец идёт без задержки", prefs.isSenseNoInertia()) { prefs.setSenseNoInertia(it) })
-        content.addView(toggleRow("Raw input", "Сырой ввод с сенсора без обработки", prefs.isSenseRawInput()) { prefs.setSenseRawInput(it) })
+        val row2 = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        row2.addView(compactToggle(
+            "Без агрегации",
+            "Меньше группировки событий",
+            prefs.isMotionAggregationOff()
+        ) { prefs.setMotionAggregationOff(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
+        row2.addView(View(ctx), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        smoothSection.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        content.addView(smoothSection, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
 
         val apply = TextView(ctx).apply {
             text = "ПРИМЕНИТЬ"
@@ -141,12 +170,20 @@ class SenseCustomScreen(
                 onReset?.invoke()
             }
         }
-        content.addView(reset, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(8) })
+        content.addView(reset, LinearLayout.LayoutParams(MATCH_PARENT, dp(48)).apply { topMargin = dp(10) })
 
         content.addView(hint(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(16) })
 
         root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
         return root
+    }
+
+    private fun sectionHeader(text: String): TextView = TextView(ctx).apply {
+        this.text = text
+        setTextColor(Color.parseColor("#99FFFFFF"))
+        textSize = 11f
+        letterSpacing = 0.18f
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
     }
 
     private fun buildTopBar(): FrameLayout {
@@ -176,32 +213,12 @@ class SenseCustomScreen(
         return bar
     }
 
-    private fun section(title: String): LinearLayout {
-        val box = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(14))
-            background = sectionBg()
-        }
-        box.addView(TextView(ctx).apply {
-            text = title
-            setTextColor(Color.parseColor("#99FFFFFF"))
-            textSize = 11f
-            letterSpacing = 0.18f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dp(2), 0, 0, dp(6))
-        })
-        // этот блок идёт как контейнер, не добавляем в content сразу
-        val wrapper = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        wrapper.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        return wrapper
-    }
-
     private fun stepperRow(title: String, value: () -> String, onDelta: (Int) -> Unit): LinearLayout {
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(8), dp(14), dp(8))
-            background = sectionBg()
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = unselDrawable()
         }
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         col.addView(TextView(ctx).apply {
@@ -215,15 +232,15 @@ class SenseCustomScreen(
         col.addView(v)
         row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         row.addView(btnCircle("−") { onDelta(-1); v.text = value() })
-        row.addView(btnCircle("+") { onDelta(1); v.text = value() })
+        row.addView(btnCircle("+") { onDelta(1); v.text = value() }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = dp(8) })
         return row
     }
 
-    private fun rateRow(): LinearLayout {
+    private fun rateBlock(): LinearLayout {
         val wrapper = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(12))
-            background = sectionBg()
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = unselDrawable()
         }
         wrapper.addView(TextView(ctx).apply {
             text = "Частота опроса сенсора (Гц)"
@@ -233,7 +250,7 @@ class SenseCustomScreen(
         val rates = listOf(0, 60, 120, 180, 240, 500, 1000)
         val row1 = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
+            setPadding(0, dp(10), 0, 0)
         }
         val buttons = mutableListOf<TextView>()
         rates.forEach { r ->
@@ -259,19 +276,45 @@ class SenseCustomScreen(
             text = "1000 Гц поддерживают не все экраны — если сенса пропадёт, верни 240 или 120"
             setTextColor(Color.parseColor("#88FFFFFF"))
             textSize = 10f
-            setPadding(0, dp(6), 0, 0)
+            setPadding(0, dp(8), 0, 0)
         })
         return wrapper
     }
 
-    private fun toggleRow(title: String, subtitle: String, initial: Boolean, onChange: (Boolean) -> Unit): ToggleRow {
-        val row = ToggleRow(ctx, title).apply {
-            onColor = t.primary
-            this.onToggle = { v -> onChange(v) }
-            if (isGrid) applyGridStyle(initial, t.primary) else clearGridStyle()
+    private fun compactToggle(title: String, subtitle: String, initial: Boolean, onChange: (Boolean) -> Unit): LinearLayout {
+        val cell = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = unselDrawable()
         }
-        row.setOnInstant(initial)
-        return row
+        val titleTv = TextView(ctx).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        val subTv = TextView(ctx).apply {
+            text = subtitle
+            setTextColor(Color.parseColor("#88FFFFFF"))
+            textSize = 10f
+            setPadding(0, dp(2), 0, dp(10))
+            setLineSpacing(dp(1).toFloat(), 1f)
+        }
+        val sw = ToggleSwitch(ctx).apply {
+            onColor = t.primary
+            doubleBorder = false
+            setOn(initial, false)
+        }
+        sw.onToggle = { v -> onChange(v) }
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+        }
+        row.addView(sw, LinearLayout.LayoutParams(dp(52), dp(32)))
+        cell.addView(titleTv)
+        cell.addView(subTv)
+        cell.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        return cell
     }
 
     private fun btnCircle(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
@@ -286,10 +329,10 @@ class SenseCustomScreen(
     }
 
     private fun hint(): TextView = TextView(ctx).apply {
-        text = "«Ровная сенса» отключает ускорение курсора — палец идёт 1:1 без ускорения.\n" +
-            "«Убрать инерцию» отключает фильтр сглаживания — резкие флики не «догоняют» цель.\n" +
-            "Raw input — сырой ввод с сенсора. На некоторых прошивках требует root.\n" +
-            "Настройки применяются к текущей сессии и сохраняются."
+        text = "«Без предикта» отключает предсказание движения — палец идёт 1:1 без сглаживания. Работает на Android 13+.\n\n" +
+            "«Мгновенный тач» убирает минимальную задержку между касаниями — резкие тапы срабатывают быстрее.\n\n" +
+            "«Без агрегации» уменьшает группировку событий сенсора — на части прошивок снижает задержку.\n\n" +
+            "Настройки применяются при включении турбо (кнопка «ОПТИМИЗИРОВАТЬ»)."
         setTextColor(Color.parseColor("#88FFFFFF"))
         textSize = 11f
         setLineSpacing(dp(2).toFloat(), 1f)
