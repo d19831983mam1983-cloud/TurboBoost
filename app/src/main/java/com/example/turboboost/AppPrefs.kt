@@ -45,7 +45,6 @@ class AppPrefs(ctx: Context) {
     fun getStretch(): Int = prefs.getInt("stretch_mode", 0)
     fun setStretch(v: Int) = prefs.edit().putInt("stretch_mode", v).apply()
 
-    // ---- 2.0 ----
     fun isAutoSession(): Boolean = prefs.getBoolean("auto_session", false)
     fun setAutoSession(v: Boolean) = prefs.edit().putBoolean("auto_session", v).apply()
     fun isOverlayEnabled(): Boolean = prefs.getBoolean("overlay_enabled", false)
@@ -53,7 +52,6 @@ class AppPrefs(ctx: Context) {
     fun isDisplayTweaked(): Boolean = prefs.getBoolean("display_tweaked", false)
     fun setDisplayTweaked(v: Boolean) = prefs.edit().putBoolean("display_tweaked", v).apply()
 
-    // ---- игровой оверлей: водяной знак / прицел / снег ----
     fun isGameOverlay(): Boolean = prefs.getBoolean("game_overlay", false)
     fun setGameOverlay(v: Boolean) = prefs.edit().putBoolean("game_overlay", v).apply()
     fun isCrosshair(): Boolean = prefs.getBoolean("crosshair", false)
@@ -72,13 +70,12 @@ class AppPrefs(ctx: Context) {
     fun setSnowSize(v: Int) = prefs.edit().putInt("snow_size", v.coerceIn(1, 5)).apply()
     fun getParticleClearCenter(): Int = prefs.getInt("particle_clear", 30).coerceIn(10, 45)
     fun setParticleClearCenter(v: Int) = prefs.edit().putInt("particle_clear", v.coerceIn(10, 45)).apply()
-    /** Универсальные фичи меню. */
+
     fun isFeat(key: String, def: Boolean = false): Boolean = prefs.getBoolean("feat_$key", def)
     fun setFeat(key: String, v: Boolean) = prefs.edit().putBoolean("feat_$key", v).apply()
     fun getFeatInt(key: String, def: Int = 0): Int = prefs.getInt("feati_$key", def)
     fun setFeatInt(key: String, v: Int) = prefs.edit().putInt("feati_$key", v).apply()
 
-    // ---- оверлей 3.0: расширенные настройки ----
     fun getCrosshairStyle(): Int = prefs.getInt("crosshair_style", 1).coerceIn(0, 11)
     fun setCrosshairStyle(v: Int) = prefs.edit().putInt("crosshair_style", v.coerceIn(0, 11)).apply()
     fun getCrosshairOpacity(): Int = prefs.getInt("crosshair_opacity", 100).coerceIn(10, 100)
@@ -87,7 +84,6 @@ class AppPrefs(ctx: Context) {
     fun setCrosshairOutline(v: Boolean) = prefs.edit().putBoolean("crosshair_outline", v).apply()
     fun getCrosshairGap(): Int = prefs.getInt("crosshair_gap", 2).coerceIn(0, 5)
     fun setCrosshairGap(v: Int) = prefs.edit().putInt("crosshair_gap", v.coerceIn(0, 5)).apply()
-    /** Смещение прицела от центра экрана, в dp (−200…200). */
     fun getCrosshairOffsetX(): Int = prefs.getInt("crosshair_ox", 0).coerceIn(-200, 200)
     fun setCrosshairOffsetX(v: Int) = prefs.edit().putInt("crosshair_ox", v.coerceIn(-200, 200)).apply()
     fun getCrosshairOffsetY(): Int = prefs.getInt("crosshair_oy", 0).coerceIn(-200, 200)
@@ -180,6 +176,17 @@ class AppPrefs(ctx: Context) {
     fun setRecordSession(v: Boolean) = prefs.edit().putBoolean("record_session", v).apply()
     fun getSessionStartMs(): Long = prefs.getLong("session_start_ms", 0L)
     fun setSessionStartMs(v: Long) = prefs.edit().putLong("session_start_ms", v).apply()
+
+    fun getPointerSpeed(): Int = prefs.getInt("sense_pointer_speed", 0).coerceIn(-5, 5)
+    fun setPointerSpeed(v: Int) = prefs.edit().putInt("sense_pointer_speed", v.coerceIn(-5, 5)).apply()
+    fun getSenseTouchRate(): Int = prefs.getInt("sense_touch_rate", 0).coerceIn(0, 1000)
+    fun setSenseTouchRate(v: Int) = prefs.edit().putInt("sense_touch_rate", v.coerceIn(0, 1000)).apply()
+    fun isSenseSmooth(): Boolean = prefs.getBoolean("sense_smooth", false)
+    fun setSenseSmooth(v: Boolean) = prefs.edit().putBoolean("sense_smooth", v).apply()
+    fun isSenseNoInertia(): Boolean = prefs.getBoolean("sense_no_inertia", false)
+    fun setSenseNoInertia(v: Boolean) = prefs.edit().putBoolean("sense_no_inertia", v).apply()
+    fun isSenseRawInput(): Boolean = prefs.getBoolean("sense_raw_input", false)
+    fun setSenseRawInput(v: Boolean) = prefs.edit().putBoolean("sense_raw_input", v).apply()
 
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
