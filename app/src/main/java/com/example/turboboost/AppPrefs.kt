@@ -181,12 +181,12 @@ class AppPrefs(ctx: Context) {
     fun setPointerSpeed(v: Int) = prefs.edit().putInt("sense_pointer_speed", v.coerceIn(-5, 5)).apply()
     fun getSenseTouchRate(): Int = prefs.getInt("sense_touch_rate", 0).coerceIn(0, 1000)
     fun setSenseTouchRate(v: Int) = prefs.edit().putInt("sense_touch_rate", v.coerceIn(0, 1000)).apply()
-    fun isSenseSmooth(): Boolean = prefs.getBoolean("sense_smooth", false)
-    fun setSenseSmooth(v: Boolean) = prefs.edit().putBoolean("sense_smooth", v).apply()
-    fun isSenseNoInertia(): Boolean = prefs.getBoolean("sense_no_inertia", false)
-    fun setSenseNoInertia(v: Boolean) = prefs.edit().putBoolean("sense_no_inertia", v).apply()
-    fun isSenseRawInput(): Boolean = prefs.getBoolean("sense_raw_input", false)
-    fun setSenseRawInput(v: Boolean) = prefs.edit().putBoolean("sense_raw_input", v).apply()
+    fun isTouchPredictionOff(): Boolean = prefs.getBoolean("touch_prediction_off", false)
+    fun setTouchPredictionOff(v: Boolean) = prefs.edit().putBoolean("touch_prediction_off", v).apply()
+    fun isTouchBlockingZero(): Boolean = prefs.getBoolean("touch_blocking_zero", false)
+    fun setTouchBlockingZero(v: Boolean) = prefs.edit().putBoolean("touch_blocking_zero", v).apply()
+    fun isMotionAggregationOff(): Boolean = prefs.getBoolean("motion_aggregation_off", false)
+    fun setMotionAggregationOff(v: Boolean) = prefs.edit().putBoolean("motion_aggregation_off", v).apply()
 
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
