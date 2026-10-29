@@ -38,7 +38,6 @@ class MainActivity : AppCompatActivity() {
     private var loopStarted = false
     private var destroyed = false
 
-    /** Run on background pool; never lets an exception kill the process. */
     private fun bg(b: () -> Unit) {
         try {
             ex.execute { try { b() } catch (e: Throwable) { Log.e("TurboBoost", "bg", e) } }
@@ -94,7 +93,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(screen.build())
     }
 
-    /** Тап по ID в профиле: ввод админ-ID (ПСИХОЗ или Owner) и пароля. */
     private fun showAdminUnlock() {
         val me = store.current() ?: return
         if (me.isAdmin) {
@@ -206,10 +204,7 @@ class MainActivity : AppCompatActivity() {
             try { ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2001) } catch (_: Throwable) {}
         OpLog.init(this)
         try { ShizukuHelper.init(this) } catch (_: Throwable) {}
-        // Shizuku может подняться позже приложения — перепроверяем, когда биндер пришёл
         ShizukuHelper.onBinderReceived = { main.post { if (!uiBuilt && splashDone) check() } }
-        // после выдачи разрешения в диалоге Shizuku — сразу перепроверяем, без перезахода
-        ShizukuHelper.onPermissionResult = { granted -> main.post { if (granted && !uiBuilt) check() } }
         ShizukuHelper.onPermissionResult = { g -> main.post { if (g) bind() else blocked() } }
         ShizukuHelper.onBindTimeout = { main.post { if (!uiBuilt) blocked() } }
         showSplash()
@@ -218,7 +213,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun gfxScale(g: Int): Int = when (g) { 1 -> 80; 2 -> 50; else -> 100 }
 
-    /** Применяет графику + растяжку сразу и по-настоящему (wm size / wm density). */
     private fun applyDisplayNow() {
         val g = prefs.getGfx()
         val st = prefs.getStretch()
@@ -373,7 +367,6 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Throwable) { null }
     }
 
-
     private fun openSenseFinder() {
         val finder = SenseFinderScreen(this)
         finder.onBack = {
@@ -386,275 +379,304 @@ class MainActivity : AppCompatActivity() {
         setContentView(finder.build())
     }
 
-    private fun openSettings() {
-        val settings = SettingsScreen(this)
-        settings.setFeatureStates(prefs.isAutoSession(), prefs.isOverlayEnabled(), hasUsageAccess(), prefs.isGameOverlay())
-        settings.onBack = { buildMain() }
-        settings.onThemeSelected = { idx ->
-            prefs.setThemeIndex(idx)
-            ui.setThemeIndex(idx)
+    private fun openSenseCustom() {
+        val screen = SenseCustomScreen(this, prefs)
+        screen.onBack = { buildMain() }
+        screen.onApply = {
+            val r = info.applyCustomSense(
+                prefs.getPointerSpeed(),
+                prefs.getSenseTouchRate(),
+                prefs.isSenseSmooth(),
+                prefs.isSenseNoInertia(),
+                prefs.isSenseRawInput()
+            )
+            prefs.setSenseLevel(-1)
+            Toast.makeText(this, r, Toast.LENGTH_SHORT).show()
             buildMain()
+            ui.setStatus(r)
         }
-        settings.onPickBackground = { pickImage.launch("image/*") }
-        settings.onResetBackground = {
-            ui.setBackgroundBitmap(null)
-            try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
+        screen.onReset = {
+            val r = info.resetCustomSense()
+            prefs.setPointerSpeed(0)
+            prefs.setSenseTouchRate(0)
+            prefs.setSenseSmooth(false)
+            prefs.setSenseNoInertia(false)
+            prefs.setSenseRawInput(false)
+            Toast.makeText(this, r, Toast.LENGTH_SHORT).show()
         }
-        settings.onAutoSessionToggle = { on ->
-            prefs.setAutoSession(on)
-            if (on) {
-                if (!hasUsageAccess()) {
-                    Toast.makeText(this, "Выдайте доступ к статистике использования", Toast.LENGTH_LONG).show()
-                    try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {}
-                }
-                if (prefs.isActive()) alive(true)
+        setContentView(screen.build())
+    }private fun openSettings() {
+    val settings = SettingsScreen(this)
+    settings.setFeatureStates(prefs.isAutoSession(), prefs.isOverlayEnabled(), hasUsageAccess(), prefs.isGameOverlay())
+    settings.onBack = { buildMain() }
+    settings.onThemeSelected = { idx ->
+        prefs.setThemeIndex(idx)
+        ui.setThemeIndex(idx)
+        buildMain()
+    }
+    settings.onPickBackground = { pickImage.launch("image/*") }
+    settings.onResetBackground = {
+        ui.setBackgroundBitmap(null)
+        try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
+    }
+    settings.onAutoSessionToggle = { on ->
+        prefs.setAutoSession(on)
+        if (on) {
+            if (!hasUsageAccess()) {
+                Toast.makeText(this, "Выдайте доступ к статистике использования", Toast.LENGTH_LONG).show()
+                try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {}
             }
+            if (prefs.isActive()) alive(true)
         }
-        settings.onOverlayToggle = { on ->
-            prefs.setOverlayEnabled(on)
-            if (on) {
-                if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
-                    try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
-                } else {
-                    Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
-                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
-                }
+    }
+    settings.onOverlayToggle = { on ->
+        prefs.setOverlayEnabled(on)
+        if (on) {
+            if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
+                try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
             } else {
-                try { startService(Intent(this, MonitorOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
+                Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
+                try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
             }
+        } else {
+            try { startService(Intent(this, MonitorOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
         }
-        settings.onRequestUsageAccess = {
-            try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {}
-        }
-        settings.onExportBackup = {
-            bg {
-                val f = BackupRestore.exportJson(this)
-                main.post {
-                    if (f != null) BackupRestore.share(this, f)
-                    else Toast.makeText(this, "Не удалось создать бэкап", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        settings.onImportBackup = { pickBackup.launch("application/json") }
-        settings.onShowLog = { showLogDialog() }
-        settings.onGameOverlayToggle = { on ->
-            prefs.setGameOverlay(on)
-            if (on) {
-                if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
-                    try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
-                } else {
-                    Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
-                    try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
-                }
-            } else {
-                try { startService(Intent(this, GameOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
-            }
-        }
-        setContentView(settings.build())
     }
-
-    private fun hasUsageAccess(): Boolean {
-        return try {
-            val appOps = getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
-            val mode = if (Build.VERSION.SDK_INT >= 29)
-                appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
-            else
-                @Suppress("DEPRECATION") appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
-            mode == android.app.AppOpsManager.MODE_ALLOWED
-        } catch (_: Throwable) { false }
+    settings.onRequestUsageAccess = {
+        try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {}
     }
-
-    private fun showLogDialog() {
-        try {
-            val items = OpLog.entries()
-            val text = if (items.isEmpty()) "Журнал пуст" else items.joinToString("\n")
-            val scroll = android.widget.ScrollView(this)
-            val tv = android.widget.TextView(this).apply {
-                this.text = text
-                setTextIsSelectable(true)
-                setTextColor(Color.parseColor("#E0E0E0"))
-                textSize = 12f
-                typeface = android.graphics.Typeface.MONOSPACE
-                setPadding(40, 30, 40, 30)
-            }
-            scroll.addView(tv)
-            AlertDialog.Builder(this)
-                .setTitle("Журнал операций")
-                .setView(scroll)
-                .setPositiveButton("ОК", null)
-                .setNegativeButton("Очистить") { _, _ -> OpLog.clear() }
-                .show()
-        } catch (_: Throwable) {}
-    }
-
-    private fun openLauncher() {
-        val saved = prefs.getSavedGames()
-        val pm = packageManager
-        val list = mutableListOf<Pair<String, String>>()
-        for (pkg in saved) {
-            try {
-                val label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                list.add(pkg to label)
-            } catch (e: Throwable) {}
-        }
-        
-        val launcher = LauncherScreen(this)
-        launcher.onBack = { buildMain() }
-        launcher.onAddGame = { showAppPicker() }
-        launcher.onRemoveGame = { pkg ->
-            prefs.removeGame(pkg)
-            openLauncher()
-        }
-        launcher.onGameClick = { pkg, autoOpt ->
-            prefs.setLastPackage(pkg)
-            ui.setPackageText(pkg)
-            if (autoOpt) {
-                if (!prefs.isActive()) {
-                    toggle()
-                }
-            }
-        }
-        setContentView(launcher.build(list))
-    }
-
-    private fun showAppPicker() {
+    settings.onExportBackup = {
         bg {
-            val pm = packageManager
-            val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            val list = mutableListOf<Pair<String, String>>()
-            for (a in apps) {
-                if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
-                val label = pm.getApplicationLabel(a).toString()
-                if (GameBlocklist.isBlocked(a.packageName, label)) continue
-                list.add(a.packageName to label)
-            }
-            val sorted = list.sortedBy { it.second.lowercase() }
+            val f = BackupRestore.exportJson(this)
             main.post {
-                if (isFinishing || destroyed) return@post
-                val names = sorted.map { it.second }.toTypedArray()
-                AlertDialog.Builder(this)
-                    .setTitle("Выберите игру")
-                    .setItems(names) { _, idx ->
-                        val pkg = sorted[idx].first
-                        prefs.saveGame(pkg)
-                        openLauncher()
-                    }
-                    .setNegativeButton("Отмена", null)
-                    .show()
+                if (f != null) BackupRestore.share(this, f)
+                else Toast.makeText(this, "Не удалось создать бэкап", Toast.LENGTH_SHORT).show()
             }
         }
-    }    private fun buildMain() {
+    }
+    settings.onImportBackup = { pickBackup.launch("application/json") }
+    settings.onShowLog = { showLogDialog() }
+    settings.onGameOverlayToggle = { on ->
+        prefs.setGameOverlay(on)
+        if (on) {
+            if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
+                try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
+            } else {
+                Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
+                try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
+            }
+        } else {
+            try { startService(Intent(this, GameOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
+        }
+    }
+    setContentView(settings.build())
+}
+
+private fun hasUsageAccess(): Boolean {
+    return try {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= 29)
+            appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        else
+            @Suppress("DEPRECATION") appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        mode == android.app.AppOpsManager.MODE_ALLOWED
+    } catch (_: Throwable) { false }
+}
+
+private fun showLogDialog() {
+    try {
+        val items = OpLog.entries()
+        val text = if (items.isEmpty()) "Журнал пуст" else items.joinToString("\n")
+        val scroll = android.widget.ScrollView(this)
+        val tv = android.widget.TextView(this).apply {
+            this.text = text
+            setTextIsSelectable(true)
+            setTextColor(Color.parseColor("#E0E0E0"))
+            textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setPadding(40, 30, 40, 30)
+        }
+        scroll.addView(tv)
+        AlertDialog.Builder(this)
+            .setTitle("Журнал операций")
+            .setView(scroll)
+            .setPositiveButton("ОК", null)
+            .setNegativeButton("Очистить") { _, _ -> OpLog.clear() }
+            .show()
+    } catch (_: Throwable) {}
+}
+
+private fun openLauncher() {
+    val saved = prefs.getSavedGames()
+    val pm = packageManager
+    val list = mutableListOf<Pair<String, String>>()
+    for (pkg in saved) {
         try {
-            uiBuilt = true
-            busy = false
-            setContentView(ui.build())
-        } catch (e: Throwable) {
-            Log.e("TurboBoost", "buildMain", e)
-            uiBuilt = false
-            blocked()
-            return
-        }
-        
-        ui.setThemeIndex(prefs.getThemeIndex())
-        ui.setHz(info.clampHz(prefs.getTargetHz()))
-        ui.setDownscaleLevel(prefs.getDownscaleLevel())
-        ui.setGfx(prefs.getGfx())
-        ui.setStretch(prefs.getStretch())
-        
-        bg {
-            val savedBg = loadBgFromInternal()
-            if (savedBg != null) main.post { ui.setBackgroundBitmap(savedBg) }
-        }
-        
-        ui.onSettingsClick = { openSettings() }
-        ui.onSenseFinder = { openSenseFinder() }
-        ui.onPingTest = { ui.setStatus("Проверяю пинг..."); async { info.pingTest() } }
-        ui.onShowLauncher = { openLauncher() }
-        ui.onShowProfile = { openProfile() }
-        
-        val ap = prefs.getActiveProfilePkg()
-        ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
-        ui.onPackageChanged = { prefs.setLastPackage(it) }
-        ui.setMode(prefs.getPerfMode())
-        if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
-        ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
-        ui.setStatus("Готов к работе")
-        
-        ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
-        
-        if (prefs.isThreadsBoost()) bg { info.boostThreadPriorities() }
-        if (prefs.isMglru()) bg { info.toggleMglru(true) }
+            val label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+            list.add(pkg to label)
+        } catch (e: Throwable) {}
+    }
 
-        ui.onThreadsToggle = { val a = !prefs.isThreadsBoost(); prefs.setThreadsBoost(a); ui.setThreadsState(a); async { if (a) info.boostThreadPriorities() else info.resetThreadPriorities() } }
-        ui.onMglruToggle = { val a = !prefs.isMglru(); prefs.setMglru(a); ui.setMglruState(a); async { info.toggleMglru(a) } }
-        ui.onGameSpace = { if (info.openGameSpace() == "Game Space не найден") Toast.makeText(this, "Игровой режим не найден", Toast.LENGTH_LONG).show() }
-
-        bg {
-            if (info.hasJoyose()) main.post {
-                if (!uiBuilt) return@post
-                ui.setJoyoseVisible(true); ui.setJoyoseState(prefs.isJoyoseDisabled())
-                ui.onJoyoseToggle = { val d = !prefs.isJoyoseDisabled(); prefs.setJoyoseDisabled(d); ui.setJoyoseState(d); async { if (d) info.disableJoyose() else info.enableJoyose() } }
+    val launcher = LauncherScreen(this)
+    launcher.onBack = { buildMain() }
+    launcher.onAddGame = { showAppPicker() }
+    launcher.onRemoveGame = { pkg ->
+        prefs.removeGame(pkg)
+        openLauncher()
+    }
+    launcher.onGameClick = { pkg, autoOpt ->
+        prefs.setLastPackage(pkg)
+        ui.setPackageText(pkg)
+        if (autoOpt) {
+            if (!prefs.isActive()) {
+                toggle()
             }
         }
+    }
+    setContentView(launcher.build(list))
+}
 
-        ui.onDiagnostics = { diag() }
-        ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) bg { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
-        
-        ui.onHzSelected = { hz -> 
-            prefs.setTargetHz(hz)
-            ui.setHz(hz)
-            if (prefs.isActive()) bg { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } 
+private fun showAppPicker() {
+    bg {
+        val pm = packageManager
+        val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val list = mutableListOf<Pair<String, String>>()
+        for (a in apps) {
+            if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
+            val label = pm.getApplicationLabel(a).toString()
+            if (GameBlocklist.isBlocked(a.packageName, label)) continue
+            list.add(a.packageName to label)
         }
-        
-        ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
-        ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) bg { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage()) } }
-        ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
-        ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
-        ui.onShowProfiles = { profiles() }
-        
-        ui.onGfxSelected = { g -> prefs.setGfx(g); applyDisplayNow() }
-        ui.onStretchSelected = { st -> prefs.setStretch(st); applyDisplayNow() }
-
-        ui.onDownscaleSelected = { level ->
-            prefs.setDownscaleLevel(level)
-            val p = prefs.getLastPackage()
-            if (p.isNotBlank() && prefs.isActive()) {
-                val factor = when (level) {
-                    0 -> 0f
-                    1 -> 0.9f
-                    2 -> 0.8f
-                    3 -> 0.7f
-                    else -> 0.8f
+        val sorted = list.sortedBy { it.second.lowercase() }
+        main.post {
+            if (isFinishing || destroyed) return@post
+            val names = sorted.map { it.second }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Выберите игру")
+                .setItems(names) { _, idx ->
+                    val pkg = sorted[idx].first
+                    prefs.saveGame(pkg)
+                    openLauncher()
                 }
-                async { info.setDownscale(p, factor) }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
+    }
+}
+
+private fun buildMain() {
+    try {
+        uiBuilt = true
+        busy = false
+        setContentView(ui.build())
+    } catch (e: Throwable) {
+        Log.e("TurboBoost", "buildMain", e)
+        uiBuilt = false
+        blocked()
+        return
+    }
+
+    ui.setThemeIndex(prefs.getThemeIndex())
+    ui.setHz(info.clampHz(prefs.getTargetHz()))
+    ui.setDownscaleLevel(prefs.getDownscaleLevel())
+    ui.setGfx(prefs.getGfx())
+    ui.setStretch(prefs.getStretch())
+    val sl = prefs.getSenseLevel()
+    if (sl >= 0 || sl == -1) ui.setSenseLevel(sl)
+
+    bg {
+        val savedBg = loadBgFromInternal()
+        if (savedBg != null) main.post { ui.setBackgroundBitmap(savedBg) }
+    }
+
+    ui.onSettingsClick = { openSettings() }
+    ui.onSenseFinder = { openSenseFinder() }
+    ui.onSenseCustom = { openSenseCustom() }
+    ui.onPingTest = { ui.setStatus("Проверяю пинг..."); async { info.pingTest() } }
+    ui.onShowLauncher = { openLauncher() }
+    ui.onShowProfile = { openProfile() }
+
+    val ap = prefs.getActiveProfilePkg()
+    ui.setPackageText(if (ap.isNotBlank()) ap else prefs.getLastPackage())
+    ui.onPackageChanged = { prefs.setLastPackage(it) }
+    ui.setMode(prefs.getPerfMode())
+    if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
+    ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
+    ui.setStatus("Готов к работе")
+
+    ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
+
+    if (prefs.isThreadsBoost()) bg { info.boostThreadPriorities() }
+    if (prefs.isMglru()) bg { info.toggleMglru(true) }
+
+    ui.onThreadsToggle = { val a = !prefs.isThreadsBoost(); prefs.setThreadsBoost(a); ui.setThreadsState(a); async { if (a) info.boostThreadPriorities() else info.resetThreadPriorities() } }
+    ui.onMglruToggle = { val a = !prefs.isMglru(); prefs.setMglru(a); ui.setMglruState(a); async { info.toggleMglru(a) } }
+    ui.onGameSpace = { if (info.openGameSpace() == "Game Space не найден") Toast.makeText(this, "Игровой режим не найден", Toast.LENGTH_LONG).show() }
+
+    bg {
+        if (info.hasJoyose()) main.post {
+            if (!uiBuilt) return@post
+            ui.setJoyoseVisible(true); ui.setJoyoseState(prefs.isJoyoseDisabled())
+            ui.onJoyoseToggle = { val d = !prefs.isJoyoseDisabled(); prefs.setJoyoseDisabled(d); ui.setJoyoseState(d); async { if (d) info.disableJoyose() else info.enableJoyose() } }
+        }
+    }
+
+    ui.onDiagnostics = { diag() }
+    ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) bg { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
+
+    ui.onHzSelected = { hz ->
+        prefs.setTargetHz(hz)
+        ui.setHz(hz)
+        if (prefs.isActive()) bg { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } }
+    }
+
+    ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
+    ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) bg { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage()) } }
+    ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
+    ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
+    ui.onShowProfiles = { profiles() }
+
+    ui.onGfxSelected = { g -> prefs.setGfx(g); applyDisplayNow() }
+    ui.onStretchSelected = { st -> prefs.setStretch(st); applyDisplayNow() }
+
+    ui.onDownscaleSelected = { level ->
+        prefs.setDownscaleLevel(level)
+        val p = prefs.getLastPackage()
+        if (p.isNotBlank() && prefs.isActive()) {
+            val factor = when (level) {
+                0 -> 0f
+                1 -> 0.9f
+                2 -> 0.8f
+                3 -> 0.7f
+                else -> 0.8f
             }
-        }
-        ui.onToggle = { if (!busy) toggle() }
-
-        ui.setActive(prefs.isActive())
-        if (prefs.isActive()) alive(true)
-        if (prefs.isOverlayEnabled() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
-            try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
-        }
-        if (prefs.isGameOverlay() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
-            try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
-        }
-        refresh(); loop()
-    }
-
-    private fun async(b: () -> String) { bg { val r = b(); main.post { try { if (uiBuilt) ui.setStatus(r) } catch (_: Throwable) {} } } }
-
-    private fun games(g: List<Pair<String, String>>) {
-        if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
-        ui.showGlassList("Выберите игру", g.map { it.second }) { w ->
-            val p = g[w].first
-            ui.setPackageText(p)
-            prefs.setLastPackage(p)
-            async { info.compilePackage(p) }
+            async { info.setDownscale(p, factor) }
         }
     }
+    ui.onToggle = { if (!busy) toggle() }
 
-    private fun diag() {
+    ui.setActive(prefs.isActive())
+    if (prefs.isActive()) alive(true)
+    if (prefs.isOverlayEnabled() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
+        try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
+    }
+    if (prefs.isGameOverlay() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
+        try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
+    }
+    refresh(); loop()
+}
+
+private fun async(b: () -> String) { bg { val r = b(); main.post { try { if (uiBuilt) ui.setStatus(r) } catch (_: Throwable) {} } } }
+
+private fun games(g: List<Pair<String, String>>) {
+    if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
+    ui.showGlassList("Выберите игру", g.map { it.second }) { w ->
+        val p = g[w].first
+        ui.setPackageText(p)
+        prefs.setLastPackage(p)
+        async { info.compilePackage(p) }
+    }
+}    private fun diag() {
         bg {
             val a = prefs.isActive()
             val mode = when {
@@ -686,7 +708,7 @@ class MainActivity : AppCompatActivity() {
         val p = prefs.getLastPackage()
         if (p.isBlank()) { Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show(); return }
         val ps = prefs.getProfiles()
-        
+
         val items = mutableListOf("Сохранить профиль для текущей игры")
         if (ps.isNotEmpty()) {
             items.add("Удалить профиль текущей игры")
@@ -724,24 +746,24 @@ class MainActivity : AppCompatActivity() {
     fun toggle() {
         if (!ready() || busy) return
         busy = true
-        
+
         val timeoutRunnable = Runnable {
             if (busy) { busy = false; if (uiBuilt) ui.setStatus("Готово (таймаут)") }
         }
         main.postDelayed(timeoutRunnable, 30000)
-        
-        if (!prefs.isActive() && info.batteryLevel() <= 10) { 
+
+        if (!prefs.isActive() && info.batteryLevel() <= 10) {
             Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show()
             busy = false
             main.removeCallbacks(timeoutRunnable)
-            return 
+            return
         }
-        
+
         val on = !prefs.isActive()
         val p = prefs.getLastPackage()
         val m = prefs.getPerfMode()
         val hz = prefs.getTargetHz()
-        
+
         if (on) {
             if (uiBuilt) ui.setStatus("Оптимизация...")
             bg {
@@ -749,6 +771,7 @@ class MainActivity : AppCompatActivity() {
                     val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost(), p)
                     if (p.isNotBlank()) info.unlockGameFps(p, hz)
                     if (p.isNotBlank()) info.pinGameToPrimeCore(p)
+                    if (p.isNotBlank()) info.prioritizeGameThreads(p)
                     if (p.isNotBlank()) {
                         val level = prefs.getDownscaleLevel()
                         val factor = when (level) {
@@ -766,7 +789,15 @@ class MainActivity : AppCompatActivity() {
                     info.boostInputDispatcher()
                     info.optimizePing()
                     val senseLv = prefs.getSenseLevel()
-                    if (senseLv >= 0) info.applySense(senseLv)
+                    if (senseLv == -1) {
+                        info.applyCustomSense(
+                            prefs.getPointerSpeed(),
+                            prefs.getSenseTouchRate(),
+                            prefs.isSenseSmooth(),
+                            prefs.isSenseNoInertia(),
+                            prefs.isSenseRawInput()
+                        )
+                    } else if (senseLv >= 0) info.applySense(senseLv)
                     info.restrictPowerKeeper()
                     info.cleanupDozeWhitelist()
                     info.restrictGms()
@@ -774,7 +805,6 @@ class MainActivity : AppCompatActivity() {
                     main.removeCallbacks(timeoutRunnable)
                     main.post {
                         busy = false
-                        // состояние сохраняем всегда, даже если сейчас открыт другой экран
                         prefs.setActive(true)
                         alive(true)
                         if (uiBuilt) { ui.setActive(true); ui.setStatus(r); refresh() }
@@ -888,7 +918,6 @@ class MainActivity : AppCompatActivity() {
         ShizukuHelper.onServiceReady = null
         ShizukuHelper.onPermissionResult = null
         ShizukuHelper.onBindTimeout = null
-        // фоновым службам (авто-сессия, оверлей, плитка) нужен Shizuku: не отключаем его, пока они работают
         if (!prefs.isActive() && !prefs.isAutoSession() && !prefs.isGameOverlay()) ShizukuHelper.destroy()
         ex.shutdown()
         super.onDestroy()
