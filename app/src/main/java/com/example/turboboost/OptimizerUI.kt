@@ -13,7 +13,6 @@ import android.graphics.Shader
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.TransitionDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -62,6 +61,7 @@ class OptimizerUI(private val ctx: Context) {
     var onShowLauncher: (() -> Unit)? = null
     var onShowProfile: (() -> Unit)? = null
     var onSenseFinder: (() -> Unit)? = null
+    var onSenseCustom: (() -> Unit)? = null
 
     var currentSense = -1; var currentMode = 0; var currentHz = 120; var currentDownscale = 2
     var maxHz = 144
@@ -73,35 +73,28 @@ class OptimizerUI(private val ctx: Context) {
     private var currentBg = false; private var currentThreads = false; private var currentMglru = false; private var currentJoyose = false
     private var lastStatus = "Готов к работе"
     private var heroBox: LinearLayout? = null
+    private var isCustomSense = false
+
+    private val senseLevels = listOf(1, 2, 3, -1)
+    private val senseNames = listOf("Сильный", "Эксп.", "Макс", "Кастом")
 
     private fun theme(): ThemePalette.Theme = ThemePalette.get(themeIndex)
     private fun isGrid(): Boolean = theme().isGrid
 
     private fun gridButton(active: Boolean): Drawable {
         val t = theme()
-        val outerColor = if (active) t.primary else (0x99FF8A00.toInt())
-        val innerColor = if (active) t.secondary else (0x66FF8A00.toInt())
         val fill = if (active)
             intArrayOf(0xFF5A5A5A.toInt(), 0xFF454545.toInt())
         else
             intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt())
-        val outer = GradientDrawable().apply {
+        return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(15).toFloat()
-            setColor(Color.TRANSPARENT)
-            setStroke(dp(2), outerColor)
-        }
-        val inner = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(11).toFloat()
+            cornerRadius = dp(14).toFloat()
             colors = fill
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.TOP_BOTTOM
-            setStroke(dp(1), innerColor)
+            setStroke(dp(2), if (active) t.primary else 0x99FF8A00.toInt())
         }
-        val ld = LayerDrawable(arrayOf(outer, inner))
-        ld.setLayerInset(1, dp(3), dp(3), dp(3), dp(3))
-        return ld
     }
 
     private fun accentDrawable(): Drawable {
@@ -126,23 +119,14 @@ class OptimizerUI(private val ctx: Context) {
     private fun heroBgDrawable(): Drawable {
         val t = theme()
         if (t.isGrid) {
-            val outer = GradientDrawable().apply {
+            return GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(28).toFloat()
-                setColor(Color.TRANSPARENT)
-                setStroke(dp(2), if (isActive) t.primary else 0x99FF8A00.toInt())
-            }
-            val inner = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(24).toFloat()
+                cornerRadius = dp(26).toFloat()
                 colors = intArrayOf(0xFF454545.toInt(), 0xFF353535.toInt(), 0xFF2A2A2A.toInt())
                 gradientType = GradientDrawable.LINEAR_GRADIENT
                 orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(dp(1), if (isActive) t.secondary else 0x66FF8A00.toInt())
+                setStroke(dp(2), if (isActive) t.primary else 0x99FF8A00.toInt())
             }
-            val ld = LayerDrawable(arrayOf(outer, inner))
-            ld.setLayerInset(1, dp(3), dp(3), dp(3), dp(3))
-            return ld
         }
         val a1 = if (isActive) 0x70 else 0x38
         return GradientDrawable().apply {
@@ -321,8 +305,20 @@ class OptimizerUI(private val ctx: Context) {
 
         val sSense = section("СЕНСА")
         senseRow = row(sSense, 4)
-        listOf("Средний", "Сильный", "Эксп.", "Макс").forEachIndexed { i, n ->
-            senseRow.addView(glass(n) { currentSense = i; onSenseSelected?.invoke(i); updSense() }, lpf())
+        senseNames.forEachIndexed { i, n ->
+            val lvl = senseLevels[i]
+            senseRow.addView(glass(n) {
+                if (lvl == -1) {
+                    currentSense = -1
+                    isCustomSense = true
+                    onSenseCustom?.invoke()
+                } else {
+                    currentSense = lvl
+                    isCustomSense = false
+                    onSenseSelected?.invoke(lvl)
+                }
+                updSense()
+            }, lpf())
         }
         val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
         sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
@@ -387,7 +383,7 @@ fun setMode(m: Int) { currentMode = m; if (::btnModePerf.isInitialized) fade(btn
 fun setHz(hz: Int) { currentHz = hz; if (::hzRow.isInitialized) updHz() }
 fun setDownscaleLevel(level: Int) { currentDownscale = level; if (::downscaleRow.isInitialized) updDownscale() }
 fun setPackageText(t: String) { if (t.isNotEmpty() && ::pkgInput.isInitialized) pkgInput.setText(t) }
-fun setSenseLevel(l: Int) { currentSense = l; if (::senseRow.isInitialized) updSense() }
+fun setSenseLevel(l: Int) { currentSense = l; isCustomSense = (l == -1); if (::senseRow.isInitialized) updSense() }
 
 fun setActive(a: Boolean) {
     isActive = a; heroBox?.background = heroBgDrawable(); if (::btnOpt.isInitialized) { btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"; fade(btnOpt, accentDrawable()) }
@@ -406,11 +402,7 @@ fun setActive(a: Boolean) {
 }
 
 private fun applyToggleGridStyle(row: ToggleRow, on: Boolean) {
-    if (isGrid()) {
-        row.applyGridStyle(on, theme().primary)
-    } else {
-        row.clearGridStyle()
-    }
+    if (isGrid()) row.applyGridStyle(on, theme().primary) else row.clearGridStyle()
     row.onColor = theme().primary
 }
 
@@ -429,7 +421,16 @@ private fun fade(v: View, bg: Drawable) { val o = v.background; if (o == null) {
 private fun applyHzLimit() { if (!::hzRow.isInitialized) return; val m = listOf(60, 90, 120, 144); for (i in 0 until hzRow.childCount) { hzRow.getChildAt(i).visibility = if (m[i] <= maxHz || m[i] == 60) View.VISIBLE else View.GONE } }
 
 private fun updHz() { val m = listOf(60, 90, 120, 144); if (!::hzRow.isInitialized) return; for (i in 0 until hzRow.childCount) { val tv = hzRow.getChildAt(i) as TextView; tv.background = if (m[i] == currentHz) accentDrawable() else unselDrawable() } }
-private fun updSense() { if (!::senseRow.isInitialized) return; for (i in 0 until senseRow.childCount) { val tv = senseRow.getChildAt(i) as TextView; tv.background = if (i == currentSense) accentDrawable() else unselDrawable() } }
+private fun updSense() {
+    if (!::senseRow.isInitialized) return
+    val levels = listOf(1, 2, 3, -1)
+    for (i in 0 until senseRow.childCount) {
+        val tv = senseRow.getChildAt(i) as TextView
+        val lvl = levels.getOrNull(i) ?: 0
+        val selected = if (lvl == -1) isCustomSense else (lvl == currentSense && !isCustomSense)
+        tv.background = if (selected) accentDrawable() else unselDrawable()
+    }
+}
 private fun appVer(): String = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (_: Throwable) { "?" }
 private fun updGfx() { if (!::gfxRow.isInitialized) return; for (i in 0 until gfxRow.childCount) { val tv = gfxRow.getChildAt(i) as TextView; tv.background = if (i == currentGfx) accentDrawable() else unselDrawable() } }
 private fun updStretch() { if (!::stretchRow.isInitialized) return; for (i in 0 until stretchRow.childCount) { val tv = stretchRow.getChildAt(i) as TextView; tv.background = if (i == currentStretch) accentDrawable() else unselDrawable() } }
