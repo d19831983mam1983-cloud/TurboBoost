@@ -8,7 +8,8 @@ object ThemePalette {
         val secondary: Int,
         val blob1: Int,
         val blob2: Int,
-        val blob3: Int
+        val blob3: Int,
+        val isGrid: Boolean = false
     )
 
     val themes: List<Theme> = listOf(
@@ -24,7 +25,8 @@ object ThemePalette {
         Theme("Мятная", 0xFF059669.toInt(), 0xFF34D399.toInt(), 0x66059669, 0x6634D399, 0x44A7F3D0),
         Theme("Ледяная", 0xFF0284C7.toInt(), 0xFF38BDF8.toInt(), 0x660284C7, 0x6638BDF8, 0x447DD3FC),
         Theme("Аврора", 0xFF7C3AED.toInt(), 0xFF06B6D4.toInt(), 0x667C3AED, 0x6606B6D4, 0x4438BDF8),
-        Theme("Неон", 0xFF00C896.toInt(), 0xFF00B8FF.toInt(), 0x6600C896, 0x6600B8FF, 0x4466FFD1)
+        Theme("Неон", 0xFF00C896.toInt(), 0xFF00B8FF.toInt(), 0x6600C896, 0x6600B8FF, 0x4466FFD1),
+        Theme("Серый терминал", 0xFFFF8A00.toInt(), 0xFFFFB347.toInt(), 0x00FF8A00, 0x00FF8A00, 0x00FF8A00, true)
     )
 
     fun get(index: Int): Theme = themes[index.coerceIn(0, themes.size - 1)]
