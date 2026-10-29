@@ -31,6 +31,13 @@ class SenseCustomScreen(
     private val t: ThemePalette.Theme get() = ThemePalette.get(prefs.getThemeIndex())
     private val isGrid: Boolean get() = t.isGrid
 
+    private fun isXiaomi(): Boolean {
+        val m = (android.os.Build.MANUFACTURER ?: "").lowercase()
+        val b = (android.os.Build.BRAND ?: "").lowercase()
+        return m.contains("xiaomi") || m.contains("redmi") || m.contains("poco") ||
+               b.contains("xiaomi") || b.contains("redmi") || b.contains("poco")
+    }
+
     private fun accentDrawable(): Drawable {
         if (isGrid) return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
@@ -100,8 +107,11 @@ class SenseCustomScreen(
 
         content.addView(sectionChuv(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         content.addView(sectionGlad(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        content.addView(sectionStandoffHint(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
         content.addView(sectionAnim(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
-        content.addView(sectionGameTurbo(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        if (isXiaomi()) {
+            content.addView(sectionGameTurbo(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        }
 
         val apply = TextView(ctx).apply {
             text = "ПРИМЕНИТЬ"
@@ -206,6 +216,41 @@ class SenseCustomScreen(
             prefs.setLongPressTimeout(prefs.getLongPressTimeout() + d * 50)
         }), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         card.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        return card
+    }
+
+    private fun sectionStandoffHint(): LinearLayout {
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        card.addView(sectionHeader("STANDOFF 2"))
+
+        card.addView(TextView(ctx).apply {
+            text = "Если сенса «липнет» или дёргается:"
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        })
+
+        card.addView(TextView(ctx).apply {
+            text = "1. В игре: Настройки → Управление → Общее → включи «Точный отклик» (Android 11+). Он убирает «дёрганье» прицела, но может сильнее греть телефон.\n\n" +
+                "2. После включения «Точного отклика» перекалибруй сенсу в Training — старые значения могут стать слишком резкими или ватными.\n\n" +
+                "3. Если телефон греется за 2–3 раунда — сенса начнёт «плыть» из-за троттлинга. Снизь графику или дай остыть."
+            setTextColor(Color.parseColor("#CCFFFFFF"))
+            textSize = 11f
+            setLineSpacing(dp(2).toFloat(), 1f)
+            setPadding(0, dp(8), 0, 0)
+        })
+
+        card.addView(TextView(ctx).apply {
+            text = "Эти настройки меняются в самой игре. TurboBoost не может включить «Точный отклик» через shell."
+            setTextColor(Color.parseColor("#88FFFFFF"))
+            textSize = 10f
+            setPadding(0, dp(10), 0, 0)
+        })
+
         return card
     }
 
