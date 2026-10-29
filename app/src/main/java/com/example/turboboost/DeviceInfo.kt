@@ -550,40 +550,26 @@ class DeviceInfo(private val ctx: Context) {
         return "Сенса: сброшена"
     }
 
-    fun applyCustomSense(pointerSpeed: Int, touchRate: Int, smooth: Boolean, noInertia: Boolean, rawInput: Boolean): String {
+    fun applyCustomSense(pointerSpeed: Int, touchRate: Int, predictionOff: Boolean, blockingZero: Boolean, aggregationOff: Boolean): String {
         val ps = pointerSpeed.coerceIn(-5, 5)
         val sb = StringBuilder()
         sb.append("settings put system pointer_speed $ps; ")
         if (touchRate > 0) sb.append("settings put system touch_sampling_rate $touchRate; ")
         else sb.append("settings delete system touch_sampling_rate; ")
-        if (smooth) {
-            sb.append("setprop debug.input.pointer_acceleration 0; ")
-            sb.append("setprop persist.sys.input.pointer_acceleration 0; ")
-        } else {
-            sb.append("setprop debug.input.pointer_acceleration 1; ")
-        }
-        if (noInertia) {
-            sb.append("setprop debug.input.touch_filter 0; ")
-            sb.append("settings put secure touch_filter 0; ")
-        } else {
-            sb.append("setprop debug.input.touch_filter 1; ")
-            sb.append("settings delete secure touch_filter; ")
-        }
-        if (rawInput) {
-            sb.append("setprop debug.input.raw_input 1; ")
-            sb.append("settings put secure raw_input 1; ")
-        } else {
-            sb.append("setprop debug.input.raw_input 0; ")
-            sb.append("settings delete secure raw_input; ")
-        }
+        if (predictionOff) sb.append("settings put secure touch_prediction_enabled 0; ")
+        else sb.append("settings delete secure touch_prediction_enabled; ")
+        if (blockingZero) sb.append("settings put secure touch_blocking_period 0; ")
+        else sb.append("settings delete secure touch_blocking_period; ")
+        if (aggregationOff) sb.append("settings put secure motion_event_observer_aggregation 0; ")
+        else sb.append("settings delete secure motion_event_observer_aggregation; ")
         SystemReader.read(sb.toString())
         return "Сенса: кастом (PS $ps" + (if (touchRate > 0) ", $touchRate Гц" else "") +
-            (if (smooth) ", ровная" else "") + (if (noInertia) ", без инерции" else "") +
-            (if (rawInput) ", raw" else "") + ")"
+            (if (predictionOff) ", без предикта" else "") + (if (blockingZero) ", мгновенный тач" else "") +
+            (if (aggregationOff) ", без агрегации" else "") + ")"
     }
 
     fun resetCustomSense(): String {
-        SystemReader.read("settings put system pointer_speed 0; settings delete system touch_sampling_rate; setprop debug.input.pointer_acceleration 1; setprop debug.input.touch_filter 1; setprop debug.input.raw_input 0; settings delete secure touch_filter; settings delete secure raw_input")
+        SystemReader.read("settings put system pointer_speed 0; settings delete system touch_sampling_rate; settings delete secure touch_prediction_enabled; settings delete secure touch_blocking_period; settings delete secure motion_event_observer_aggregation")
         return "Сенса: кастом сброшена"
     }
 
@@ -616,6 +602,7 @@ class DeviceInfo(private val ctx: Context) {
 
     fun revertAll(pkg: String, prefs: AppPrefs): String {
         deactivateMaxPerformance()
+        resetCustomSense()
         if (pkg.isNotBlank()) {
             resetGameFps(pkg)
             setDownscale(pkg, 0f)
