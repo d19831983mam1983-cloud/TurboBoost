@@ -98,52 +98,10 @@ class SenseCustomScreen(
         }
         root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-        val sensSection = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(14))
-            background = sectionBg()
-        }
-        sensSection.addView(sectionHeader("ЧУВСТВИТЕЛЬНОСТЬ"))
-        sensSection.addView(stepperRow("Pointer Speed", { prefs.getPointerSpeed().toString() }, { d -> prefs.setPointerSpeed(prefs.getPointerSpeed() + d) }),
-            LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
-        sensSection.addView(rateBlock(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
-        content.addView(sensSection, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-
-        val smoothSection = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(14))
-            background = sectionBg()
-        }
-        smoothSection.addView(sectionHeader("СГЛАЖИВАНИЕ"))
-        val row1 = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-        row1.addView(compactToggle(
-            "Без предикта",
-            "Отключает предсказание движения",
-            prefs.isTouchPredictionOff()
-        ) { prefs.setTouchPredictionOff(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
-        row1.addView(compactToggle(
-            "Мгновенный тач",
-            "Убирает минимальную задержку",
-            prefs.isTouchBlockingZero()
-        ) { prefs.setTouchBlockingZero(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        smoothSection.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
-
-        val row2 = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-        row2.addView(compactToggle(
-            "Без агрегации",
-            "Меньше группировки событий",
-            prefs.isMotionAggregationOff()
-        ) { prefs.setMotionAggregationOff(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
-        row2.addView(View(ctx), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        smoothSection.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
-        content.addView(smoothSection, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        content.addView(sectionChuv(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        content.addView(sectionGlad(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        content.addView(sectionAnim(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        content.addView(sectionGameTurbo(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
 
         val apply = TextView(ctx).apply {
             text = "ПРИМЕНИТЬ"
@@ -178,14 +136,6 @@ class SenseCustomScreen(
         return root
     }
 
-    private fun sectionHeader(text: String): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.parseColor("#99FFFFFF"))
-        textSize = 11f
-        letterSpacing = 0.18f
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-    }
-
     private fun buildTopBar(): FrameLayout {
         val bar = FrameLayout(ctx)
         bar.setBackgroundColor(if (isGrid) Color.parseColor("#CC1A1A1A") else Color.parseColor("#CC05070A"))
@@ -213,30 +163,141 @@ class SenseCustomScreen(
         return bar
     }
 
-    private fun stepperRow(title: String, value: () -> String, onDelta: (Int) -> Unit): LinearLayout {
-        val row = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = unselDrawable()
-        }
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(TextView(ctx).apply {
-            text = title; setTextColor(Color.WHITE); textSize = 14f
-        })
-        val v = TextView(ctx).apply {
-            text = value(); setTextColor(t.primary); textSize = 13f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, dp(2), 0, 0)
-        }
-        col.addView(v)
-        row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        row.addView(btnCircle("−") { onDelta(-1); v.text = value() })
-        row.addView(btnCircle("+") { onDelta(1); v.text = value() }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = dp(8) })
-        return row
+    private fun sectionHeader(text: String): TextView = TextView(ctx).apply {
+        this.text = text
+        setTextColor(Color.parseColor("#99FFFFFF"))
+        textSize = 11f
+        letterSpacing = 0.18f
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        setPadding(0, 0, 0, dp(10))
     }
 
-    private fun rateBlock(): LinearLayout {
+    private fun sectionChuv(): LinearLayout {
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        card.addView(sectionHeader("ЧУВСТВИТЕЛЬНОСТЬ"))
+        card.addView(stepperRow("Pointer Speed", { prefs.getPointerSpeed().toString() }, { d -> prefs.setPointerSpeed(prefs.getPointerSpeed() + d) }),
+            LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+        card.addView(rateBlock(), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        return card
+    }
+
+    private fun sectionGlad(): LinearLayout {
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        card.addView(sectionHeader("СГЛАЖИВАНИЕ"))
+        val row1 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        row1.addView(compactToggle("Без предикта", "Отключает предсказание", prefs.isTouchPredictionOff()) { prefs.setTouchPredictionOff(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
+        row1.addView(compactToggle("Мгновенный тач", "Убирает задержку", prefs.isTouchBlockingZero()) { prefs.setTouchBlockingZero(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        card.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+
+        val row2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        row2.addView(compactToggle("Без агрегации", "Меньше группировки", prefs.isMotionAggregationOff()) { prefs.setMotionAggregationOff(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
+        row2.addView(compactStepper("Удержание", { "${prefs.getLongPressTimeout()} мс" }, { d ->
+            prefs.setLongPressTimeout(prefs.getLongPressTimeout() + d * 50)
+        }), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        card.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        return card
+    }
+
+    private fun sectionAnim(): LinearLayout {
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        card.addView(sectionHeader("АНИМАЦИИ"))
+        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val buttons = mutableListOf<TextView>()
+        val opts = listOf(50, 100)
+        opts.forEach { p ->
+            val b = TextView(ctx).apply {
+                text = if (p == 100) "1x" else "0.5x"
+                setTextColor(Color.WHITE); textSize = 13f
+                gravity = Gravity.CENTER
+                background = if (prefs.getAnimScale() == p) accentDrawable() else unselDrawable()
+                setPadding(dp(4), dp(12), dp(4), dp(12))
+                setOnClickListener {
+                    prefs.setAnimScale(p)
+                    buttons.forEachIndexed { i, v ->
+                        v.background = if (opts[i] == p) accentDrawable() else unselDrawable()
+                    }
+                }
+            }
+            buttons.add(b)
+            row.addView(b, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
+        }
+        card.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+        card.addView(TextView(ctx).apply {
+            text = "0.5x — быстрее отклик UI, меньше нагрузка."
+            setTextColor(Color.parseColor("#88FFFFFF"))
+            textSize = 10f
+            setPadding(0, dp(8), 0, 0)
+        })
+        return card
+    }
+
+    private fun sectionGameTurbo(): LinearLayout {
+        val card = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            background = sectionBg()
+        }
+        card.addView(sectionHeader("GAME TURBO (XIAOMI)"))
+
+        val presets = listOf("Стандарт", "Производит.", "Максимум", "Батарея")
+        val presetRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val presetBtns = mutableListOf<TextView>()
+        presets.forEachIndexed { i, name ->
+            val b = TextView(ctx).apply {
+                text = name
+                setTextColor(Color.WHITE); textSize = 11f
+                gravity = Gravity.CENTER
+                background = if (prefs.getGameTurboPreset() == i) accentDrawable() else unselDrawable()
+                setPadding(dp(2), dp(10), dp(2), dp(10))
+                setOnClickListener {
+                    prefs.setGameTurboPreset(i)
+                    presetBtns.forEachIndexed { idx, v ->
+                        v.background = if (idx == i) accentDrawable() else unselDrawable()
+                    }
+                }
+            }
+            presetBtns.add(b)
+            presetRow.addView(b, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
+        }
+        card.addView(presetRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+
+        val row1 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        row1.addView(compactToggle("Wi-Fi оптимизация", "Снижает пинг", prefs.isGtWifiOpt()) { prefs.setGtWifiOpt(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
+        row1.addView(compactToggle("Усиление сенсора", "Touch boost", prefs.isGtTouchBoost()) { prefs.setGtTouchBoost(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        card.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+
+        val row2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        row2.addView(compactToggle("Фиксация яркости", "Без авто-димминга", prefs.isGtBrightnessLock()) { prefs.setGtBrightnessLock(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
+        row2.addView(compactToggle("GPU Tuner", "Скрытые настройки GPU", prefs.isGtGpuTuner()) { prefs.setGtGpuTuner(it) },
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        card.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+
+        card.addView(TextView(ctx).apply {
+            text = "GPU Tuner открывает скрытые настройки GPU в Game Turbo. После включения перезапусти Game Turbo (Настройки → Приложения → Game Turbo → Остановить)."
+            setTextColor(Color.parseColor("#88FFFFFF"))
+            textSize = 10f
+            setPadding(0, dp(10), 0, 0)
+        })
+        return card
+    }    private fun rateBlock(): LinearLayout {
         val wrapper = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(14))
@@ -273,12 +334,79 @@ class SenseCustomScreen(
         }
         wrapper.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         wrapper.addView(TextView(ctx).apply {
-            text = "1000 Гц поддерживают не все экраны — если сенса пропадёт, верни 240 или 120"
+            text = "Mi 10T Pro поддерживает до 180 Гц. 1000 Гц — только на новых экранах."
             setTextColor(Color.parseColor("#88FFFFFF"))
             textSize = 10f
             setPadding(0, dp(8), 0, 0)
         })
         return wrapper
+    }
+
+    private fun compactStepper(title: String, value: () -> String, onDelta: (Int) -> Unit): LinearLayout {
+        val cell = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = unselDrawable()
+        }
+        cell.addView(TextView(ctx).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        })
+        val v = TextView(ctx).apply {
+            text = value()
+            setTextColor(t.primary)
+            textSize = 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(0, dp(2), 0, dp(6))
+        }
+        cell.addView(v)
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+        }
+        val minus = TextView(ctx).apply {
+            text = "−"
+            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER
+            background = unselDrawable()
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            setOnClickListener { onDelta(-1); v.text = value() }
+        }
+        val plus = TextView(ctx).apply {
+            text = "+"
+            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER
+            background = unselDrawable()
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            setOnClickListener { onDelta(1); v.text = value() }
+        }
+        row.addView(minus, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { marginEnd = dp(6) })
+        row.addView(plus, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+        cell.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        return cell
+    }
+
+    private fun stepperRow(title: String, value: () -> String, onDelta: (Int) -> Unit): LinearLayout {
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = unselDrawable()
+        }
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(TextView(ctx).apply {
+            text = title; setTextColor(Color.WHITE); textSize = 14f
+        })
+        val v = TextView(ctx).apply {
+            text = value(); setTextColor(t.primary); textSize = 13f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(0, dp(2), 0, 0)
+        }
+        col.addView(v)
+        row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        row.addView(btnCircle("−") { onDelta(-1); v.text = value() })
+        row.addView(btnCircle("+") { onDelta(1); v.text = value() }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = dp(8) })
+        return row
     }
 
     private fun compactToggle(title: String, subtitle: String, initial: Boolean, onChange: (Boolean) -> Unit): LinearLayout {
@@ -287,19 +415,19 @@ class SenseCustomScreen(
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = unselDrawable()
         }
-        val titleTv = TextView(ctx).apply {
+        cell.addView(TextView(ctx).apply {
             text = title
             setTextColor(Color.WHITE)
             textSize = 12f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-        }
-        val subTv = TextView(ctx).apply {
+        })
+        cell.addView(TextView(ctx).apply {
             text = subtitle
             setTextColor(Color.parseColor("#88FFFFFF"))
             textSize = 10f
             setPadding(0, dp(2), 0, dp(10))
             setLineSpacing(dp(1).toFloat(), 1f)
-        }
+        })
         val sw = ToggleSwitch(ctx).apply {
             onColor = t.primary
             doubleBorder = false
@@ -311,8 +439,6 @@ class SenseCustomScreen(
             gravity = Gravity.END
         }
         row.addView(sw, LinearLayout.LayoutParams(dp(52), dp(32)))
-        cell.addView(titleTv)
-        cell.addView(subTv)
         cell.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         return cell
     }
@@ -329,10 +455,11 @@ class SenseCustomScreen(
     }
 
     private fun hint(): TextView = TextView(ctx).apply {
-        text = "«Без предикта» отключает предсказание движения — палец идёт 1:1 без сглаживания. Работает на Android 13+.\n\n" +
-            "«Мгновенный тач» убирает минимальную задержку между касаниями — резкие тапы срабатывают быстрее.\n\n" +
-            "«Без агрегации» уменьшает группировку событий сенсора — на части прошивок снижает задержку.\n\n" +
-            "Настройки применяются при включении турбо (кнопка «ОПТИМИЗИРОВАТЬ»)."
+        text = "«Без предикта» отключает предсказание движения — палец идёт 1:1 (Android 13+).\n\n" +
+            "«Мгновенный тач» убирает минимальную задержку между касаниями.\n\n" +
+            "«Без агрегации» уменьшает группировку событий — меньше задержка на части прошивок.\n\n" +
+            "«Удержание» — время до срабатывания long-press, влияет на мелкую моторику.\n\n" +
+            "Game Turbo пресеты и тумблеры применяются через Shizuku. GPU Tuner требует перезапуска Game Turbo."
         setTextColor(Color.parseColor("#88FFFFFF"))
         textSize = 11f
         setLineSpacing(dp(2).toFloat(), 1f)
