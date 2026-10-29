@@ -203,14 +203,14 @@ class SenseCustomScreen(
         }
         card.addView(sectionHeader("СГЛАЖИВАНИЕ"))
         val row1 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        row1.addView(compactToggle("Без предикта", "Отключает предсказание", prefs.isTouchPredictionOff()) { prefs.setTouchPredictionOff(it) },
+        row1.addView(compactToggle("Без предикта", "Отключает предсказание (может не работать)", prefs.isTouchPredictionOff()) { prefs.setTouchPredictionOff(it) },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
-        row1.addView(compactToggle("Мгновенный тач", "Убирает задержку", prefs.isTouchBlockingZero()) { prefs.setTouchBlockingZero(it) },
+        row1.addView(compactToggle("Мгновенный тач", "Убирает задержку (может не работать)", prefs.isTouchBlockingZero()) { prefs.setTouchBlockingZero(it) },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         card.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
 
         val row2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        row2.addView(compactToggle("Без агрегации", "Меньше группировки", prefs.isMotionAggregationOff()) { prefs.setMotionAggregationOff(it) },
+        row2.addView(compactToggle("Без агрегации", "Меньше группировки (может не работать)", prefs.isMotionAggregationOff()) { prefs.setMotionAggregationOff(it) },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
         row2.addView(compactStepper("Удержание", { "${prefs.getLongPressTimeout()} мс" }, { d ->
             prefs.setLongPressTimeout(prefs.getLongPressTimeout() + d * 50)
@@ -298,43 +298,8 @@ class SenseCustomScreen(
             background = sectionBg()
         }
         card.addView(sectionHeader("GAME TURBO (XIAOMI)"))
-
-        val presets = listOf("Стандарт", "Производит.", "Максимум", "Батарея")
-        val presetRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        val presetBtns = mutableListOf<TextView>()
-        presets.forEachIndexed { i, name ->
-            val b = TextView(ctx).apply {
-                text = name
-                setTextColor(Color.WHITE); textSize = 11f
-                gravity = Gravity.CENTER
-                background = if (prefs.getGameTurboPreset() == i) accentDrawable() else unselDrawable()
-                setPadding(dp(2), dp(10), dp(2), dp(10))
-                setOnClickListener {
-                    prefs.setGameTurboPreset(i)
-                    presetBtns.forEachIndexed { idx, v ->
-                        v.background = if (idx == i) accentDrawable() else unselDrawable()
-                    }
-                }
-            }
-            presetBtns.add(b)
-            presetRow.addView(b, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
-        }
-        card.addView(presetRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
-
-        val row1 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        row1.addView(compactToggle("Wi-Fi оптимизация", "Снижает пинг", prefs.isGtWifiOpt()) { prefs.setGtWifiOpt(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
-        row1.addView(compactToggle("Усиление сенсора", "Touch boost", prefs.isGtTouchBoost()) { prefs.setGtTouchBoost(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        card.addView(row1, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
-
-        val row2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        row2.addView(compactToggle("Фиксация яркости", "Без авто-димминга", prefs.isGtBrightnessLock()) { prefs.setGtBrightnessLock(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
-        row2.addView(compactToggle("GPU Tuner", "Скрытые настройки GPU", prefs.isGtGpuTuner()) { prefs.setGtGpuTuner(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        card.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
-
+        card.addView(compactToggle("GPU Tuner", "Скрытые настройки GPU", prefs.isGtGpuTuner()) { prefs.setGtGpuTuner(it) },
+            LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
         card.addView(TextView(ctx).apply {
             text = "GPU Tuner открывает скрытые настройки GPU в Game Turbo. После включения перезапусти Game Turbo (Настройки → Приложения → Game Turbo → Остановить)."
             setTextColor(Color.parseColor("#88FFFFFF"))
@@ -500,11 +465,11 @@ class SenseCustomScreen(
     }
 
     private fun hint(): TextView = TextView(ctx).apply {
-        text = "«Без предикта» отключает предсказание движения — палец идёт 1:1 (Android 13+).\n\n" +
-            "«Мгновенный тач» убирает минимальную задержку между касаниями.\n\n" +
+        text = "«Без предикта» отключает предсказание движения — палец идёт 1:1 (Android 13+). На части прошивок не работает.\n\n" +
+            "«Мгновенный тач» убирает минимальную задержку между касаниями. Поддержка зависит от прошивки.\n\n" +
             "«Без агрегации» уменьшает группировку событий — меньше задержка на части прошивок.\n\n" +
             "«Удержание» — время до срабатывания long-press, влияет на мелкую моторику.\n\n" +
-            "Game Turbo пресеты и тумблеры применяются через Shizuku. GPU Tuner требует перезапуска Game Turbo."
+            "GPU Tuner открывает скрытые настройки GPU в Game Turbo (только Xiaomi). После включения перезапусти Game Turbo."
         setTextColor(Color.parseColor("#88FFFFFF"))
         textSize = 11f
         setLineSpacing(dp(2).toFloat(), 1f)
