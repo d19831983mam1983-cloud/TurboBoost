@@ -434,7 +434,6 @@ class MainActivity : AppCompatActivity() {
     settings.onBack = { buildMain() }
     settings.onThemeSelected = { idx ->
         prefs.setThemeIndex(idx)
-        ui.setThemeIndex(idx)
         buildMain()
     }
     settings.onPickBackground = { pickImage.launch("image/*") }
@@ -591,6 +590,7 @@ private fun buildMain() {
     try {
         uiBuilt = true
         busy = false
+        ui.setThemeIndexBeforeBuild(prefs.getThemeIndex())
         setContentView(ui.build())
     } catch (e: Throwable) {
         Log.e("TurboBoost", "buildMain", e)
@@ -599,7 +599,6 @@ private fun buildMain() {
         return
     }
 
-    ui.setThemeIndex(prefs.getThemeIndex())
     ui.setHz(info.clampHz(prefs.getTargetHz()))
     ui.setDownscaleLevel(prefs.getDownscaleLevel())
     ui.setGfx(prefs.getGfx())
