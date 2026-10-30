@@ -2,29 +2,26 @@ package com.example.turboboost
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.view.View
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.sin
 
-/**
- * Прицел поверх игры.
- * База — центр экрана + смещение offsetX/offsetY (в dp), чтобы можно было подвинуть вбок / вверх / вниз.
- * Стили 0..11.
- */
 class CrosshairView(context: Context) : View(context) {
 
     var style = 1
     var colorIndex = 0
-    var sizeStep = 3 // 1..5
-    var opacity = 100 // 10..100 %
+    var sizeStep = 3
+    var opacity = 100
     var outline = true
-    var gap = 2 // 0..5
-    /** Смещение от центра, dp. +X вправо, +Y вниз. */
+    var gap = 2
     var offsetXDp = 0
     var offsetYDp = 0
+    var centerDot = false
+    var mirror = false
+    var thick = false
+    var pixel = false
+    var rainbow = false
 
     companion object {
         val PALETTE: IntArray = intArrayOf(
@@ -42,6 +39,7 @@ class CrosshairView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
+    private var rainbowPhase = 0f
 
     private fun px(v: Float) = v * resources.displayMetrics.density
 
@@ -54,21 +52,33 @@ class CrosshairView(context: Context) : View(context) {
         gap = prefs.getCrosshairGap()
         offsetXDp = prefs.getCrosshairOffsetX()
         offsetYDp = prefs.getCrosshairOffsetY()
+        centerDot = prefs.isFeat("cx_center_dot")
+        mirror = prefs.isFeat("cx_mirror")
+        thick = prefs.isFeat("cx_thick")
+        pixel = prefs.isFeat("cx_pixel")
+        rainbow = prefs.isFeat("cx_rainbow")
+        paint.isAntiAlias = !pixel
+        outlinePaint.isAntiAlias = !pixel
+        if (!rainbow) rainbowPhase = 0f
         invalidate()
     }
 
+    private fun rainbowColor(phase: Float): Int {
+        val hue = (phase * 360f) % 360f
+        return Color.HSVToColor(floatArrayOf(hue, 0.85f, 1f))
+    }
+
     override fun onDraw(canvas: Canvas) {
-        // центр экрана + пользовательское смещение
         val cx = width / 2f + px(offsetXDp.toFloat())
         val cy = height / 2f + px(offsetYDp.toFloat())
         val u = px(4f) * (sizeStep / 3f).coerceAtLeast(0.5f)
         val g = px(2f) * gap
         val alpha = (opacity.coerceIn(10, 100) * 2.55f).toInt().coerceIn(25, 255)
-        val baseColor = PALETTE[colorIndex.coerceIn(0, PALETTE.lastIndex)]
+        val baseColor = if (rainbow) rainbowColor(rainbowPhase) else PALETTE[colorIndex.coerceIn(0, PALETTE.lastIndex)]
         val color = (baseColor and 0x00FFFFFF) or (alpha shl 24)
 
         paint.color = color
-        paint.strokeWidth = px(2f).coerceAtLeast(2f)
+        paint.strokeWidth = (if (thick) px(4f) else px(2f)).coerceAtLeast(2f)
         paint.style = Paint.Style.STROKE
         paint.strokeCap = Paint.Cap.ROUND
         paint.strokeJoin = Paint.Join.ROUND
@@ -76,6 +86,9 @@ class CrosshairView(context: Context) : View(context) {
         outlinePaint.set(paint)
         outlinePaint.color = (0xFF000000.toInt() and 0x00FFFFFF) or ((alpha * 0.55f).toInt().coerceIn(20, 180) shl 24)
         outlinePaint.strokeWidth = paint.strokeWidth + px(1.6f)
+
+        val saveCount = canvas.save()
+        if (mirror) canvas.scale(-1f, 1f, cx, cy)
 
         fun strokeLine(x1: Float, y1: Float, x2: Float, y2: Float) {
             if (outline) canvas.drawLine(x1, y1, x2, y2, outlinePaint)
@@ -117,7 +130,6 @@ class CrosshairView(context: Context) : View(context) {
                 strokeLine(cx - u * 1.7f, cy - u * 1.45f, cx + u * 1.7f, cy - u * 1.45f)
             }
             5 -> {
-                // скобки [ ]
                 val arm = u * 1.4f
                 strokeLine(cx - u * 2.2f, cy - arm, cx - u * 2.2f, cy + arm)
                 strokeLine(cx - u * 2.2f, cy - arm, cx - u * 1.2f, cy - arm)
@@ -144,12 +156,10 @@ class CrosshairView(context: Context) : View(context) {
                 fillDot(u * 0.45f)
             }
             8 -> {
-                // галочка V
                 strokeLine(cx - u * 1.8f, cy, cx - u * 0.2f, cy + u * 1.5f)
                 strokeLine(cx - u * 0.2f, cy + u * 1.5f, cx + u * 2.0f, cy - u * 1.6f)
             }
             9 -> {
-                // снайпер: круг + крест с зазором
                 strokeCircle(u * 2.4f)
                 strokeLine(cx - u * 3.2f, cy, cx - u * 1.1f, cy)
                 strokeLine(cx + u * 1.1f, cy, cx + u * 3.2f, cy)
@@ -167,6 +177,24 @@ class CrosshairView(context: Context) : View(context) {
                 strokeCircle(u * 1.5f)
                 strokeCircle(u * 2.6f)
             }
+        }
+
+        canvas.restoreToCount(saveCount)
+
+        if (centerDot) {
+            paint.style = Paint.Style.FILL
+            if (outline) {
+                outlinePaint.style = Paint.Style.FILL
+                canvas.drawCircle(cx, cy, u * 0.55f + px(0.8f), outlinePaint)
+                outlinePaint.style = Paint.Style.STROKE
+            }
+            canvas.drawCircle(cx, cy, u * 0.55f, paint)
+            paint.style = Paint.Style.STROKE
+        }
+
+        if (rainbow) {
+            rainbowPhase = (rainbowPhase + 0.008f) % 1f
+            postInvalidateDelayed(40)
         }
     }
 }
