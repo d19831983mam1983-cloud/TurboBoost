@@ -385,21 +385,8 @@ class OptimizerUI(private val ctx: Context) {
     sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
     val sGfx = section("РАЗРЕШЕНИЕ ЭКРАНА")
-    sGfx.addView(lbl("Своё разрешение (ширина × высота)"))
+    sGfx.addView(lbl("Своё разрешение (высота × ширина)"))
     val resRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-    val wInput = EditText(ctx).apply {
-        hint = "Ширина"
-        setHintTextColor(Color.parseColor("#88FFFFFF"))
-        setTextColor(Color.WHITE)
-        textSize = 14f
-        setSingleLine()
-        inputType = InputType.TYPE_CLASS_NUMBER
-        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
-        setPadding(dp(12), dp(10), dp(12), dp(10))
-        background = glassBgDrawable(12)
-        val v = prefs().getCustomW()
-        if (v > 0) setText(v.toString())
-    }
     val hInput = EditText(ctx).apply {
         hint = "Высота"
         setHintTextColor(Color.parseColor("#88FFFFFF"))
@@ -413,8 +400,21 @@ class OptimizerUI(private val ctx: Context) {
         val v = prefs().getCustomH()
         if (v > 0) setText(v.toString())
     }
-    resRow.addView(wInput, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(8) })
-    resRow.addView(hInput, LinearLayout.LayoutParams(0, dp(46), 1f))
+    val wInput = EditText(ctx).apply {
+        hint = "Ширина"
+        setHintTextColor(Color.parseColor("#88FFFFFF"))
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        setSingleLine()
+        inputType = InputType.TYPE_CLASS_NUMBER
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        background = glassBgDrawable(12)
+        val v = prefs().getCustomW()
+        if (v > 0) setText(v.toString())
+    }
+    resRow.addView(hInput, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(8) })
+    resRow.addView(wInput, LinearLayout.LayoutParams(0, dp(46), 1f))
     sGfx.addView(resRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(4) })
 
     sGfx.addView(glass("Применить и запустить Standoff 2") {
