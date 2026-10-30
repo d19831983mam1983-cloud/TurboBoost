@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private var splashDone = false
     private var loopStarted = false
     private var destroyed = false
+    private var currentScreen = ""
 
     private fun bg(b: () -> Unit) {
         try {
@@ -88,6 +89,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openProfile() {
+        currentScreen = "profile"
         val screen = ProfileScreen(this, store, prefs.getSavedGames().size)
         screen.onBack = { buildMain() }
         screen.onPickAvatar = { pickAvatar.launch("image/*") }
@@ -160,6 +162,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Нет доступа", Toast.LENGTH_SHORT).show()
             return
         }
+        currentScreen = "admin"
         val panel = AdminPanelScreen(this, store, me.id)
         panel.onBack = { openProfile() }
         panel.onRefresh = { openAdminPanel() }
@@ -287,6 +290,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun blocked() {
+        currentScreen = "blocked"
         uiBuilt = false
         busy = false
         val box = android.widget.LinearLayout(this).apply {
@@ -356,6 +360,7 @@ class MainActivity : AppCompatActivity() {
             if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
         } catch (_: Throwable) { null }
     }private fun openSenseFinder() {
+    currentScreen = "sense_finder"
     val finder = SenseFinderScreen(this)
     finder.onBack = {
         try { requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED } catch (_: Throwable) {}
@@ -368,6 +373,7 @@ class MainActivity : AppCompatActivity() {
 }
 
 private fun openSenseCustom() {
+    currentScreen = "sense_custom"
     val screen = SenseCustomScreen(this, prefs)
     screen.onBack = { buildMain() }
     screen.onApply = {
@@ -411,6 +417,7 @@ private fun openSenseCustom() {
 }
 
 private fun openSettings() {
+    currentScreen = "settings"
     val settings = SettingsScreen(this)
     settings.setFeatureStates(prefs.isAutoSession(), prefs.isOverlayEnabled(), hasUsageAccess(), prefs.isGameOverlay())
     settings.onBack = { buildMain() }
@@ -436,7 +443,7 @@ private fun openSettings() {
     settings.onOverlayToggle = { on ->
         prefs.setOverlayEnabled(on)
         if (on) {
-            if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
+            if (hasOverlayPermission()) {
                 try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (_: Throwable) {}
             } else {
                 Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
@@ -463,7 +470,7 @@ private fun openSettings() {
     settings.onGameOverlayToggle = { on ->
         prefs.setGameOverlay(on)
         if (on) {
-            if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
+            if (hasOverlayPermission()) {
                 try { startService(Intent(this, GameOverlayService::class.java)) } catch (_: Throwable) {}
             } else {
                 Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
@@ -484,6 +491,17 @@ private fun hasUsageAccess(): Boolean {
         else
             @Suppress("DEPRECATION") appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
         mode == android.app.AppOpsManager.MODE_ALLOWED
+    } catch (_: Throwable) { false }
+}
+
+private fun hasOverlayPermission(): Boolean =
+    Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)
+
+private fun isServiceRunning(clazz: Class<*>): Boolean {
+    return try {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        @Suppress("DEPRECATION")
+        am.getRunningServices(Int.MAX_VALUE).any { it.service.className == clazz.name }
     } catch (_: Throwable) { false }
 }
 
@@ -511,6 +529,7 @@ private fun showLogDialog() {
 }
 
 private fun openLauncher() {
+    currentScreen = "launcher"
     val saved = prefs.getSavedGames()
     val pm = packageManager
     val list = mutableListOf<Pair<String, String>>()
@@ -566,6 +585,7 @@ private fun showAppPicker() {
 }
 
 private fun buildMain() {
+    currentScreen = "main"
     try {
         uiBuilt = true
         busy = false
@@ -691,10 +711,10 @@ private fun buildMain() {
 
     ui.setActive(prefs.isActive())
     if (prefs.isActive()) alive(true)
-    if (prefs.isOverlayEnabled() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
+    if (prefs.isOverlayEnabled() && hasOverlayPermission() && !isServiceRunning(MonitorOverlayService::class.java)) {
         try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (_: Throwable) {}
     }
-    if (prefs.isGameOverlay() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
+    if (prefs.isGameOverlay() && hasOverlayPermission() && !isServiceRunning(GameOverlayService::class.java)) {
         try { startService(Intent(this, GameOverlayService::class.java)) } catch (_: Throwable) {}
     }
     refresh(); loop()
@@ -993,13 +1013,27 @@ private fun games(g: List<Pair<String, String>>) {
 
     override fun onResume() {
         super.onResume()
+        if (!hasOverlayPermission()) {
+            if (prefs.isOverlayEnabled()) prefs.setOverlayEnabled(false)
+            if (prefs.isGameOverlay()) prefs.setGameOverlay(false)
+        }
         if (!uiBuilt) {
-            if (splashDone) check()
+            if (splashDone) {
+                if (currentScreen == "settings") openSettings() else check()
+            }
         } else {
             if (prefs.isDisplayTweaked() && !prefs.isActive()) {
                 val at = info.getResRevertAt()
                 if (at > 0 && System.currentTimeMillis() > at) {
                     bg { try { info.revertResolution() } catch (_: Throwable) {} }
+                }
+            }
+            if (hasOverlayPermission()) {
+                if (prefs.isOverlayEnabled() && !isServiceRunning(MonitorOverlayService::class.java)) {
+                    try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (_: Throwable) {}
+                }
+                if (prefs.isGameOverlay() && !isServiceRunning(GameOverlayService::class.java)) {
+                    try { startService(Intent(this, GameOverlayService::class.java)) } catch (_: Throwable) {}
                 }
             }
             val y = prefs.getUiScrollY()
