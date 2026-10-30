@@ -128,223 +128,219 @@ class AdvancedOptimizationScreen(
             onOn = { pkg -> info.setGameDownscale(pkg, 0.8f) },
             onOff = { pkg -> info.setGameDownscale(pkg, 0f) })
 
-        content.addView(sectionHeader("СЕТЬ И ФОНОВЫЕ СКАНЕРЫ"))
+        content.addView(sectionHeader("СЕТЬ И ФОНОВЫЕ СКАНЕРЫ"))    addToggle(content, "Отключить Wi-Fi scan always",
+        "wifi_scan_always_enabled = 0",
+        "adv_wifi_scan",
+        onOn = { info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0") },
+        onOff = { info.revertSetting("global", "wifi_scan_always_enabled") })
 
-        addToggle(content, "Отключить Wi-Fi scan always",
-            "wifi_scan_always_enabled = 0",
-            "adv_wifi_scan",
-            onOn = { info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0") },
-            onOff = { info.revertSetting("global", "wifi_scan_always_enabled") })
+    addToggle(content, "Отключить BLE scan always",
+        "ble_scan_always_enabled = 0",
+        "adv_ble_scan",
+        onOn = { info.applyGlobalSetting("global", "ble_scan_always_enabled", "0") },
+        onOff = { info.revertSetting("global", "ble_scan_always_enabled") })
 
-        addToggle(content, "Отключить BLE scan always",
-            "ble_scan_always_enabled = 0",
-            "adv_ble_scan",
-            onOn = { info.applyGlobalSetting("global", "ble_scan_always_enabled", "0") },
-            onOff = { info.revertSetting("global", "ble_scan_always_enabled") })
+    addToggle(content, "Отключить уведомления о доступных сетях",
+        "wifi_networks_available_notification_on = 0",
+        "adv_wifi_notif",
+        onOn = { info.applyGlobalSetting("global", "wifi_networks_available_notification_on", "0") },
+        onOff = { info.revertSetting("global", "wifi_networks_available_notification_on") })
 
-        addToggle(content, "Отключить уведомления о доступных сетях",
-            "wifi_networks_available_notification_on = 0",
-            "adv_wifi_notif",
-            onOn = { info.applyGlobalSetting("global", "wifi_networks_available_notification_on", "0") },
-            onOff = { info.revertSetting("global", "wifi_networks_available_notification_on") })
+    addToggle(content, "Wi-Fi не отключать в спящем режиме",
+        "wifi_sleep_policy = 2 (не экономия, стабильность)",
+        "adv_wifi_sleep",
+        onOn = { info.applyGlobalSetting("global", "wifi_sleep_policy", "2") },
+        onOff = { info.revertSetting("global", "wifi_sleep_policy") })
 
-        addToggle(content, "Wi-Fi не отключать в спящем режиме",
-            "wifi_sleep_policy = 2 (не экономия, стабильность)",
-            "adv_wifi_sleep",
-            onOn = { info.applyGlobalSetting("global", "wifi_sleep_policy", "2") },
-            onOff = { info.revertSetting("global", "wifi_sleep_policy") })
+    content.addView(sectionHeader("ЭНЕРГОСБЕРЕЖЕНИЕ"))
 
-        content.addView(sectionHeader("ЭНЕРГОСБЕРЕЖЕНИЕ"))
+    addToggle(content, "Отключить low_power",
+        "low_power = 0",
+        "adv_low_power",
+        onOn = { info.applyGlobalSetting("global", "low_power", "0") },
+        onOff = { info.revertSetting("global", "low_power") })
 
-        addToggle(content, "Отключить low_power",
-            "low_power = 0",
-            "adv_low_power",
-            onOn = { info.applyGlobalSetting("global", "low_power", "0") },
-            onOff = { info.revertSetting("global", "low_power") })
+    addToggle(content, "Отключить auto power save",
+        "automatic_power_save_mode = 0",
+        "adv_auto_power",
+        onOn = { info.applyGlobalSetting("global", "automatic_power_save_mode", "0") },
+        onOff = { info.revertSetting("global", "automatic_power_save_mode") })
 
-        addToggle(content, "Отключить auto power save",
-            "automatic_power_save_mode = 0",
-            "adv_auto_power",
-            onOn = { info.applyGlobalSetting("global", "automatic_power_save_mode", "0") },
-            onOff = { info.revertSetting("global", "automatic_power_save_mode") })
+    addToggle(content, "Отключить adaptive battery",
+        "adaptive_battery_management_enabled = 0",
+        "adv_adaptive_bat",
+        onOn = { info.applyGlobalSetting("global", "adaptive_battery_management_enabled", "0") },
+        onOff = { info.revertSetting("global", "adaptive_battery_management_enabled") })
 
-        addToggle(content, "Отключить adaptive battery",
-            "adaptive_battery_management_enabled = 0",
-            "adv_adaptive_bat",
-            onOn = { info.applyGlobalSetting("global", "adaptive_battery_management_enabled", "0") },
-            onOff = { info.revertSetting("global", "adaptive_battery_management_enabled") })
+    addToggle(content, "Отключить App Standby",
+        "app_standby_enabled = 0 — приложения не уходят в редкий бакет",
+        "adv_app_standby",
+        onOn = { info.applyGlobalSetting("global", "app_standby_enabled", "0") },
+        onOff = { info.revertSetting("global", "app_standby_enabled") })
 
-        addToggle(content, "Отключить App Standby",
-            "app_standby_enabled = 0 — приложения не уходят в редкий бакет",
-            "adv_app_standby",
-            onOn = { info.applyGlobalSetting("global", "app_standby_enabled", "0") },
-            onOff = { info.revertSetting("global", "app_standby_enabled") })
+    addToggle(content, "Отключить cached_apps_freezer",
+        "cached_apps_freezer = 0 — быстрее переключение, выше расход RAM",
+        "adv_freezer",
+        onOn = { info.applyGlobalSetting("global", "cached_apps_freezer", "0") },
+        onOff = { info.revertSetting("global", "cached_apps_freezer") })
 
-        addToggle(content, "Отключить cached_apps_freezer",
-            "cached_apps_freezer = 0 — быстрее переключение, выше расход RAM",
-            "adv_freezer",
-            onOn = { info.applyGlobalSetting("global", "cached_apps_freezer", "0") },
-            onOff = { info.revertSetting("global", "cached_apps_freezer") })
+    content.addView(sectionHeader("УВЕДОМЛЕНИЯ"))
 
-        content.addView(sectionHeader("УВЕДОМЛЕНИЯ"))
+    addToggle(content, "Отключить heads-up уведомления",
+        "heads_up_notifications_enabled = 0. SMS/звонки продолжат работать",
+        "adv_heads_up",
+        onOn = { info.applyGlobalSetting("global", "heads_up_notifications_enabled", "0") },
+        onOff = { info.revertSetting("global", "heads_up_notifications_enabled") })
 
-        addToggle(content, "Отключить heads-up уведомления",
-            "heads_up_notifications_enabled = 0. SMS/звонки продолжат работать",
-            "adv_heads_up",
-            onOn = { info.applyGlobalSetting("global", "heads_up_notifications_enabled", "0") },
-            onOff = { info.revertSetting("global", "heads_up_notifications_enabled") })
+    content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
 
-        content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
+    root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
+    return root
+}
 
-        root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-        return root
+private fun buildTopBar(): FrameLayout {
+    val bar = FrameLayout(ctx).apply { setBackgroundColor(Color.parseColor("#CC05070A")) }
+    val h = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(16), dp(12), dp(16), dp(12))
     }
-
-    private fun buildTopBar(): FrameLayout {
-        val bar = FrameLayout(ctx).apply { setBackgroundColor(Color.parseColor("#CC05070A")) }
-        val h = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-        bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        val back = ImageView(ctx).apply {
-            setImageResource(android.R.drawable.ic_menu_revert)
-            setColorFilter(Color.WHITE)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            setOnClickListener { onBack?.invoke() }
-        }
-        h.addView(back, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(12) })
-        val title = TextView(ctx).apply {
-            text = "Расширенная оптимизация"
-            setTextColor(Color.WHITE)
-            textSize = 20f
-            gravity = Gravity.CENTER_VERTICAL
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        h.addView(title, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        return bar
+    bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+    val back = ImageView(ctx).apply {
+        setImageResource(android.R.drawable.ic_menu_revert)
+        setColorFilter(Color.WHITE)
+        setPadding(dp(8), dp(8), dp(8), dp(8))
+        setOnClickListener { onBack?.invoke() }
     }
-
-    private fun sectionHeader(text: String): TextView = TextView(ctx).apply {
-        this.text = text
-        setTextColor(Color.parseColor("#99FFFFFF"))
-        textSize = 11f
-        letterSpacing = 0.18f
+    h.addView(back, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(12) })
+    val title = TextView(ctx).apply {
+        text = "Расширенная оптимизация"
+        setTextColor(Color.WHITE)
+        textSize = 20f
+        gravity = Gravity.CENTER_VERTICAL
         typeface = Typeface.DEFAULT_BOLD
-        setPadding(dp(4), dp(18), 0, dp(8))
     }
+    h.addView(title, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+    return bar
+}
 
-    private fun addToggle(
-        parent: LinearLayout,
-        title: String,
-        subtitle: String,
-        prefKey: String,
-        onOn: () -> String,
-        onOff: () -> String
-    ) {
-        val state = prefs.isFeat(prefKey)
-        val row = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = glassItem()
-            isClickable = true
-        }
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(TextView(ctx).apply {
-            text = title
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        col.addView(TextView(ctx).apply {
-            text = subtitle
-            setTextColor(Color.parseColor("#88FFFFFF"))
-            textSize = 11f
-            setPadding(0, dp(2), 0, 0)
-        })
-        row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        val stateTv = TextView(ctx).apply {
-            text = if (state) "ВКЛ" else "ВЫКЛ"
-            setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        row.addView(stateTv)
-        row.setOnClickListener {
-            val next = stateTv.text != "ВКЛ"
-            val result = try {
-                if (next) onOn() else onOff()
-            } catch (e: Throwable) {
-                "Ошибка: ${e.message ?: "?"}"
-            }
-            prefs.setFeat(prefKey, next)
-            stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
-            stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-            onStatus?.invoke(result)
-        }
-        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
+private fun sectionHeader(text: String): TextView = TextView(ctx).apply {
+    this.text = text
+    setTextColor(Color.parseColor("#99FFFFFF"))
+    textSize = 11f
+    letterSpacing = 0.18f
+    typeface = Typeface.DEFAULT_BOLD
+    setPadding(dp(4), dp(18), 0, dp(8))
+}
+
+private fun addToggle(
+    parent: LinearLayout,
+    title: String,
+    subtitle: String,
+    prefKey: String,
+    onOn: () -> String,
+    onOff: () -> String
+) {
+    val state = prefs.isFeat(prefKey)
+    val row = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        background = glassItem()
+        isClickable = true
     }
-
-    private fun addPerGameToggle(
-        parent: LinearLayout,
-        title: String,
-        subtitle: String,
-        prefKey: String,
-        onOn: (String) -> String,
-        onOff: (String) -> String
-    ) {
-        val state = prefs.isFeat(prefKey)
-        val row = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = glassItem()
-            isClickable = true
-        }
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(TextView(ctx).apply {
-            text = title
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        col.addView(TextView(ctx).apply {
-            text = subtitle
-            setTextColor(Color.parseColor("#88FFFFFF"))
-            textSize = 11f
-            setPadding(0, dp(2), 0, 0)
-        })
-        row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        val stateTv = TextView(ctx).apply {
-            text = if (state) "ВКЛ" else "ВЫКЛ"
-            setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        row.addView(stateTv)
-        row.setOnClickListener {
-            val pkg = prefs.getLastPackage()
-            if (pkg.isBlank()) {
-                Toast.makeText(ctx, "Сначала выберите игру в главном экране", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            val next = stateTv.text != "ВКЛ"
-            val result = try {
-                if (next) onOn(pkg) else onOff(pkg)
-            } catch (e: Throwable) {
-                "Ошибка: ${e.message ?: "?"}"
-            }
-            prefs.setFeat(prefKey, next)
-            stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
-            stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-            onStatus?.invoke(result)
-        }
-        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
+    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    col.addView(TextView(ctx).apply {
+        text = title
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        typeface = Typeface.DEFAULT_BOLD
+    })
+    col.addView(TextView(ctx).apply {
+        text = subtitle
+        setTextColor(Color.parseColor("#88FFFFFF"))
+        textSize = 11f
+        setPadding(0, dp(2), 0, 0)
+    })
+    row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+    val stateTv = TextView(ctx).apply {
+        text = if (state) "ВКЛ" else "ВЫКЛ"
+        setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+        textSize = 13f
+        typeface = Typeface.DEFAULT_BOLD
     }
+    row.addView(stateTv)
+    row.setOnClickListener {
+        val next = stateTv.text != "ВКЛ"
+        val result = try {
+            if (next) onOn() else onOff()
+        } catch (e: Throwable) {
+            "Ошибка: ${e.message ?: "?"}"
+        }
+        prefs.setFeat(prefKey, next)
+        stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
+        stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+        onStatus?.invoke(result)
+    }
+    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
+}
 
-    private fun addAction(
+private fun addPerGameToggle(
+    parent: LinearLayout,
+    title: String,
+    subtitle: String,
+    prefKey: String,
+    onOn: (String) -> String,
+    onOff: (String) -> String
+) {
+    val state = prefs.isFeat(prefKey)
+    val row = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        background = glassItem()
+        isClickable = true
+    }
+    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    col.addView(TextView(ctx).apply {
+        text = title
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        typeface = Typeface.DEFAULT_BOLD
+    })
+    col.addView(TextView(ctx).apply {
+        text = subtitle
+        setTextColor(Color.parseColor("#88FFFFFF"))
+        textSize = 11f
+        setPadding(0, dp(2), 0, 0)
+    })
+    row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+    val stateTv = TextView(ctx).apply {
+        text = if (state) "ВКЛ" else "ВЫКЛ"
+        setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+        textSize = 13f
+        typeface = Typeface.DEFAULT_BOLD
+    }
+    row.addView(stateTv)
+    row.setOnClickListener {
+        val pkg = prefs.getLastPackage()
+        if (pkg.isBlank()) {
+            Toast.makeText(ctx, "Сначала выберите игру в главном экране", Toast.LENGTH_SHORT).show()
+            return@setOnClickListener
+        }
+        val next = stateTv.text != "ВКЛ"
+        val result = try {
+            if (next) onOn(pkg) else onOff(pkg)
+        } catch (e: Throwable) {
+            "Ошибка: ${e.message ?: "?"}"
+        }
+        prefs.setFeat(prefKey, next)
+        stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
+        stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+        onStatus?.invoke(result)
+    }
+    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
+}    private fun addAction(
         parent: LinearLayout,
         title: String,
         subtitle: String,
