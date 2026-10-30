@@ -4,13 +4,6 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 
-/**
- * Авто-сессия (2.0): следит за foreground-приложением через UsageStatsManager.
- * Открыл игру с сохранённым профилем — профиль применяется сам;
- * закрыл игру — всё откатывается к исходному (revertAll).
- * Работает внутри KeepAliveService, только когда оптимизация активна
- * и включён тумблер «Авто-сессия» (нужно разрешение «Доступ к статистике использования»).
- */
 class SessionGuard(private val ctx: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
@@ -52,7 +45,6 @@ class SessionGuard(private val ctx: Context) {
                 try {
                     DeviceInfo(ctx).revertAll(p, prefs)
                     OpLog.log("Авто-сессия: откат после $p")
-                    // оптимизация выключена: фоновый сервис больше не нужен
                     try { ctx.stopService(android.content.Intent(ctx, KeepAliveService::class.java)) } catch (_: Throwable) {}
                 } finally { busy = false }
             }.start()
@@ -64,13 +56,18 @@ class SessionGuard(private val ctx: Context) {
         prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setTargetHz(p.hz)
         prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit)
         prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
-        info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost, p.pkg)
-        info.unlockGameFps(p.pkg, p.hz)
-        info.pinGameToPrimeCore(p.pkg)
-        info.boostInputDispatcher()
-        info.applySurfaceFlingerBoost(true)
+        info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost && info.isGpuBoostSupported(), p.pkg)
+        if (info.isVendorGameCmdSupported()) info.unlockGameFps(p.pkg, p.hz)
+        if (info.isRooted()) info.pinGameToPrimeCore(p.pkg)
+        if (info.isRooted()) info.boostInputDispatcher()
         if (p.sense >= 0) info.applySense(p.sense)
-        if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
+        else info.applyCustomSense(
+            prefs.getPointerSpeed(),
+            prefs.getSenseTouchRate(),
+            prefs.isTouchPredictionOff(),
+            prefs.isTouchBlockingZero(),
+            prefs.isMotionAggregationOff()
+        )
         OpLog.log("Авто-сессия: профиль ${p.pkg} применён")
     }
 }
