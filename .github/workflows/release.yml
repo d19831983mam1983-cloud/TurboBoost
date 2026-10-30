@@ -25,6 +25,9 @@ jobs:
         with:
           gradle-version: 8.13
 
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version 8.13
+
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
@@ -62,4 +65,4 @@ jobs:
           path: |
             **/build/reports/**
             **/build/outputs/logs/**
-          if-no-files-found: ignore            
+          if-no-files-found: ignore
