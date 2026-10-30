@@ -49,31 +49,31 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var btnModeBal: TextView; lateinit var btnGpuBoost: ToggleRow; lateinit var btnBgLimit: ToggleRow
     lateinit var btnGames: TextView; lateinit var btnProfiles: TextView; lateinit var btnLauncher: TextView
     lateinit var pkgInput: EditText; lateinit var cardApplied: TextView; lateinit var statusResult: TextView
-    lateinit var senseRow: LinearLayout; lateinit var hzRow: LinearLayout; lateinit var downscaleRow: LinearLayout
+    lateinit var senseRow: LinearLayout; lateinit var hzRow: LinearLayout
 
     var onToggle: (() -> Unit)? = null; var onDiagnostics: (() -> Unit)? = null; var onJoyoseToggle: (() -> Unit)? = null
     var onThreadsToggle: (() -> Unit)? = null; var onMglruToggle: (() -> Unit)? = null; var onGameSpace: (() -> Unit)? = null
     var onSenseSelected: ((Int) -> Unit)? = null; var onModeSelected: ((Int) -> Unit)? = null
     var onGpuBoostToggle: (() -> Unit)? = null; var onBgLimitToggle: (() -> Unit)? = null
     var onShowGames: (() -> Unit)? = null; var onShowProfiles: (() -> Unit)? = null
-    var onHzSelected: ((Int) -> Unit)? = null; var onDownscaleSelected: ((Int) -> Unit)? = null
+    var onHzSelected: ((Int) -> Unit)? = null
     var onPackageChanged: ((String) -> Unit)? = null; var onSettingsClick: (() -> Unit)? = null
     var onShowLauncher: (() -> Unit)? = null
     var onShowProfile: (() -> Unit)? = null
     var onSenseFinder: (() -> Unit)? = null
     var onSenseCustom: (() -> Unit)? = null
+    var onApplyCustomResolution: ((Int, Int) -> Unit)? = null
+    var onResetCustomResolution: (() -> Unit)? = null
 
-    var currentSense = -1; var currentMode = 0; var currentHz = 120; var currentDownscale = 2
+    var currentSense = -1; var currentMode = 0; var currentHz = 120
     var maxHz = 144
-    var currentGfx = 0; var currentStretch = 0
     var onPingTest: (() -> Unit)? = null
-    var onGfxSelected: ((Int) -> Unit)? = null; var onStretchSelected: ((Int) -> Unit)? = null
-    lateinit var gfxRow: LinearLayout; lateinit var stretchRow: LinearLayout
     private var isActive = false; private var themeIndex = 0; private var currentGpu = false
     private var currentBg = false; private var currentThreads = false; private var currentMglru = false; private var currentJoyose = false
     private var lastStatus = "Готов к работе"
     private var heroBox: LinearLayout? = null
     private var isCustomSense = false
+    private var prefsRef: AppPrefs? = null
 
     private val senseLevels = listOf(1, 2, 3, -1)
     private val senseNames = listOf("Сильный", "Эксп.", "Макс", "Кастом")
@@ -83,6 +83,11 @@ class OptimizerUI(private val ctx: Context) {
 
     fun setThemeIndexBeforeBuild(i: Int) {
         themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
+    }
+
+    private fun prefs(): AppPrefs {
+        val p = prefsRef ?: AppPrefs(ctx).also { prefsRef = it }
+        return p
     }
 
     private fun gridButton(active: Boolean): Drawable {
@@ -154,9 +159,6 @@ class OptimizerUI(private val ctx: Context) {
         if (::btnJoyose.isInitialized) setJoyoseState(currentJoyose)
         if (::hzRow.isInitialized) updHz()
         if (::senseRow.isInitialized) updSense()
-        if (::downscaleRow.isInitialized) updDownscale()
-        if (::gfxRow.isInitialized) updGfx()
-        if (::stretchRow.isInitialized) updStretch()
         if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
         if (::btnGames.isInitialized) refreshActionBackgrounds()
     }
@@ -169,10 +171,10 @@ class OptimizerUI(private val ctx: Context) {
     }
 
     fun build(): FrameLayout {
-    root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
-    bgView = LiquidBackgroundView(ctx)
-    bgView.setTheme(themeIndex, isActive)
-    root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
+        bgView = LiquidBackgroundView(ctx)
+        bgView.setTheme(themeIndex, isActive)
+        root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         val content = FrameLayout(ctx)
         root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
@@ -328,22 +330,55 @@ class OptimizerUI(private val ctx: Context) {
         val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
         sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
-        val sGfx = section("ГРАФИКА И ЭКРАН")
-        sGfx.addView(lbl("Разрешение рендера (FPS)"))
-        downscaleRow = row(sGfx, 2)
-        listOf("Выкл", "90%", "80%", "70%").forEachIndexed { i, n ->
-            downscaleRow.addView(glass(n) { currentDownscale = i; onDownscaleSelected?.invoke(i); updDownscale() }, lpf())
+        val sGfx = section("РАЗРЕШЕНИЕ ЭКРАНА")
+        sGfx.addView(lbl("Своё разрешение (ширина × высота)"))
+        val resRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val wInput = EditText(ctx).apply {
+            hint = "Ширина"
+            setHintTextColor(Color.parseColor("#88FFFFFF"))
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            setSingleLine()
+            inputType = InputType.TYPE_CLASS_NUMBER
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = glassBgDrawable(12)
+            val v = prefs().getCustomW()
+            if (v > 0) setText(v.toString())
         }
-        sGfx.addView(lbl("Пресет графики"))
-        gfxRow = row(sGfx, 2)
-        listOf("Выкл", "Классика", "Картошка").forEachIndexed { i, n ->
-            gfxRow.addView(glass(n) { currentGfx = i; onGfxSelected?.invoke(i); updGfx() }, lpf())
+        val hInput = EditText(ctx).apply {
+            hint = "Высота"
+            setHintTextColor(Color.parseColor("#88FFFFFF"))
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            setSingleLine()
+            inputType = InputType.TYPE_CLASS_NUMBER
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = glassBgDrawable(12)
+            val v = prefs().getCustomH()
+            if (v > 0) setText(v.toString())
         }
-        sGfx.addView(lbl("Растяжка экрана"))
-        stretchRow = row(sGfx, 2)
-        listOf("Выкл", "5:4", "4:3").forEachIndexed { i, n ->
-            stretchRow.addView(glass(n) { currentStretch = i; onStretchSelected?.invoke(i); updStretch() }, lpf())
-        }
+        resRow.addView(wInput, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(8) })
+        resRow.addView(hInput, LinearLayout.LayoutParams(0, dp(46), 1f))
+        sGfx.addView(resRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(4) })
+
+        sGfx.addView(glass("Применить и запустить Standoff 2") {
+            val w = wInput.text.toString().trim().toIntOrNull() ?: 0
+            val h = hInput.text.toString().trim().toIntOrNull() ?: 0
+            if (w < 320 || h < 320) {
+                android.widget.Toast.makeText(ctx, "Введи числа (мин. 320)", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                onApplyCustomResolution?.invoke(w, h)
+            }
+        }, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)).apply { topMargin = dp(10) })
+
+        sGfx.addView(glass("Сбросить разрешение") { onResetCustomResolution?.invoke() },
+            LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
+
+        sGfx.addView(tv("Разрешение применится, Standoff 2 запустится, через 25 секунд вернётся исходное.", 11f, Color.parseColor("#99FFFFFF")).apply {
+            setPadding(dp(4), dp(8), dp(4), dp(0))
+        })
 
         val sSys = section("СИСТЕМА")
         btnThreads = toggleRow(sSys, "Потоки CPU") { onThreadsToggle?.invoke() }
@@ -352,16 +387,7 @@ class OptimizerUI(private val ctx: Context) {
         btnJoyose.visibility = View.GONE
         val r4 = row(sSys, 8)
         val pingBtn = glass("Пинг-тест") { onPingTest?.invoke() }
-        r4.addView(pingBtn, lpf())
-        btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }
-        r4.addView(btnGameSpace, lpf())
-        btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
-        r4.addView(btnDiagnostics, lpl())
-        val btnProfile = glass("Мой аккаунт") { onShowProfile?.invoke() }
-        sSys.addView(btnProfile, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
-
-        page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
-    }private fun animateIn() {
+    private fun animateIn() {
     for (i in 0 until page1.childCount) {
         val v = page1.getChildAt(i); v.alpha = 0f; v.translationY = dp(40).toFloat(); v.scaleX = 0.9f; v.scaleY = 0.9f
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setStartDelay((i * 20).toLong()).setDuration(500).setInterpolator(AnticipateOvershootInterpolator(1.2f)).start()
@@ -386,7 +412,6 @@ fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
 
 fun setMode(m: Int) { currentMode = m; if (::btnModePerf.isInitialized) fade(btnModePerf, if (m == 0) accentDrawable() else unselDrawable()); if (::btnModeBal.isInitialized) fade(btnModeBal, if (m == 1) accentDrawable() else unselDrawable()) }
 fun setHz(hz: Int) { currentHz = hz; if (::hzRow.isInitialized) updHz() }
-fun setDownscaleLevel(level: Int) { currentDownscale = level; if (::downscaleRow.isInitialized) updDownscale() }
 fun setPackageText(t: String) { if (t.isNotEmpty() && ::pkgInput.isInitialized) pkgInput.setText(t) }
 fun setSenseLevel(l: Int) { currentSense = l; isCustomSense = (l == -1); if (::senseRow.isInitialized) updSense() }
 
@@ -401,9 +426,6 @@ fun setActive(a: Boolean) {
     if (::btnJoyose.isInitialized) setJoyoseState(currentJoyose)
     if (::hzRow.isInitialized) updHz()
     if (::senseRow.isInitialized) updSense()
-    if (::downscaleRow.isInitialized) updDownscale()
-    if (::gfxRow.isInitialized) updGfx()
-    if (::stretchRow.isInitialized) updStretch()
 }
 
 private fun applyToggleGridStyle(row: ToggleRow, on: Boolean) {
@@ -437,11 +459,6 @@ private fun updSense() {
     }
 }
 private fun appVer(): String = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (_: Throwable) { "?" }
-private fun updGfx() { if (!::gfxRow.isInitialized) return; for (i in 0 until gfxRow.childCount) { val tv = gfxRow.getChildAt(i) as TextView; tv.background = if (i == currentGfx) accentDrawable() else unselDrawable() } }
-private fun updStretch() { if (!::stretchRow.isInitialized) return; for (i in 0 until stretchRow.childCount) { val tv = stretchRow.getChildAt(i) as TextView; tv.background = if (i == currentStretch) accentDrawable() else unselDrawable() } }
-fun setGfx(v: Int) { currentGfx = v; if (::gfxRow.isInitialized) updGfx() }
-fun setStretch(v: Int) { currentStretch = v; if (::stretchRow.isInitialized) updStretch() }
-private fun updDownscale() { if (!::downscaleRow.isInitialized) return; for (i in 0 until downscaleRow.childCount) { val tv = downscaleRow.getChildAt(i) as TextView; tv.background = if (i == currentDownscale) accentDrawable() else unselDrawable() } }
 
 private fun touch(v: View, click: () -> Unit) {
     v.setOnTouchListener { view, ev -> when (ev.action) { MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start(); MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(AnticipateOvershootInterpolator(2f)).start() }; false }
@@ -585,4 +602,4 @@ private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
             if (active) postInvalidateOnAnimation()
         }
     }
-}
+    }
