@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -106,12 +105,8 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setTitle("Админ-доступ")
                     .setItems(arrayOf("Открыть админ-панель", "Выйти из админки")) { _, which ->
-                        if (which == 0) {
-                            openAdminPanel()
-                        } else {
-                            store.revokeAdmin(me.id)
-                            openProfile()
-                        }
+                        if (which == 0) openAdminPanel()
+                        else { store.revokeAdmin(me.id); openProfile() }
                     }
                     .setNegativeButton("Закрыть", null)
                     .show()
@@ -354,14 +349,14 @@ class MainActivity : AppCompatActivity() {
         try {
             val f = java.io.File(filesDir, "bg_custom.png")
             f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        } catch (e: Throwable) {}
+        } catch (_: Throwable) {}
     }
 
     private fun loadBgFromInternal(): Bitmap? {
         return try {
             val f = java.io.File(filesDir, "bg_custom.png")
             if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
-        } catch (e: Throwable) { null }
+        } catch (_: Throwable) { null }
     }private fun openSenseFinder() {
     val finder = SenseFinderScreen(this)
     finder.onBack = {
@@ -428,7 +423,7 @@ private fun openSettings() {
     settings.onPickBackground = { pickImage.launch("image/*") }
     settings.onResetBackground = {
         ui.setBackgroundBitmap(null)
-        try { java.io.File(filesDir, "bg_custom.png").delete() } catch (e: Throwable) {}
+        try { java.io.File(filesDir, "bg_custom.png").delete() } catch (_: Throwable) {}
     }
     settings.onAutoSessionToggle = { on ->
         prefs.setAutoSession(on)
@@ -444,13 +439,13 @@ private fun openSettings() {
         prefs.setOverlayEnabled(on)
         if (on) {
             if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
-                try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
+                try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (_: Throwable) {}
             } else {
                 Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
                 try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
             }
         } else {
-            try { startService(Intent(this, MonitorOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
+            try { startService(Intent(this, MonitorOverlayService::class.java).setAction("STOP")) } catch (_: Throwable) {}
         }
     }
     settings.onRequestUsageAccess = {
@@ -471,13 +466,13 @@ private fun openSettings() {
         prefs.setGameOverlay(on)
         if (on) {
             if (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)) {
-                try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
+                try { startService(Intent(this, GameOverlayService::class.java)) } catch (_: Throwable) {}
             } else {
                 Toast.makeText(this, "Разрешите отображение поверх других приложений", Toast.LENGTH_LONG).show()
                 try { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
             }
         } else {
-            try { startService(Intent(this, GameOverlayService::class.java).setAction("STOP")) } catch (e: Throwable) {}
+            try { startService(Intent(this, GameOverlayService::class.java).setAction("STOP")) } catch (_: Throwable) {}
         }
     }
     setContentView(settings.build())
@@ -525,9 +520,8 @@ private fun openLauncher() {
         try {
             val label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
             list.add(pkg to label)
-        } catch (e: Throwable) {}
+        } catch (_: Throwable) {}
     }
-
     val launcher = LauncherScreen(this)
     launcher.onBack = { buildMain() }
     launcher.onAddGame = { showAppPicker() }
@@ -539,9 +533,7 @@ private fun openLauncher() {
         prefs.setLastPackage(pkg)
         ui.setPackageText(pkg)
         if (autoOpt) {
-            if (!prefs.isActive()) {
-                toggle()
-            }
+            if (!prefs.isActive()) toggle()
         }
     }
     setContentView(launcher.build(list))
@@ -651,15 +643,17 @@ private fun buildMain() {
     ui.setActive(prefs.isActive())
     if (prefs.isActive()) alive(true)
     if (prefs.isOverlayEnabled() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
-        try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (e: Throwable) {}
+        try { startService(Intent(this, MonitorOverlayService::class.java)) } catch (_: Throwable) {}
     }
     if (prefs.isGameOverlay() && (Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this))) {
-        try { startService(Intent(this, GameOverlayService::class.java)) } catch (e: Throwable) {}
+        try { startService(Intent(this, GameOverlayService::class.java)) } catch (_: Throwable) {}
     }
     refresh(); loop()
 }
 
-private fun async(b: () -> String) { bg { val r = b(); main.post { try { if (uiBuilt) ui.setStatus(r) } catch (_: Throwable) {} } } }
+private fun async(b: () -> String) {
+    bg { val r = b(); main.post { try { if (uiBuilt) ui.setStatus(r) } catch (_: Throwable) {} } }
+}
 
 private fun games(g: List<Pair<String, String>>) {
     if (g.isEmpty()) { Toast.makeText(this, "Игры не найдены", Toast.LENGTH_SHORT).show(); return }
@@ -669,7 +663,168 @@ private fun games(g: List<Pair<String, String>>) {
         prefs.setLastPackage(p)
         async { info.compilePackage(p) }
     }
-}    private fun applyCustomResAndLaunch(w: Int, h: Int) {
+}    private fun diag() {
+        bg {
+            val a = prefs.isActive()
+            val mode = when {
+                SystemReader.rootMode -> "Root"
+                SystemReader.directMode -> "Shizuku (Direct)"
+                SystemReader.service != null -> "Shizuku (UserService)"
+                else -> "Нет"
+            }
+            val t = "Режим: $mode\n" +
+                "Готов: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
+                "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
+                "Тема: ${ThemePalette.get(prefs.getThemeIndex()).name}\n" +
+                "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
+                "Чип: ${info.chipName()}\n" +
+                "GPU: ${info.gpuName()}\n" +
+                "Класс: ${info.tierName()}\n" +
+                "Температура: ${"%.0f".format(info.cpuTemp())}°C\n" +
+                "Батарея: ${info.batteryLevel()}%${if (info.isCharging()) " ⚡" else ""}"
+            main.post { if (!isFinishing && !destroyed) try { AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show() } catch (_: Throwable) {} }
+        }
+    }
+
+    private fun ready(): Boolean {
+        if (!SystemReader.isReady()) { Toast.makeText(this, "Нет доступа (Root/Shizuku)", Toast.LENGTH_SHORT).show(); return false }
+        return true
+    }
+
+    private fun profiles() {
+        val p = prefs.getLastPackage()
+        if (p.isBlank()) { Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show(); return }
+        val ps = prefs.getProfiles()
+        val items = mutableListOf("Сохранить профиль для текущей игры")
+        if (ps.isNotEmpty()) {
+            items.add("Удалить профиль текущей игры")
+            items.add("── Профили ──")
+            items.addAll(ps.map { it.pkg })
+        }
+        ui.showGlassList("Профили", items) { w ->
+            val c = items[w]
+            when {
+                c.startsWith("Сохранить") -> {
+                    prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), 0, false, prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
+                    Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show()
+                }
+                c.startsWith("Удалить") -> {
+                    prefs.deleteProfile(p)
+                    Toast.makeText(this, "Удалён", Toast.LENGTH_SHORT).show()
+                }
+                c.startsWith("──") -> {}
+                else -> ps.firstOrNull { it.pkg == c }?.let { applyProfile(it) }
+            }
+        }
+    }
+
+    private fun applyProfile(p: GameProfile) {
+        prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setTargetHz(p.hz)
+        prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit)
+        prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
+        ui.setMode(p.mode)
+        if (p.sense >= 0) ui.setSenseLevel(p.sense)
+        ui.setHz(info.clampHz(p.hz))
+        ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit)
+        ui.setPackageText(p.pkg)
+        bg {
+            if (p.sense >= 0) info.applySense(p.sense)
+            else info.applyCustomSense(
+                prefs.getPointerSpeed(),
+                prefs.getSenseTouchRate(),
+                prefs.isTouchPredictionOff(),
+                prefs.isTouchBlockingZero(),
+                prefs.isMotionAggregationOff()
+            )
+            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost, p.pkg)
+            if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
+        }
+    }
+
+    fun toggle() {
+        if (!ready() || busy) return
+        busy = true
+
+        val timeoutRunnable = Runnable {
+            if (busy) { busy = false; if (uiBuilt) ui.setStatus("Готово (таймаут)") }
+        }
+        main.postDelayed(timeoutRunnable, 30000)
+
+        if (!prefs.isActive() && info.batteryLevel() <= 10) {
+            Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show()
+            busy = false
+            main.removeCallbacks(timeoutRunnable)
+            return
+        }
+
+        val on = !prefs.isActive()
+        val p = prefs.getLastPackage()
+        val m = prefs.getPerfMode()
+        val hz = prefs.getTargetHz()
+
+        if (on) {
+            if (uiBuilt) ui.setStatus("Оптимизация...")
+            bg {
+                try {
+                    val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost(), p)
+                    if (p.isNotBlank()) info.unlockGameFps(p, hz)
+                    if (p.isNotBlank()) info.pinGameToPrimeCore(p)
+                    if (p.isNotBlank()) info.prioritizeGameThreads(p)
+                    info.runFstrim()
+                    if (prefs.isBackgroundLimit()) info.restrictBackground()
+                    info.applySurfaceFlingerBoost(true)
+                    info.boostInputDispatcher()
+                    info.optimizePing()
+                    val senseLv = prefs.getSenseLevel()
+                    if (senseLv == -1) {
+                        info.applyCustomSense(
+                            prefs.getPointerSpeed(),
+                            prefs.getSenseTouchRate(),
+                            prefs.isTouchPredictionOff(),
+                            prefs.isTouchBlockingZero(),
+                            prefs.isMotionAggregationOff()
+                        )
+                        info.applyAnimationScale(prefs.getAnimScale())
+                        info.applyLongPress(prefs.getLongPressTimeout())
+                        info.applyGtGpuTuner(prefs.isGtGpuTuner())
+                    } else if (senseLv >= 0) info.applySense(senseLv)
+                    info.restrictPowerKeeper()
+                    info.cleanupDozeWhitelist()
+                    info.restrictGms()
+                    OpLog.log("Турбо: включено (пакет: ${if (p.isBlank()) "—" else p})")
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post {
+                        busy = false
+                        prefs.setActive(true)
+                        alive(true)
+                        if (uiBuilt) { ui.setActive(true); ui.setStatus(r); refresh() }
+                    }
+                } catch (e: Throwable) {
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
+                }
+            }
+        } else {
+            if (uiBuilt) ui.setStatus("Отключение...")
+            bg {
+                try {
+                    val r = info.revertAll(p, prefs)
+                    OpLog.log("Турбо: выключено")
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post {
+                        busy = false
+                        alive(false)
+                        if (uiBuilt) { ui.setActive(false); ui.setStatus(r); refresh() }
+                    }
+                } catch (e: Throwable) {
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
+                }
+            }
+        }
+    }
+
+    private fun applyCustomResAndLaunch(w: Int, h: Int) {
         prefs.setCustomW(w)
         prefs.setCustomH(h)
         val appCtx = applicationContext
@@ -740,11 +895,12 @@ private fun games(g: List<Pair<String, String>>) {
 
     fun refresh() {
         if (!uiBuilt) return
-        val now = System.currentTimeMillis(); val slow = now - lastSlow >= 15000L; if (slow) lastSlow = now
+        val now = System.currentTimeMillis()
+        val slow = now - lastSlow >= 15000L
+        if (slow) lastSlow = now
         bg {
             try {
                 val bat = info.batteryLevel(); val temp = info.cpuTemp(); val active = prefs.isActive()
-
                 if (slow) {
                     if (active) {
                         val pkg = prefs.getLastPackage()
@@ -752,7 +908,6 @@ private fun games(g: List<Pair<String, String>>) {
                     }
                     main.post { try { if (uiBuilt) ui.setAppliedState(active, active) } catch (e: Throwable) { Log.e("TurboBoost", "slow ui", e) } }
                 }
-
                 main.post {
                     try {
                         if (!uiBuilt) return@post
@@ -778,11 +933,16 @@ private fun games(g: List<Pair<String, String>>) {
         }
     }
 
-    override fun onPause() { super.onPause(); try { if (uiBuilt) prefs.setUiScrollY(ui.scroll1.scrollY) } catch (_: Throwable) {} }
+    override fun onPause() {
+        super.onPause()
+        try { if (uiBuilt) prefs.setUiScrollY(ui.scroll1.scrollY) } catch (_: Throwable) {}
+    }
 
     override fun onResume() {
         super.onResume()
-        if (!uiBuilt) { if (splashDone) check() } else {
+        if (!uiBuilt) {
+            if (splashDone) check()
+        } else {
             if (prefs.isDisplayTweaked() && !prefs.isActive()) {
                 val at = info.getResRevertAt()
                 if (at > 0 && System.currentTimeMillis() > at) {
