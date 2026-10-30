@@ -88,6 +88,7 @@ class OptimizerUI(private val ctx: Context) {
     var onSenseCustom: (() -> Unit)? = null
     var onApplyCustomResolution: ((Int, Int) -> Unit)? = null
     var onResetCustomResolution: (() -> Unit)? = null
+    var onShowAdvanced: (() -> Unit)? = null
 
     var currentSense = -1
     var currentMode = 0
@@ -448,6 +449,8 @@ class OptimizerUI(private val ctx: Context) {
     r4.addView(btnDiagnostics, lpl())
     val btnProfile = glass("Мой аккаунт") { onShowProfile?.invoke() }
     sSys.addView(btnProfile, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
+    val btnAdvanced = glass("Расширенная оптимизация") { onShowAdvanced?.invoke() }
+    sSys.addView(btnAdvanced, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
 
     page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
 }
