@@ -9,14 +9,14 @@ object SystemReader {
     @Volatile var directMode: Boolean = false
     @Volatile var rootMode: Boolean = false
     private const val TIMEOUT_MS = 5000L
-    private val executor = Executors.newFixedThreadPool(4)
+    private val executor = Executors.newCachedThreadPool()
 
     fun checkRoot(): Boolean {
         return try {
             val proc: Process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
             val sb = StringBuilder()
-            val outT = Thread { try { sb.append(proc.inputStream.bufferedReader().readText()) } catch (e: Throwable) {} }
-            val errT = Thread { try { proc.errorStream.bufferedReader().readText() } catch (e: Throwable) {} }
+            val outT = Thread { try { sb.append(proc.inputStream.bufferedReader().readText()) } catch (_: Throwable) {} }
+            val errT = Thread { try { proc.errorStream.bufferedReader().readText() } catch (_: Throwable) {} }
             outT.isDaemon = true
             errT.isDaemon = true
             outT.start()
@@ -31,7 +31,7 @@ object SystemReader {
                 proc.destroy()
                 res
             }
-        } catch (e: Throwable) {
+        } catch (_: Throwable) {
             false
         }
     }
@@ -39,25 +39,57 @@ object SystemReader {
     fun read(cmd: String): String = read(cmd, TIMEOUT_MS)
 
     fun read(cmd: String, timeoutMs: Long): String {
-        val task = Callable { when { rootMode -> execRoot(cmd); directMode -> ShizukuHelper.execDirect(cmd); else -> service?.exec(cmd) ?: "" } }
-        var future: java.util.concurrent.Future<String>? = null
+        if (executor.isShutdown) return ""
+        val future = try {
+            executor.submit(Callable {
+                try {
+                    when {
+                        rootMode -> execRoot(cmd, timeoutMs)
+                        directMode -> ShizukuHelper.execDirect(cmd)
+                        else -> {
+                            val s = service
+                            if (s == null) "" else try { s.exec(cmd) } catch (_: Throwable) { "" }
+                        }
+                    }
+                } catch (_: Throwable) { "" }
+            })
+        } catch (_: Throwable) { return "" }
         return try {
-            future = executor.submit(task)
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (e: Throwable) {
-            try { future?.cancel(true) } catch (t: Throwable) {}
+        } catch (_: Throwable) {
+            try { future.cancel(true) } catch (_: Throwable) {}
             ""
         }
     }
 
-    private fun execRoot(cmd: String): String {
+    private fun execRoot(cmd: String, timeoutMs: Long): String {
+        var p: Process? = null
         return try {
-            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-            val errThread = Thread { try { p.errorStream.bufferedReader().readText() } catch (e: Throwable) {} }
-            errThread.isDaemon = true; errThread.start()
-            val out = p.inputStream.bufferedReader().readText().trim(); p.waitFor()
-            out
-        } catch (e: Throwable) { "" }
+            p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            val proc = p
+            val sb = StringBuilder()
+            val errThread = Thread {
+                try { proc.errorStream.bufferedReader().readText() } catch (_: Throwable) {}
+            }.apply { isDaemon = true; start() }
+            val outThread = Thread {
+                try { sb.append(proc.inputStream.bufferedReader().readText()) } catch (_: Throwable) {}
+            }.apply { isDaemon = true; start() }
+            val finished = proc.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+            if (!finished) {
+                try { proc.destroyForcibly() } catch (_: Throwable) {}
+                try { outThread.join(500) } catch (_: Throwable) {}
+                try { errThread.join(200) } catch (_: Throwable) {}
+                ""
+            } else {
+                try { outThread.join(2000) } catch (_: Throwable) {}
+                try { errThread.join(200) } catch (_: Throwable) {}
+                sb.toString().trim()
+            }
+        } catch (_: Throwable) {
+            ""
+        } finally {
+            try { p?.destroy() } catch (_: Throwable) {}
+        }
     }
 
     fun test(path: String): Boolean = read("test -e $path && echo ok").contains("ok")
