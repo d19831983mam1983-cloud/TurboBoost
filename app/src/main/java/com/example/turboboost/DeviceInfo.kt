@@ -160,12 +160,12 @@ class DeviceInfo(private val ctx: Context) {
 
     fun chipName(): String = chip()
     fun gpuName(): String = gpu()
-    fun cpuClusters(): List<Pair<Int, String>> = clusters()private fun hasJoyoseInternal(): Boolean =
-    SystemReader.read("pm list packages com.xiaomi.joyose").contains("com.xiaomi.joyose")
+    fun cpuClusters(): List<Pair<Int, String>> = clusters()
 
-fun hasJoyose(): Boolean = joyose()
+    private fun hasJoyoseInternal(): Boolean =
+        SystemReader.read("pm list packages com.xiaomi.joyose").contains("com.xiaomi.joyose")
 
-fun disableJoyose(): String {
+    fun hasJoyose(): Boolean = joyose()fun disableJoyose(): String {
     if (!isXiaomi()) return "Только Xiaomi"
     if (!isRooted()) return "Требуется root"
     if (!joyose()) return "Joyose не найден"
