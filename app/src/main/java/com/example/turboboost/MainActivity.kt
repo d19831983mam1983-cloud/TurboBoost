@@ -483,6 +483,16 @@ private fun openSettings() {
     setContentView(settings.build())
 }
 
+private fun openAdvanced() {
+    currentScreen = "advanced"
+    val screen = AdvancedOptimizationScreen(this, prefs, info)
+    screen.onBack = { buildMain() }
+    screen.onStatus = { msg ->
+        if (msg.isNotBlank()) Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    }
+    setContentView(screen.build())
+}
+
 private fun hasUsageAccess(): Boolean {
     return try {
         val appOps = getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
@@ -608,6 +618,7 @@ private fun buildMain() {
     }
 
     ui.onSettingsClick = { openSettings() }
+    ui.onShowAdvanced = { openAdvanced() }
     ui.onSenseFinder = { openSenseFinder() }
     ui.onSenseCustom = { openSenseCustom() }
     ui.onPingTest = { ui.setStatus("Проверяю пинг..."); async { info.pingTest() } }
@@ -702,7 +713,7 @@ private fun buildMain() {
             main.post { ui.setStatus(r) }
         }
     }
-    ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
+        ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
     ui.onShowProfiles = { profiles() }
 
     ui.onApplyCustomResolution = { w, h -> applyCustomResAndLaunch(w, h) }
