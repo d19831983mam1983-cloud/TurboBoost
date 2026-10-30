@@ -24,7 +24,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** ID аккаунта: радужный (ПСИХОЗ), красный (Owner) или обычный серый. */
 fun makeIdView(ctx: Context, a: Account, sizeSp: Float): TextView {
     val tv: TextView = if (a.idStyle == AccountStore.STYLE_RAINBOW) RainbowTextView(ctx) else TextView(ctx)
     tv.text = if (a.idStyle == AccountStore.STYLE_PLAIN) "#" + a.displayId else a.displayId
@@ -42,7 +41,6 @@ fun makeIdView(ctx: Context, a: Account, sizeSp: Float): TextView {
     return tv
 }
 
-/** Профиль в стиле FACEIT: баннер, аватар в рамке, ник, ID, статистика. */
 class ProfileScreen(
     private val ctx: Context,
     private val store: AccountStore,
@@ -83,8 +81,6 @@ class ProfileScreen(
         return root
     }
 
-    // ---------------- авторизация ----------------
-
     private fun buildAuth(content: LinearLayout) {
         content.setPadding(dp(20), dp(110), dp(20), dp(24))
 
@@ -122,15 +118,11 @@ class ProfileScreen(
         }, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)))
     }
 
-    // ---------------- профиль ----------------
-
     private fun buildProfile(content: LinearLayout, me: Account) {
-        // баннер
         val bannerFrame = FrameLayout(ctx)
         val bannerView = ImageView(ctx)
         bannerView.scaleType = ImageView.ScaleType.CENTER_CROP
-        val bb = loadBitmap(me.banner)
-        if (bb != null) bannerView.setImageBitmap(bb) else bannerView.setImageDrawable(defaultBanner(me))
+        bannerView.setImageDrawable(defaultBanner(me))
         bannerFrame.addView(bannerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         val shade = View(ctx)
         shade.background = GradientDrawable(
@@ -140,39 +132,51 @@ class ProfileScreen(
         bannerFrame.addView(shade, FrameLayout.LayoutParams(MATCH_PARENT, dp(90)).apply { gravity = Gravity.BOTTOM })
         content.addView(bannerFrame, LinearLayout.LayoutParams(MATCH_PARENT, dp(190)))
 
-        // аватар в рамке, заходит на баннер
+        if (me.banner.isNotBlank()) {
+            loadBitmapAsync(me.banner) { bmp ->
+                if (bmp != null && bannerView.isAttachedToWindow) {
+                    bannerView.setImageBitmap(bmp)
+                }
+            }
+        }
+
         val ring = FrameLayout(ctx)
         val ringBg = GradientDrawable()
         ringBg.shape = GradientDrawable.OVAL
         ringBg.setColor(ringColor(me))
         ring.background = ringBg
         ring.setPadding(dp(3), dp(3), dp(3), dp(3))
-        val ab = loadBitmap(me.avatar)
-        if (ab != null) {
-            val iv = ImageView(ctx)
-            iv.scaleType = ImageView.ScaleType.CENTER_CROP
-            iv.setImageBitmap(ab)
-            clipOval(iv)
-            ring.addView(iv, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        } else {
-            val letter = TextView(ctx)
-            letter.text = me.nick.take(1).uppercase()
-            letter.setTextColor(Color.WHITE)
-            letter.textSize = 38f
-            letter.typeface = Typeface.DEFAULT_BOLD
-            letter.gravity = Gravity.CENTER
-            val lb = GradientDrawable()
-            lb.shape = GradientDrawable.OVAL
-            lb.setColor(Color.parseColor("#2A3550"))
-            letter.background = lb
-            ring.addView(letter, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        }
+
+        val letter = TextView(ctx)
+        letter.text = me.nick.take(1).uppercase()
+        letter.setTextColor(Color.WHITE)
+        letter.textSize = 38f
+        letter.typeface = Typeface.DEFAULT_BOLD
+        letter.gravity = Gravity.CENTER
+        val lb = GradientDrawable()
+        lb.shape = GradientDrawable.OVAL
+        lb.setColor(Color.parseColor("#2A3550"))
+        letter.background = lb
+        ring.addView(letter, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
         content.addView(ring, LinearLayout.LayoutParams(dp(104), dp(104)).apply {
             topMargin = -dp(52)
             leftMargin = dp(18)
         })
 
-        // ник, роль, ID
+        if (me.avatar.isNotBlank()) {
+            loadBitmapAsync(me.avatar) { bmp ->
+                if (bmp != null && ring.isAttachedToWindow) {
+                    ring.removeAllViews()
+                    val iv = ImageView(ctx)
+                    iv.scaleType = ImageView.ScaleType.CENTER_CROP
+                    iv.setImageBitmap(bmp)
+                    clipOval(iv)
+                    ring.addView(iv, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+                }
+            }
+        }
+
         val nameRow = LinearLayout(ctx)
         nameRow.orientation = LinearLayout.HORIZONTAL
         nameRow.gravity = Gravity.CENTER_VERTICAL
@@ -194,6 +198,7 @@ class ProfileScreen(
             leftMargin = dp(20)
             topMargin = dp(10)
         })
+
         val idView = makeIdView(ctx, me, 16f)
         idView.setPadding(dp(4), dp(8), dp(24), dp(8))
         idView.setOnClickListener { onIdClick?.invoke() }
@@ -201,7 +206,6 @@ class ProfileScreen(
             leftMargin = dp(16)
         })
 
-        // статистика
         val stats = LinearLayout(ctx)
         stats.orientation = LinearLayout.HORIZONTAL
         val date = try {
@@ -218,7 +222,6 @@ class ProfileScreen(
             topMargin = dp(20)
         })
 
-        // кнопки
         val pickRow = LinearLayout(ctx)
         pickRow.orientation = LinearLayout.HORIZONTAL
         pickRow.addView(btn("Сменить аватар", "#2A3550") { onPickAvatar?.invoke() },
@@ -251,7 +254,12 @@ class ProfileScreen(
         })
     }
 
-    // ---------------- помощники ----------------
+    private fun loadBitmapAsync(path: String, onResult: (Bitmap?) -> Unit) {
+        Thread {
+            val bmp = try { BitmapFactory.decodeFile(path) } catch (_: Throwable) { null }
+            android.os.Handler(android.os.Looper.getMainLooper()).post { onResult(bmp) }
+        }.start()
+    }
 
     private fun ringColor(a: Account): Int = Color.parseColor(
         when (a.idStyle) {
@@ -332,15 +340,6 @@ class ProfileScreen(
             }
         }
         v.clipToOutline = true
-    }
-
-    private fun loadBitmap(path: String): Bitmap? {
-        if (path.isBlank()) return null
-        return try {
-            BitmapFactory.decodeFile(path)
-        } catch (_: Throwable) {
-            null
-        }
     }
 
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
