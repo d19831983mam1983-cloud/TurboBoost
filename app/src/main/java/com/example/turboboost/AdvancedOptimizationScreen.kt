@@ -85,7 +85,7 @@ class AdvancedOptimizationScreen(
             onOff = { pkg -> info.setStandbyBucket(pkg, "active") })
 
         addAction(content, "Очистить кэш",
-            "pm trim-caches 1000M — освобождает до 1 ГБ кэша",
+            "pm trim-caches 1000M - освобождает до 1 ГБ кэша",
             "Очистить") { info.trimCaches() }
 
         addPerGameAction(content, "AOT-компиляция игры (speed)",
@@ -94,41 +94,41 @@ class AdvancedOptimizationScreen(
 
         addPerGameAction(content, "AOT-компиляция игры (speed-profile)",
             "Профильная, компактнее и быстрее",
-            "Компилировать speed-profile") { pkg -> info.compilePackageSpeedProfile(pkg) }
+            "Компилировать speed-profile") { pkg -> info.compilePackageSpeedProfile(pkg) }    content.addView(sectionHeader("ЧАСТОТА, FPS, РЕНДЕР"))
 
-        content.addView(sectionHeader("ЧАСТОТА, FPS, РЕНДЕР"))
+    addToggle(content, "Фиксировать peak_refresh_rate",
+        "peak_refresh_rate = " + prefs.getTargetHz() + " Hz",
+        "adv_peak_hz",
+        onOn = { info.applyGlobalSetting("system", "peak_refresh_rate", prefs.getTargetHz().toString()) },
+        onOff = { info.revertSetting("system", "peak_refresh_rate") })
 
-        addToggle(content, "Фиксировать peak_refresh_rate",
-            "peak_refresh_rate = ${prefs.getTargetHz()} Hz",
-            "adv_peak_hz",
-            onOn = { info.applyGlobalSetting("system", "peak_refresh_rate", prefs.getTargetHz().toString()) },
-            onOff = { info.revertSetting("system", "peak_refresh_rate") })
+    addToggle(content, "Фиксировать min_refresh_rate",
+        "min_refresh_rate = " + prefs.getTargetHz() + " Hz",
+        "adv_min_hz",
+        onOn = { info.applyGlobalSetting("system", "min_refresh_rate", prefs.getTargetHz().toString()) },
+        onOff = { info.revertSetting("system", "min_refresh_rate") })
 
-        addToggle(content, "Фиксировать min_refresh_rate",
-            "min_refresh_rate = ${prefs.getTargetHz()} Hz",
-            "adv_min_hz",
-            onOn = { info.applyGlobalSetting("system", "min_refresh_rate", prefs.getTargetHz().toString()) },
-            onOff = { info.revertSetting("system", "min_refresh_rate") })
+    addPerGameToggle(content, "Game Mode: performance",
+        "Переключает игру в performance-режим",
+        "adv_game_mode",
+        onOn = { pkg -> info.setGameMode(pkg, "performance") },
+        onOff = { pkg -> info.setGameMode(pkg, "standard") })
 
-        addPerGameToggle(content, "Game Mode: performance",
-            "Переключает игру в performance-режим",
-            "adv_game_mode",
-            onOn = { pkg -> info.setGameMode(pkg, "performance") },
-            onOff = { pkg -> info.setGameMode(pkg, "standard") })
+    addPerGameToggle(content, "Game FPS cap = макс. экрана",
+        "supportedHz().last() = " + info.supportedHz().last() + " Hz",
+        "adv_game_fps",
+        onOn = { pkg -> info.setGameFps(pkg, info.supportedHz().last()) },
+        onOff = { pkg -> info.resetGameFpsOnly(pkg) })
 
-        addPerGameToggle(content, "Game FPS cap = макс. экрана",
-            "supportedHz().last() = ${info.supportedHz().last()} Hz",
-            "adv_game_fps",
-            onOn = { pkg -> info.setGameFps(pkg, info.supportedHz().last()) },
-            onOff = { pkg -> info.resetGameFpsOnly(pkg) })
+    addPerGameToggle(content, "Game downscale 80%",
+        "Рендер-размер 80% от экрана",
+        "adv_game_downscale",
+        onOn = { pkg -> info.setGameDownscale(pkg, 0.8f) },
+        onOff = { pkg -> info.setGameDownscale(pkg, 0f) })
 
-        addPerGameToggle(content, "Game downscale 80%",
-            "Рендер-размер 80% от экрана",
-            "adv_game_downscale",
-            onOn = { pkg -> info.setGameDownscale(pkg, 0.8f) },
-            onOff = { pkg -> info.setGameDownscale(pkg, 0f) })
+    content.addView(sectionHeader("СЕТЬ И ФОНОВЫЕ СКАНЕРЫ"))
 
-        content.addView(sectionHeader("СЕТЬ И ФОНОВЫЕ СКАНЕРЫ"))    addToggle(content, "Отключить Wi-Fi scan always",
+    addToggle(content, "Отключить Wi-Fi scan always",
         "wifi_scan_always_enabled = 0",
         "adv_wifi_scan",
         onOn = { info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0") },
@@ -173,13 +173,13 @@ class AdvancedOptimizationScreen(
         onOff = { info.revertSetting("global", "adaptive_battery_management_enabled") })
 
     addToggle(content, "Отключить App Standby",
-        "app_standby_enabled = 0 — приложения не уходят в редкий бакет",
+        "app_standby_enabled = 0 - приложения не уходят в редкий бакет",
         "adv_app_standby",
         onOn = { info.applyGlobalSetting("global", "app_standby_enabled", "0") },
         onOff = { info.revertSetting("global", "app_standby_enabled") })
 
     addToggle(content, "Отключить cached_apps_freezer",
-        "cached_apps_freezer = 0 — быстрее переключение, выше расход RAM",
+        "cached_apps_freezer = 0 - быстрее переключение, выше расход RAM",
         "adv_freezer",
         onOn = { info.applyGlobalSetting("global", "cached_apps_freezer", "0") },
         onOff = { info.revertSetting("global", "cached_apps_freezer") })
@@ -231,116 +231,116 @@ private fun sectionHeader(text: String): TextView = TextView(ctx).apply {
     letterSpacing = 0.18f
     typeface = Typeface.DEFAULT_BOLD
     setPadding(dp(4), dp(18), 0, dp(8))
-}
+}    private fun addToggle(
+        parent: LinearLayout,
+        title: String,
+        subtitle: String,
+        prefKey: String,
+        onOn: () -> String,
+        onOff: () -> String
+    ) {
+        val state = prefs.isFeat(prefKey)
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            background = glassItem()
+            isClickable = true
+        }
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(TextView(ctx).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        col.addView(TextView(ctx).apply {
+            text = subtitle
+            setTextColor(Color.parseColor("#88FFFFFF"))
+            textSize = 11f
+            setPadding(0, dp(2), 0, 0)
+        })
+        row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        val stateTv = TextView(ctx).apply {
+            text = if (state) "ВКЛ" else "ВЫКЛ"
+            setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        row.addView(stateTv)
+        row.setOnClickListener {
+            val next = stateTv.text != "ВКЛ"
+            val result = try {
+                if (next) onOn() else onOff()
+            } catch (e: Throwable) {
+                "Ошибка: " + (e.message ?: "?")
+            }
+            prefs.setFeat(prefKey, next)
+            stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
+            stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+            onStatus?.invoke(result)
+        }
+        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
+    }
 
-private fun addToggle(
-    parent: LinearLayout,
-    title: String,
-    subtitle: String,
-    prefKey: String,
-    onOn: () -> String,
-    onOff: () -> String
-) {
-    val state = prefs.isFeat(prefKey)
-    val row = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(16), dp(12), dp(16), dp(12))
-        background = glassItem()
-        isClickable = true
-    }
-    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-    col.addView(TextView(ctx).apply {
-        text = title
-        setTextColor(Color.WHITE)
-        textSize = 14f
-        typeface = Typeface.DEFAULT_BOLD
-    })
-    col.addView(TextView(ctx).apply {
-        text = subtitle
-        setTextColor(Color.parseColor("#88FFFFFF"))
-        textSize = 11f
-        setPadding(0, dp(2), 0, 0)
-    })
-    row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    val stateTv = TextView(ctx).apply {
-        text = if (state) "ВКЛ" else "ВЫКЛ"
-        setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-        textSize = 13f
-        typeface = Typeface.DEFAULT_BOLD
-    }
-    row.addView(stateTv)
-    row.setOnClickListener {
-        val next = stateTv.text != "ВКЛ"
-        val result = try {
-            if (next) onOn() else onOff()
-        } catch (e: Throwable) {
-            "Ошибка: ${e.message ?: "?"}"
+    private fun addPerGameToggle(
+        parent: LinearLayout,
+        title: String,
+        subtitle: String,
+        prefKey: String,
+        onOn: (String) -> String,
+        onOff: (String) -> String
+    ) {
+        val state = prefs.isFeat(prefKey)
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            background = glassItem()
+            isClickable = true
         }
-        prefs.setFeat(prefKey, next)
-        stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
-        stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-        onStatus?.invoke(result)
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(TextView(ctx).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        col.addView(TextView(ctx).apply {
+            text = subtitle
+            setTextColor(Color.parseColor("#88FFFFFF"))
+            textSize = 11f
+            setPadding(0, dp(2), 0, 0)
+        })
+        row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        val stateTv = TextView(ctx).apply {
+            text = if (state) "ВКЛ" else "ВЫКЛ"
+            setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        row.addView(stateTv)
+        row.setOnClickListener {
+            val pkg = prefs.getLastPackage()
+            if (pkg.isBlank()) {
+                Toast.makeText(ctx, "Сначала выберите игру в главном экране", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val next = stateTv.text != "ВКЛ"
+            val result = try {
+                if (next) onOn(pkg) else onOff(pkg)
+            } catch (e: Throwable) {
+                "Ошибка: " + (e.message ?: "?")
+            }
+            prefs.setFeat(prefKey, next)
+            stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
+            stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
+            onStatus?.invoke(result)
+        }
+        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
     }
-    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
-}
 
-private fun addPerGameToggle(
-    parent: LinearLayout,
-    title: String,
-    subtitle: String,
-    prefKey: String,
-    onOn: (String) -> String,
-    onOff: (String) -> String
-) {
-    val state = prefs.isFeat(prefKey)
-    val row = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(16), dp(12), dp(16), dp(12))
-        background = glassItem()
-        isClickable = true
-    }
-    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-    col.addView(TextView(ctx).apply {
-        text = title
-        setTextColor(Color.WHITE)
-        textSize = 14f
-        typeface = Typeface.DEFAULT_BOLD
-    })
-    col.addView(TextView(ctx).apply {
-        text = subtitle
-        setTextColor(Color.parseColor("#88FFFFFF"))
-        textSize = 11f
-        setPadding(0, dp(2), 0, 0)
-    })
-    row.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    val stateTv = TextView(ctx).apply {
-        text = if (state) "ВКЛ" else "ВЫКЛ"
-        setTextColor(if (state) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-        textSize = 13f
-        typeface = Typeface.DEFAULT_BOLD
-    }
-    row.addView(stateTv)
-    row.setOnClickListener {
-        val pkg = prefs.getLastPackage()
-        if (pkg.isBlank()) {
-            Toast.makeText(ctx, "Сначала выберите игру в главном экране", Toast.LENGTH_SHORT).show()
-            return@setOnClickListener
-        }
-        val next = stateTv.text != "ВКЛ"
-        val result = try {
-            if (next) onOn(pkg) else onOff(pkg)
-        } catch (e: Throwable) {
-            "Ошибка: ${e.message ?: "?"}"
-        }
-        prefs.setFeat(prefKey, next)
-        stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
-        stateTv.setTextColor(if (next) Color.parseColor("#34D399") else Color.parseColor("#8899AA"))
-        onStatus?.invoke(result)
-    }
-    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(6) })
-}    private fun addAction(
+    private fun addAction(
         parent: LinearLayout,
         title: String,
         subtitle: String,
@@ -383,7 +383,7 @@ private fun addPerGameToggle(
                 isEnabled = false
                 text = "…"
                 Thread {
-                    val r = try { action() } catch (e: Throwable) { "Ошибка: ${e.message ?: "?"}" }
+                    val r = try { action() } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         isEnabled = true
                         text = buttonText
@@ -444,7 +444,7 @@ private fun addPerGameToggle(
                 isEnabled = false
                 text = "…"
                 Thread {
-                    val r = try { action(pkg) } catch (e: Throwable) { "Ошибка: ${e.message ?: "?"}" }
+                    val r = try { action(pkg) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         isEnabled = true
                         text = buttonText
