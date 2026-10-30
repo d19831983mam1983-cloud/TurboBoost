@@ -570,6 +570,18 @@ fun setJoyoseVisible(v: Boolean) {
     if (::btnJoyose.isInitialized) btnJoyose.visibility = if (v) View.VISIBLE else View.GONE
 }
 
+fun setGpuBoostVisible(v: Boolean) {
+    if (::btnGpuBoost.isInitialized) btnGpuBoost.visibility = if (v) View.VISIBLE else View.GONE
+}
+
+fun setThreadsVisible(v: Boolean) {
+    if (::btnThreads.isInitialized) btnThreads.visibility = if (v) View.VISIBLE else View.GONE
+}
+
+fun setMglruVisible(v: Boolean) {
+    if (::btnMglru.isInitialized) btnMglru.visibility = if (v) View.VISIBLE else View.GONE
+}
+
 fun setThreadsState(a: Boolean) {
     currentThreads = a
     if (::btnThreads.isInitialized) { applyToggleGridStyle(btnThreads, a); btnThreads.setOn(a) }
