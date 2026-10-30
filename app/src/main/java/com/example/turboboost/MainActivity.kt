@@ -110,8 +110,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     .setNegativeButton("Закрыть", null)
                     .show()
-            } catch (_: Throwable) {
-            }
+            } catch (_: Throwable) {}
             return
         }
         val pad = (20 * resources.displayMetrics.density).toInt()
@@ -152,8 +151,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Отмена", null)
                 .show()
-        } catch (_: Throwable) {
-        }
+        } catch (_: Throwable) {}
     }
 
     private fun openAdminPanel() {
@@ -317,8 +315,8 @@ class MainActivity : AppCompatActivity() {
         try {
             val i = packageManager.getLaunchIntentForPackage(pkg)
             startActivity(i ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg")))
-        } catch (e: Throwable) {
-            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/RikkaApps/Shizuku/releases"))) } catch (t: Throwable) {}
+        } catch (_: Throwable) {
+            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/RikkaApps/Shizuku/releases"))) } catch (_: Throwable) {}
         }
     }
 
@@ -329,7 +327,7 @@ class MainActivity : AppCompatActivity() {
             options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
             options.inJustDecodeBounds = false
             contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-        } catch (e: Throwable) { null }
+        } catch (_: Throwable) { null }
     }
 
     private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
@@ -383,7 +381,7 @@ private fun openSenseCustom() {
             )
             info.applyAnimationScale(prefs.getAnimScale())
             info.applyLongPress(prefs.getLongPressTimeout())
-            info.applyGtGpuTuner(prefs.isGtGpuTuner())
+            if (info.isGtGpuTunerSupported()) info.applyGtGpuTuner(prefs.isGtGpuTuner())
             prefs.setSenseLevel(-1)
             main.post {
                 Toast.makeText(this, r, Toast.LENGTH_SHORT).show()
@@ -397,7 +395,7 @@ private fun openSenseCustom() {
             val r = info.resetCustomSense()
             info.resetAnimationScale()
             info.applyLongPress(400)
-            info.resetGameTurbo()
+            if (info.isGtGpuTunerSupported()) info.resetGameTurbo()
             prefs.setPointerSpeed(0)
             prefs.setSenseTouchRate(0)
             prefs.setTouchPredictionOff(false)
@@ -601,38 +599,89 @@ private fun buildMain() {
     ui.onPackageChanged = { prefs.setLastPackage(it) }
     ui.setMode(prefs.getPerfMode())
     if (prefs.getSenseLevel() >= 0) ui.setSenseLevel(prefs.getSenseLevel())
-    ui.setGpuBoostState(prefs.isGpuBoost()); ui.setBgLimitState(prefs.isBackgroundLimit())
+
+    ui.setGpuBoostVisible(info.isGpuBoostSupported())
+    ui.setThreadsVisible(info.isThreadTuningSupported())
+    ui.setMglruVisible(info.isMglruSupported())
+    ui.setJoyoseVisible(false)
+
+    if (info.isGpuBoostSupported()) ui.setGpuBoostState(prefs.isGpuBoost())
+    else ui.setGpuBoostState(false)
+    ui.setBgLimitState(prefs.isBackgroundLimit())
+
     ui.setStatus("Готов к работе")
 
-    ui.setThreadsState(prefs.isThreadsBoost()); ui.setMglruState(prefs.isMglru())
+    ui.setThreadsState(prefs.isThreadsBoost() && info.isThreadTuningSupported())
+    ui.setMglruState(prefs.isMglru() && info.isMglruSupported())
 
-    if (prefs.isThreadsBoost()) bg { info.boostThreadPriorities() }
-    if (prefs.isMglru()) bg { info.toggleMglru(true) }
+    if (prefs.isThreadsBoost() && info.isThreadTuningSupported()) bg { info.boostThreadPriorities() }
+    if (prefs.isMglru() && info.isMglruSupported()) bg { info.toggleMglru(true) }
 
-    ui.onThreadsToggle = { val a = !prefs.isThreadsBoost(); prefs.setThreadsBoost(a); ui.setThreadsState(a); async { if (a) info.boostThreadPriorities() else info.resetThreadPriorities() } }
-    ui.onMglruToggle = { val a = !prefs.isMglru(); prefs.setMglru(a); ui.setMglruState(a); async { info.toggleMglru(a) } }
+    ui.onThreadsToggle = {
+        if (!info.isThreadTuningSupported()) {
+            Toast.makeText(this, "Требуется root", Toast.LENGTH_SHORT).show()
+        } else {
+            val a = !prefs.isThreadsBoost(); prefs.setThreadsBoost(a); ui.setThreadsState(a)
+            async { if (a) info.boostThreadPriorities() else info.resetThreadPriorities() }
+        }
+    }
+    ui.onMglruToggle = {
+        if (!info.isMglruSupported()) {
+            Toast.makeText(this, "MGLRU не поддерживается (нужен root)", Toast.LENGTH_SHORT).show()
+        } else {
+            val a = !prefs.isMglru(); prefs.setMglru(a); ui.setMglruState(a)
+            async { info.toggleMglru(a) }
+        }
+    }
     ui.onGameSpace = { if (info.openGameSpace() == "Не найден") Toast.makeText(this, "Игровой режим не найден", Toast.LENGTH_LONG).show() }
 
     bg {
-        if (info.hasJoyose()) main.post {
+        if (info.isJoyoseSupported()) main.post {
             if (!uiBuilt) return@post
             ui.setJoyoseVisible(true); ui.setJoyoseState(prefs.isJoyoseDisabled())
-            ui.onJoyoseToggle = { val d = !prefs.isJoyoseDisabled(); prefs.setJoyoseDisabled(d); ui.setJoyoseState(d); async { if (d) info.disableJoyose() else info.enableJoyose() } }
+            ui.onJoyoseToggle = {
+                val d = !prefs.isJoyoseDisabled(); prefs.setJoyoseDisabled(d); ui.setJoyoseState(d)
+                async { if (d) info.disableJoyose() else info.enableJoyose() }
+            }
         }
     }
 
     ui.onDiagnostics = { diag() }
-    ui.onModeSelected = { m -> prefs.setPerfMode(m); if (prefs.isActive()) bg { val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } } }
+    ui.onModeSelected = { m ->
+        prefs.setPerfMode(m)
+        if (prefs.isActive()) bg {
+            val r = info.activateMaxPerformance(prefs.getTargetHz(), m, prefs.isGpuBoost() && info.isGpuBoostSupported(), prefs.getLastPackage())
+            main.post { ui.setStatus(r) }
+        }
+    }
 
     ui.onHzSelected = { hz ->
         prefs.setTargetHz(hz)
         ui.setHz(hz)
-        if (prefs.isActive()) bg { val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost(), prefs.getLastPackage()); main.post { ui.setStatus(r) } }
+        if (prefs.isActive()) bg {
+            val r = info.activateMaxPerformance(hz, prefs.getPerfMode(), prefs.isGpuBoost() && info.isGpuBoostSupported(), prefs.getLastPackage())
+            main.post { ui.setStatus(r) }
+        }
     }
 
     ui.onSenseSelected = { prefs.setSenseLevel(it); async { info.applySense(it) } }
-    ui.onGpuBoostToggle = { val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e); if (prefs.isActive()) bg { info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage()) } }
-    ui.onBgLimitToggle = { val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e); async { if (e) info.restrictBackground() else info.restoreBackground() } }
+    ui.onGpuBoostToggle = {
+        if (!info.isGpuBoostSupported()) {
+            Toast.makeText(this, "Требуется root", Toast.LENGTH_SHORT).show()
+        } else {
+            val e = !prefs.isGpuBoost(); prefs.setGpuBoost(e); ui.setGpuBoostState(e)
+            if (prefs.isActive()) bg {
+                info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), e, prefs.getLastPackage())
+            }
+        }
+    }
+    ui.onBgLimitToggle = {
+        val e = !prefs.isBackgroundLimit(); prefs.setBackgroundLimit(e); ui.setBgLimitState(e)
+        if (prefs.isActive()) bg {
+            val r = info.activateMaxPerformance(prefs.getTargetHz(), prefs.getPerfMode(), prefs.isGpuBoost() && info.isGpuBoostSupported(), prefs.getLastPackage())
+            main.post { ui.setStatus(r) }
+        }
+    }
     ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
     ui.onShowProfiles = { profiles() }
 
@@ -674,9 +723,15 @@ private fun games(g: List<Pair<String, String>>) {
             }
             val t = "Режим: $mode\n" +
                 "Готов: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
+                "Root: ${if (info.isRooted()) "да" else "нет"}\n" +
+                "Xiaomi: ${if (info.isXiaomi()) "да" else "нет"}\n" +
+                "Realme/Oppo: ${if (info.isRealme()) "да" else "нет"}\n" +
                 "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
                 "Тема: ${ThemePalette.get(prefs.getThemeIndex()).name}\n" +
-                "MGLRU: ${if (info.isMglruAvailable()) "есть" else "нет"}\n" +
+                "MGLRU: ${if (info.isMglruSupported()) "есть" else "нет"}\n" +
+                "GPU Boost: ${if (info.isGpuBoostSupported()) "есть" else "нет"}\n" +
+                "Game cmd: ${if (info.isVendorGameCmdSupported()) "есть" else "нет"}\n" +
+                "Sense tuning: ${if (info.isSenseTuningSupported()) "есть" else "нет"}\n" +
                 "Чип: ${info.chipName()}\n" +
                 "GPU: ${info.gpuName()}\n" +
                 "Класс: ${info.tierName()}\n" +
@@ -725,7 +780,7 @@ private fun games(g: List<Pair<String, String>>) {
         ui.setMode(p.mode)
         if (p.sense >= 0) ui.setSenseLevel(p.sense)
         ui.setHz(info.clampHz(p.hz))
-        ui.setGpuBoostState(p.gpuBoost); ui.setBgLimitState(p.bgLimit)
+        ui.setGpuBoostState(p.gpuBoost && info.isGpuBoostSupported()); ui.setBgLimitState(p.bgLimit)
         ui.setPackageText(p.pkg)
         bg {
             if (p.sense >= 0) info.applySense(p.sense)
@@ -736,8 +791,7 @@ private fun games(g: List<Pair<String, String>>) {
                 prefs.isTouchBlockingZero(),
                 prefs.isMotionAggregationOff()
             )
-            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost, p.pkg)
-            if (p.bgLimit) info.restrictBackground() else info.restoreBackground()
+            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost && info.isGpuBoostSupported(), p.pkg)
         }
     }
 
@@ -761,19 +815,18 @@ private fun games(g: List<Pair<String, String>>) {
         val p = prefs.getLastPackage()
         val m = prefs.getPerfMode()
         val hz = prefs.getTargetHz()
+        val gpuBoost = prefs.isGpuBoost() && info.isGpuBoostSupported()
 
         if (on) {
             if (uiBuilt) ui.setStatus("Оптимизация...")
             bg {
                 try {
-                    val r = info.activateMaxPerformance(hz, m, prefs.isGpuBoost(), p)
-                    if (p.isNotBlank()) info.unlockGameFps(p, hz)
-                    if (p.isNotBlank()) info.pinGameToPrimeCore(p)
-                    if (p.isNotBlank()) info.prioritizeGameThreads(p)
+                    val r = info.activateMaxPerformance(hz, m, gpuBoost, p)
+                    if (p.isNotBlank() && info.isVendorGameCmdSupported()) info.unlockGameFps(p, hz)
+                    if (p.isNotBlank() && info.isRooted()) info.pinGameToPrimeCore(p)
+                    if (p.isNotBlank() && info.isRooted()) info.prioritizeGameThreads(p)
                     info.runFstrim()
-                    if (prefs.isBackgroundLimit()) info.restrictBackground()
-                    info.applySurfaceFlingerBoost(true)
-                    info.boostInputDispatcher()
+                    if (info.isRooted()) info.boostInputDispatcher()
                     info.optimizePing()
                     val senseLv = prefs.getSenseLevel()
                     if (senseLv == -1) {
@@ -786,7 +839,7 @@ private fun games(g: List<Pair<String, String>>) {
                         )
                         info.applyAnimationScale(prefs.getAnimScale())
                         info.applyLongPress(prefs.getLongPressTimeout())
-                        info.applyGtGpuTuner(prefs.isGtGpuTuner())
+                        if (info.isGtGpuTunerSupported()) info.applyGtGpuTuner(prefs.isGtGpuTuner())
                     } else if (senseLv >= 0) info.applySense(senseLv)
                     info.restrictPowerKeeper()
                     info.cleanupDozeWhitelist()
@@ -902,7 +955,7 @@ private fun games(g: List<Pair<String, String>>) {
             try {
                 val bat = info.batteryLevel(); val temp = info.cpuTemp(); val active = prefs.isActive()
                 if (slow) {
-                    if (active) {
+                    if (active && info.isRooted()) {
                         val pkg = prefs.getLastPackage()
                         if (pkg.isNotBlank()) info.pinGameToPrimeCore(pkg)
                     }
@@ -954,7 +1007,7 @@ private fun games(g: List<Pair<String, String>>) {
             val active = prefs.isActive()
             ui.setActive(active)
             ui.setStatus(if (active) "Активно" else "Готов к работе")
-            ui.setGpuBoostState(prefs.isGpuBoost())
+            ui.setGpuBoostState(prefs.isGpuBoost() && info.isGpuBoostSupported())
             ui.setBgLimitState(prefs.isBackgroundLimit())
             if (active) refresh()
             busy = false
