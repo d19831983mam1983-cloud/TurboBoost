@@ -42,8 +42,6 @@ class AppPrefs(ctx: Context) {
     fun setDownscaleLevel(level: Int) = prefs.edit().putInt("downscale_level", level).apply()
     fun getGfx(): Int = prefs.getInt("gfx_preset", 0)
     fun setGfx(v: Int) = prefs.edit().putInt("gfx_preset", v).apply()
-    fun getStretch(): Int = prefs.getInt("stretch_mode", 0)
-    fun setStretch(v: Int) = prefs.edit().putInt("stretch_mode", v).apply()
 
     fun isAutoSession(): Boolean = prefs.getBoolean("auto_session", false)
     fun setAutoSession(v: Boolean) = prefs.edit().putBoolean("auto_session", v).apply()
@@ -194,6 +192,11 @@ class AppPrefs(ctx: Context) {
     fun setLongPressTimeout(v: Int) = prefs.edit().putInt("sense_long_press", v.coerceIn(200, 700)).apply()
     fun isGtGpuTuner(): Boolean = prefs.getBoolean("gt_gpu_tuner", false)
     fun setGtGpuTuner(v: Boolean) = prefs.edit().putBoolean("gt_gpu_tuner", v).apply()
+
+    fun getCustomW(): Int = prefs.getInt("custom_w", 0)
+    fun setCustomW(v: Int) = prefs.edit().putInt("custom_w", v).apply()
+    fun getCustomH(): Int = prefs.getInt("custom_h", 0)
+    fun setCustomH(v: Int) = prefs.edit().putInt("custom_h", v).apply()
 
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
