@@ -37,6 +37,8 @@ class AdvancedOptimizationScreen(
         val key: String,
         val perGame: Boolean = false,
         val isButton: Boolean = false,
+        val isCycle: Boolean = false,
+        val cycleLabel: ((String) -> String)? = null,
         val run: (isOn: Boolean, pkg: String) -> String
     )
 
@@ -105,7 +107,11 @@ class AdvancedOptimizationScreen(
                     if (on && p.isBlank()) "Сначала выберите игру"
                     else if (on) "Включено — сработает при включении турбо"
                     else "Выключено"
-                })
+                }),
+            Item("Драйвер GPU", "Системный → Игровой → Prerelease", "adv_driver",
+                perGame = true, isCycle = true,
+                cycleLabel = { p -> info.driverModeName(p) },
+                run = { _, p -> info.nextDriverMode(p) })
         ))
 
         section(content, "СЕТЬ И СКАНЕРЫ", listOf(
@@ -203,6 +209,7 @@ class AdvancedOptimizationScreen(
 
     private fun makeCard(item: Item): LinearLayout {
         val state = if (item.isButton) false else prefs.isFeat(item.key)
+        val pkg = prefs.getLastPackage()
         val card = LinearLayout(ctx)
         card.orientation = LinearLayout.VERTICAL
         card.setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -226,21 +233,34 @@ class AdvancedOptimizationScreen(
         card.addView(hintTv)
 
         val stateTv = TextView(ctx)
-        stateTv.text = if (item.isButton) "→" else if (state) "ВКЛ" else "ВЫКЛ"
         stateTv.setTextColor(if (state) accent else Color.parseColor("#8899AA"))
         stateTv.textSize = 10f
         stateTv.typeface = Typeface.DEFAULT_BOLD
         stateTv.gravity = Gravity.END
+        if (item.isCycle) {
+            stateTv.text = if (pkg.isBlank()) "-" else item.cycleLabel?.invoke(pkg) ?: "-"
+        } else if (item.isButton) {
+            stateTv.text = "→"
+        } else {
+            stateTv.text = if (state) "ВКЛ" else "ВЫКЛ"
+        }
         card.addView(stateTv)
 
         card.setOnClickListener {
-            val pkg = prefs.getLastPackage()
-            if (item.perGame && pkg.isBlank()) {
+            val p = prefs.getLastPackage()
+            if (item.perGame && p.isBlank()) {
                 Toast.makeText(ctx, "Сначала выберите игру", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            if (item.isCycle) {
+                val r = try { item.run(true, p) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
+                stateTv.text = item.cycleLabel?.invoke(p) ?: "-"
+                stateTv.setTextColor(accent)
+                onStatus?.invoke(r)
+                return@setOnClickListener
+            }
             val next = if (item.isButton) true else stateTv.text != "ВКЛ"
-            val r = try { item.run(next, pkg) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
+            val r = try { item.run(next, p) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
             if (!item.isButton) {
                 prefs.setFeat(item.key, next)
                 stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
