@@ -18,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class SenseFinderScreen(private val ctx: Context) {
@@ -275,7 +276,9 @@ class SenseFinderScreen(private val ctx: Context) {
                 ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         } catch (_: Throwable) {}
         onBack?.invoke()
-    }    private inner class WorldView(context: Context) : View(context) {
+    }
+
+    private inner class WorldView(context: Context) : View(context) {
         var yaw = 0f
         var pitch = 0f
 
@@ -446,14 +449,14 @@ class SenseFinderScreen(private val ctx: Context) {
                     tracking = false
                     val elapsed = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
                     val dx = ev.x - startX
-                    if (kotlin.math.abs(dx) < 40f) {
+                    if (abs(dx) < 40f) {
                         Toast.makeText(ctx, "Слишком короткий свайп", Toast.LENGTH_SHORT).show()
                         return true
                     }
-                    val turned = kotlin.math.abs(dx) * 0.15f
+                    val turned = abs(dx) * 0.15f
                     swipeMs = elapsed
                     measuredDeg = turned
-                    swipeDx = kotlin.math.abs(dx)
+                    swipeDx = abs(dx)
                     hasSwipe = true
                     rebuildBottom()
                     return true
@@ -462,4 +465,4 @@ class SenseFinderScreen(private val ctx: Context) {
             return super.onTouchEvent(ev)
         }
     }
-}}
+}
