@@ -33,6 +33,7 @@ private const val SENS_MAX = 5.00f
 private const val BASE_SENS = 2.0f
 private const val ACCEL_MIN = 0.01f
 private const val ACCEL_MAX = 0.09f
+private const val TARGET_DEG = 180f
 
 class SenseFinderScreen(private val ctx: Context) {
 
@@ -42,8 +43,8 @@ class SenseFinderScreen(private val ctx: Context) {
     private class Step(val title: String, val dYaw: Float, val dPitch: Float, val startPitch: Float)
 
     private val steps = listOf(
-        Step("90° ВПРАВО", 90f, 0f, 0f),
-        Step("90° ВЛЕВО", -90f, 0f, 0f),
+        Step("180° ВПРАВО", 180f, 0f, 0f),
+        Step("180° ВЛЕВО", -180f, 0f, 0f),
         Step("180° ВПРАВО", 180f, 0f, 0f),
         Step("180° ВЛЕВО", -180f, 0f, 0f)
     )
@@ -417,10 +418,11 @@ class SenseFinderScreen(private val ctx: Context) {
             progressTv.text = ""
             degTv.text = ""
             hintTv.text =
-                "Ты в 3D-комнате. Будут задания: повернуться на 90° и 180°\n" +
-                "вправо и влево.\n" +
-                "Крути камеру свайпами так, как привык в игре, и отпусти, когда\n" +
-                "по твоим ощущениям повернулся на нужный угол.\n" +
+                "Тест на 180° — сколько ты хочешь разворачиваться одним свайпом.\n\n" +
+                "Ты в 3D-комнате. Будут 4 задания: развернуться на 180°\n" +
+                "вправо и влево по 2 раза.\n" +
+                "Крути камеру свайпом так, как привык в игре, и отпусти,\n" +
+                "когда по твоим ощущениям повернулся на 180°.\n\n" +
                 "Средняя sens = ${fmt(BASE_SENS)}."
             actionBtn.visibility = View.VISIBLE
             actionBtn.text = "НАЧАТЬ"
@@ -439,7 +441,7 @@ class SenseFinderScreen(private val ctx: Context) {
             progressTv.text = "Шаг ${idx + 1} / ${steps.size}"
             degTv.text = ""
             hintTv.text =
-                "Поверни камеру на ${st.title.lowercase()} так, как делаешь это в игре.\n" +
+                "Развернись на 180° ${if (st.dYaw > 0f) "вправо" else "влево"} так, как делаешь это в игре.\n" +
                 "Можно несколько свайпов. Закончил: просто отпусти и подожди."
             actionBtn.visibility = View.GONE
         } else {
@@ -447,7 +449,7 @@ class SenseFinderScreen(private val ctx: Context) {
             pitch = 0f
             applyCamera()
             val r = computeResult()
-            titleTv.text = "Идеальная сенса"
+            titleTv.text = "Идеальная сенса (180°)"
             progressTv.text = "Готово"
             degTv.text = ""
             resultBox.removeAllViews()
@@ -457,7 +459,8 @@ class SenseFinderScreen(private val ctx: Context) {
             resultBox.visibility = View.VISIBLE
             hintTv.text =
                 "Standoff 2 → Настройки → Управление: выставь эти три значения.\n" +
-                "Если в игре есть Aim Smoothing (сглаживание), поставь 0.00, иначе прицел «плавает».\n" +
+                "С этой sens ты будешь разворачиваться на 180° за один полный свайп.\n" +
+                "Aim Smoothing поставь в 0.00, иначе прицел «плавает».\n" +
                 "Ориентировочно: подстрой на ±0.2, если нужно." +
                 (if (mouseUsed) "\nВвод мышью: для мыши значения менее точны." else "")
             actionBtn.visibility = View.VISIBLE
