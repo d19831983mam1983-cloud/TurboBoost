@@ -713,7 +713,7 @@ private fun buildMain() {
             main.post { ui.setStatus(r) }
         }
     }
-        ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
+    ui.onShowGames = { bg { val g = info.listGames(); main.post { games(g) } } }
     ui.onShowProfiles = { profiles() }
 
     ui.onApplyCustomResolution = { w, h -> applyCustomResAndLaunch(w, h) }
@@ -857,6 +857,9 @@ private fun games(g: List<Pair<String, String>>) {
                     if (p.isNotBlank() && info.isRooted()) info.pinGameToPrimeCore(p)
                     if (p.isNotBlank() && info.isRooted()) info.prioritizeGameThreads(p)
                     info.runFstrim()
+                    if (prefs.isFeat("adv_auto_aot") && p.isNotBlank()) {
+                        try { info.compilePackageSpeedProfile(p) } catch (_: Throwable) {}
+                    }
                     if (info.isRooted()) info.boostInputDispatcher()
                     info.optimizePing()
                     val senseLv = prefs.getSenseLevel()
@@ -1030,7 +1033,9 @@ private fun games(g: List<Pair<String, String>>) {
         }
         if (!uiBuilt) {
             if (splashDone) {
-                if (currentScreen == "settings") openSettings() else check()
+                if (currentScreen == "settings") openSettings()
+                else if (currentScreen == "advanced") openAdvanced()
+                else check()
             }
         } else {
             if (prefs.isDisplayTweaked() && !prefs.isActive()) {
