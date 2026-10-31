@@ -22,19 +22,21 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-private const val TURN_K = 0.18f
-private const val MIN_PX = 40f
-private const val NEAR = 0.2f
-private const val WORLD_R = 12f
+private const val TURN_K = 0.18f      // градусов камеры на 1 пиксель свайпа
+private const val MIN_PX = 40f        // минимальный свайп, чтобы шаг засчитался
+private const val NEAR = 0.2f         // ближняя плоскость отсечения
+private const val WORLD_R = 12f       // радиус комнаты
 private const val FLOOR_Y = -2f
 private const val CEIL_Y = 4f
-private const val TAN_HALF_FOV = 0.7002f
+private const val TAN_HALF_FOV = 0.7002f // tan(35°) -> вертикальный FOV 70°
 private const val SENS_MAX = 5.00f
-private const val BASE_SENS = 2.0f
-private const val ACCEL_MIN = 0.01f
-private const val ACCEL_MAX = 0.09f
-private const val TARGET_DEG = 180f
+private const val ACCEL_MAX = 0.20f
 
+/**
+ * Подбор сенсы Standoff 2 в 3D-комнате.
+ * Задания: повернуть камеру на 90°, потом на 180° вправо / влево / вверх / вниз.
+ * Измеряем, сколько пикселей свайпа игрок тратит на заданный угол, и считаем сенсу.
+ */
 class SenseFinderScreen(private val ctx: Context) {
 
     var onBack: (() -> Unit)? = null
@@ -43,10 +45,14 @@ class SenseFinderScreen(private val ctx: Context) {
     private class Step(val title: String, val dYaw: Float, val dPitch: Float, val startPitch: Float)
 
     private val steps = listOf(
+        Step("90° ВПРАВО", 90f, 0f, 0f),
+        Step("90° ВЛЕВО", -90f, 0f, 0f),
+        Step("90° ВВЕРХ", 0f, 90f, 0f),
+        Step("90° ВНИЗ", 0f, -90f, 0f),
         Step("180° ВПРАВО", 180f, 0f, 0f),
         Step("180° ВЛЕВО", -180f, 0f, 0f),
-        Step("180° ВПРАВО", 180f, 0f, 0f),
-        Step("180° ВЛЕВО", -180f, 0f, 0f)
+        Step("180° ВВЕРХ", 0f, 180f, -90f),
+        Step("180° ВНИЗ", 0f, -180f, 90f)
     )
 
     private lateinit var root: FrameLayout
@@ -57,6 +63,7 @@ class SenseFinderScreen(private val ctx: Context) {
     private lateinit var degTv: TextView
     private lateinit var actionBtn: TextView
 
+    // -1 = intro, 0..7 = шаги, 8 = результат
     private var idx = -1
     private var yaw = 0f
     private var pitch = 0f
@@ -211,6 +218,7 @@ class SenseFinderScreen(private val ctx: Context) {
         )
 
         root.setOnTouchListener { _, ev -> handleTouch(ev) }
+        // мышь / трекпад (движение без нажатия) и клавиатура
         root.setOnHoverListener { _, ev -> handleHover(ev) }
         root.isFocusable = true
         root.isFocusableInTouchMode = true
@@ -275,6 +283,7 @@ class SenseFinderScreen(private val ctx: Context) {
         scheduleFinish(700L)
     }
 
+    /** Палец, стилус или мышь с зажатой кнопкой. */
     private fun handleTouch(ev: MotionEvent): Boolean {
         if (idx < 0 || idx >= steps.size || locked) return false
         val st = steps[idx]
@@ -306,6 +315,7 @@ class SenseFinderScreen(private val ctx: Context) {
         return true
     }
 
+    /** Мышь или трекпад без нажатия кнопки: крутим камеру по движению курсора. */
     private fun handleHover(ev: MotionEvent): Boolean {
         if (idx < 0 || idx >= steps.size || locked) return false
         noteSource(ev)
@@ -341,6 +351,7 @@ class SenseFinderScreen(private val ctx: Context) {
         return true
     }
 
+    /** Угол, на который камера реально повернулась в нужную сторону. */
     private fun turnedDeg(st: Step): Float {
         return if (st.dYaw != 0f) {
             val sgn = if (st.dYaw > 0f) 1f else -1f
@@ -358,21 +369,20 @@ class SenseFinderScreen(private val ctx: Context) {
         locked = true
         tracking = false
         val target = if (st.dYaw != 0f) abs(st.dYaw) else abs(st.dPitch)
-        val turned = max(10f, turnedDeg(st))
-        val stepSens = (BASE_SENS * target / turned).coerceIn(0.30f, SENS_MAX)
-        samples.add(stepSens)
+        samples.add(axisSum / target)
         if (stepMs > 50f) speeds.add(axisSum / stepMs)
 
+        val turned = max(0f, turnedDeg(st))
         val diff = abs(turned - target) / target
         world.showTarget = true
         world.showLabels = true
         world.flash = true
-        world.flashColor = if (diff <= 0.05f) Color.parseColor("#3300FF88") else Color.parseColor("#33FFAA00")
+        world.flashColor = if (diff <= 0.12f) Color.parseColor("#3300FF88") else Color.parseColor("#33FFAA00")
         degTv.text = "${turned.roundToInt()}° из ${target.roundToInt()}°"
         hintTv.text = when {
-            diff <= 0.05f -> "Точно! sens = ${fmt(stepSens)}"
-            turned < target -> "Недокрутил на ${(target - turned).roundToInt()}° → sens = ${fmt(stepSens)}"
-            else -> "Перекрутил на ${(turned - target).roundToInt()}° → sens = ${fmt(stepSens)}"
+            diff <= 0.12f -> "Точно!"
+            turned < target -> "Недокрутил на ${(target - turned).roundToInt()}°"
+            else -> "Перекрутил на ${(turned - target).roundToInt()}°"
         }
         world.invalidate()
 
@@ -418,12 +428,10 @@ class SenseFinderScreen(private val ctx: Context) {
             progressTv.text = ""
             degTv.text = ""
             hintTv.text =
-                "Тест на 180° — сколько ты хочешь разворачиваться одним свайпом.\n\n" +
-                "Ты в 3D-комнате. Будут 4 задания: развернуться на 180°\n" +
-                "вправо и влево по 2 раза.\n" +
-                "Крути камеру свайпом так, как привык в игре, и отпусти,\n" +
-                "когда по твоим ощущениям повернулся на 180°.\n\n" +
-                "Средняя sens = ${fmt(BASE_SENS)}."
+                "Ты в 3D-комнате. Будут задания: повернуться на 90°, потом на 180°\n" +
+                "вправо, влево, вверх и вниз.\n" +
+                "Крути камеру свайпами так, как привык в игре, и отпусти, когда\n" +
+                "по твоим ощущениям повернулся на нужный угол."
             actionBtn.visibility = View.VISIBLE
             actionBtn.text = "НАЧАТЬ"
             world.showLabels = true
@@ -441,7 +449,7 @@ class SenseFinderScreen(private val ctx: Context) {
             progressTv.text = "Шаг ${idx + 1} / ${steps.size}"
             degTv.text = ""
             hintTv.text =
-                "Развернись на 180° ${if (st.dYaw > 0f) "вправо" else "влево"} так, как делаешь это в игре.\n" +
+                "Поверни камеру на ${st.title.lowercase()} так, как делаешь это в игре.\n" +
                 "Можно несколько свайпов. Закончил: просто отпусти и подожди."
             actionBtn.visibility = View.GONE
         } else {
@@ -449,7 +457,7 @@ class SenseFinderScreen(private val ctx: Context) {
             pitch = 0f
             applyCamera()
             val r = computeResult()
-            titleTv.text = "Идеальная сенса (180°)"
+            titleTv.text = "Идеальная сенса"
             progressTv.text = "Готово"
             degTv.text = ""
             resultBox.removeAllViews()
@@ -459,8 +467,7 @@ class SenseFinderScreen(private val ctx: Context) {
             resultBox.visibility = View.VISIBLE
             hintTv.text =
                 "Standoff 2 → Настройки → Управление: выставь эти три значения.\n" +
-                "С этой sens ты будешь разворачиваться на 180° за один полный свайп.\n" +
-                "Aim Smoothing поставь в 0.00, иначе прицел «плавает».\n" +
+                "Если в игре есть Aim Smoothing (сглаживание), поставь 0.00, иначе прицел «плавает».\n" +
                 "Ориентировочно: подстрой на ±0.2, если нужно." +
                 (if (mouseUsed) "\nВвод мышью: для мыши значения менее точны." else "")
             actionBtn.visibility = View.VISIBLE
@@ -487,6 +494,7 @@ class SenseFinderScreen(private val ctx: Context) {
         return if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2f
     }
 
+    /** Строка как в настройках игры: название, значение и ползунок. */
     private fun addSliderRow(label: String, value: Float, maxValue: Float) {
         val row = LinearLayout(ctx)
         row.orientation = LinearLayout.VERTICAL
@@ -535,11 +543,32 @@ class SenseFinderScreen(private val ctx: Context) {
         resultBox.addView(row, rowLp)
     }
 
+    /** Возвращает: Sensitivity, Scope Sensitivity, Acceleration (два знака после запятой, как в игре). */
     private fun computeResult(): Triple<Float, Float, Float> {
-        val sens = r2(median(samples, BASE_SENS).coerceIn(0.30f, SENS_MAX))
-        val scope = r2((sens * 0.875f).coerceIn(0.30f, SENS_MAX))
+        // пикселей свайпа на 1 градус: медиана, чтобы выбросы не портили результат
+        val ppd = median(samples, 5.5f)
+        var dpi = try {
+            ctx.resources.displayMetrics.xdpi
+        } catch (_: Throwable) {
+            0f
+        }
+        if (dpi < 100f) dpi = try {
+            ctx.resources.displayMetrics.density * 160f
+        } catch (_: Throwable) {
+            400f
+        }
+        if (mouseUsed) dpi = 400f // у мыши нет физического dpi, берём типичное значение
+        val inchPerDeg = ppd / dpi
+        // опорная точка: типичная сенса 2.30 соответствует примерно 0.0167 дюйма на градус
+        val sens = r2((2.30f * 0.0167f / inchPerDeg).coerceIn(0.30f, SENS_MAX))
+        val scope = r2((sens * 0.78f).coerceIn(0.30f, SENS_MAX))
+        // ускорение: быстрые свайпы -> ускорение не нужно, медленные -> небольшое
         val speed = median(speeds, 1.5f)
-        val accel = r2((ACCEL_MAX - speed * 0.04f).coerceIn(ACCEL_MIN, ACCEL_MAX))
+        val accel = when {
+            speed >= 2.2f -> 0.00f
+            speed >= 1.4f -> 0.03f
+            else -> 0.05f
+        }
         return Triple(sens, scope, accel)
     }
 
@@ -558,7 +587,10 @@ class SenseFinderScreen(private val ctx: Context) {
 
     private fun dp(v: Int): Int {
         return (v * ctx.resources.displayMetrics.density).toInt()
-    }    private class SimpleView(context: Context) : View(context) {
+    }
+
+    /** Простой 3D-рендер на Canvas: комната из сетки, колонн и колец, камера крутится по yaw/pitch. */
+    private class SimpleView(context: Context) : View(context) {
         var yaw = 0f
         var pitch = 0f
         var markerYaw = 0f
@@ -624,6 +656,7 @@ class SenseFinderScreen(private val ctx: Context) {
         private fun sinD(a: Float): Float = Math.sin(Math.toRadians(a.toDouble())).toFloat()
         private fun cosD(a: Float): Float = Math.cos(Math.toRadians(a.toDouble())).toFloat()
 
+        /** Мировые координаты -> координаты камеры (x вправо, y вверх, z вперёд). */
         private fun toCam(x: Float, y: Float, z: Float, out: FloatArray) {
             val xc = x * cyw - z * syw
             val z0 = x * syw + z * cyw
@@ -687,6 +720,7 @@ class SenseFinderScreen(private val ctx: Context) {
                 canvas.drawRect(0f, 0f, w, h, pFlash)
             }
 
+            // пол и потолок: сетка
             var g = -24f
             while (g <= 24f) {
                 line3(canvas, g, FLOOR_Y, -24f, g, FLOOR_Y, 24f, pGrid)
@@ -696,6 +730,7 @@ class SenseFinderScreen(private val ctx: Context) {
                 g += 4f
             }
 
+            // три большие окружности: горизонт и два вертикальных кольца
             var i = 0
             while (i < 48) {
                 val a1 = i * 7.5f
@@ -709,6 +744,7 @@ class SenseFinderScreen(private val ctx: Context) {
                 i++
             }
 
+            // колонны каждые 30°
             var k = 0
             while (k < 12) {
                 val ang = k * 30f
@@ -728,6 +764,7 @@ class SenseFinderScreen(private val ctx: Context) {
 
             if (showTarget) drawMarker(canvas, w, h)
 
+            // прицел
             canvas.drawLine(cx - 14f, cy, cx + 14f, cy, pCross)
             canvas.drawLine(cx, cy - 14f, cx, cy + 14f, pCross)
         }
