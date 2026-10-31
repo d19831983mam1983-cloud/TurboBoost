@@ -113,7 +113,7 @@ class SenseFinderScreen(private val ctx: Context) {
         val action = pill(if (hasSwipe) "Измерить" else "Проведи свайп", if (hasSwipe) Color.parseColor("#34D399") else Color.parseColor("#555555"))
         action.setOnClickListener {
             if (!hasSwipe) {
-                Toast.makeText(ctx, "Сначала проведи свайп от левой линии до правой", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, "Сначала проведи свайп", Toast.LENGTH_SHORT).show()
             } else {
                 showResult()
             }
@@ -124,7 +124,7 @@ class SenseFinderScreen(private val ctx: Context) {
         })
 
         val hint = TextView(ctx)
-        hint.text = if (hasSwipe) "Готово. Нажми «Измерить»" else "Проведи пальцем от левой красной полосы до правой"
+        hint.text = if (hasSwipe) "Готово. Нажми «Измерить»" else "Красные столбы — ориентир. Свайпни между ними"
         hint.setTextColor(Color.parseColor("#CCFFFFFF"))
         hint.textSize = 11f
         hint.gravity = Gravity.CENTER
@@ -141,7 +141,6 @@ class SenseFinderScreen(private val ctx: Context) {
         buildUi()
         world.yaw = 0f
         world.pitch = 0f
-        world.hasRect = false
         world.invalidate()
     }
 
@@ -187,25 +186,8 @@ class SenseFinderScreen(private val ctx: Context) {
         val spacer = View(ctx)
         content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
 
-        val saveExit = pill("Сохранить и выйти", accent)
-        saveExit.setOnClickListener {
-            val text = "Standoff 2\nSensitivity: " + fmt(lastSens) + "\nScope Sensitivity: " + fmt(lastScope) + "\nAcceleration: " + fmt(lastAccel)
-            try {
-                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                cm?.setPrimaryClip(ClipData.newPlainText("SO2 sens", text))
-            } catch (_: Throwable) {}
-            onResult?.invoke(lastSens, lastScope, lastAccel)
-            Toast.makeText(ctx, "Сохранено", Toast.LENGTH_SHORT).show()
-            finish()
-        }
-        content.addView(saveExit, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { bottomMargin = dp(8) })
-
-        val row = LinearLayout(ctx)
-        row.orientation = LinearLayout.HORIZONTAL
-        content.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)))
-
-        val copy = pill("Скопировать сенсу", Color.parseColor("#333333"))
-        copy.setOnClickListener {
+        val copyExit = pill("Скопировать и выйти", accent)
+        copyExit.setOnClickListener {
             val text = "Standoff 2\nSensitivity: " + fmt(lastSens) + "\nScope Sensitivity: " + fmt(lastScope) + "\nAcceleration: " + fmt(lastAccel)
             try {
                 val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -213,8 +195,9 @@ class SenseFinderScreen(private val ctx: Context) {
                 Toast.makeText(ctx, "Скопировано", Toast.LENGTH_SHORT).show()
             } catch (_: Throwable) {}
             onResult?.invoke(lastSens, lastScope, lastAccel)
+            finish()
         }
-        row.addView(copy, LinearLayout.LayoutParams(0, dp(46), 1.4f).apply { marginEnd = dp(6) })
+        content.addView(copyExit, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { bottomMargin = dp(8) })
 
         val again = pill("Заново", Color.parseColor("#333333"))
         again.setOnClickListener {
@@ -223,7 +206,7 @@ class SenseFinderScreen(private val ctx: Context) {
             swipeDx = 0f
             rebuildBottom()
         }
-        row.addView(again, LinearLayout.LayoutParams(0, dp(46), 1f))
+        content.addView(again, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)))
     }
 
     private fun computeResult(): Triple<Float, Float, Float> {
@@ -305,11 +288,6 @@ class SenseFinderScreen(private val ctx: Context) {
     private inner class WorldView(context: Context) : View(context) {
         var yaw = 0f
         var pitch = 0f
-        var hasRect = false
-        var rectStartX = 0f
-        var rectEndX = 0f
-        var rectStartY = 0f
-        var rectEndY = 0f
 
         private val tanHalfFov = 0.7002f
         private val near = 0.2f
@@ -322,9 +300,24 @@ class SenseFinderScreen(private val ctx: Context) {
             strokeWidth = 1.5f
             style = Paint.Style.STROKE
         }
-        private val pPillar = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x885B8DEF.toInt()
-            strokeWidth = 3f
+        private val pPillarBlue = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF2F5BD3.toInt()
+            strokeWidth = 6f
+            style = Paint.Style.STROKE
+        }
+        private val pPillarBlueSoft = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x552F5BD3
+            strokeWidth = 14f
+            style = Paint.Style.STROKE
+        }
+        private val pPillarRed = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFF3B30.toInt()
+            strokeWidth = 8f
+            style = Paint.Style.STROKE
+        }
+        private val pPillarRedSoft = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x55FF3B30
+            strokeWidth = 20f
             style = Paint.Style.STROKE
         }
         private val pHorizon = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -332,24 +325,14 @@ class SenseFinderScreen(private val ctx: Context) {
             strokeWidth = 2f
             style = Paint.Style.STROKE
         }
-        private val pRedLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFFFF3B30.toInt()
-            strokeWidth = 6f
-            style = Paint.Style.STROKE
-        }
-        private val pRedSoft = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x44FF3B30
-            strokeWidth = 18f
-            style = Paint.Style.STROKE
-        }
-        private val pRectFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x2234D399
-            style = Paint.Style.FILL
-        }
-        private val pRectStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF34D399.toInt()
+        private val pCross = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt()
             strokeWidth = 3f
             style = Paint.Style.STROKE
+        }
+        private val pCrossDot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt()
+            style = Paint.Style.FILL
         }
 
         private var startX = 0f
@@ -443,27 +426,23 @@ class SenseFinderScreen(private val ctx: Context) {
                 val ang = k * 30f
                 val px = roomR * sinD(ang)
                 val pz = roomR * cosD(ang)
-                line3(canvas, px, floorY, pz, px, ceilY, pz, pPillar)
+                val isRed = (k == 3 || k == 9)
+                if (isRed) {
+                    line3(canvas, px, floorY, pz, px, ceilY, pz, pPillarRedSoft)
+                    line3(canvas, px, floorY, pz, px, ceilY, pz, pPillarRed)
+                } else {
+                    line3(canvas, px, floorY, pz, px, ceilY, pz, pPillarBlueSoft)
+                    line3(canvas, px, floorY, pz, px, ceilY, pz, pPillarBlue)
+                }
                 k++
             }
 
-            val margin = dp(80).toFloat()
-            val leftX = margin
-            val rightX = width - margin
-
-            canvas.drawLine(leftX, 0f, leftX, height.toFloat(), pRedSoft)
-            canvas.drawLine(leftX, 0f, leftX, height.toFloat(), pRedLine)
-            canvas.drawLine(rightX, 0f, rightX, height.toFloat(), pRedSoft)
-            canvas.drawLine(rightX, 0f, rightX, height.toFloat(), pRedLine)
-
-            if (hasRect) {
-                val l = minOf(rectStartX, rectEndX)
-                val r = maxOf(rectStartX, rectEndX)
-                val t = minOf(rectStartY, rectEndY)
-                val b = maxOf(rectStartY, rectEndY)
-                canvas.drawRect(l, t, r, b, pRectFill)
-                canvas.drawRect(l, t, r, b, pRectStroke)
-            }
+            val ch = minOf(width, height) * 0.03f
+            canvas.drawLine(cx - ch, cy, cx - ch * 0.3f, cy, pCross)
+            canvas.drawLine(cx + ch * 0.3f, cy, cx + ch, cy, pCross)
+            canvas.drawLine(cx, cy - ch, cx, cy - ch * 0.3f, pCross)
+            canvas.drawLine(cx, cy + ch * 0.3f, cx, cy + ch, pCross)
+            canvas.drawCircle(cx, cy, 2f, pCrossDot)
         }
 
         override fun onTouchEvent(ev: MotionEvent): Boolean {
@@ -488,11 +467,9 @@ class SenseFinderScreen(private val ctx: Context) {
                     tracking = false
                     val elapsed = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
                     val dx = ev.x - startX
-                    val minLen = width * 0.40f
+                    val minLen = width * 0.35f
                     if (abs(dx) < minLen) {
-                        Toast.makeText(ctx, "Слишком короткий свайп — проведи от левой полосы до правой", Toast.LENGTH_SHORT).show()
-                        hasRect = false
-                        invalidate()
+                        Toast.makeText(ctx, "Слишком короткий свайп — проведи длиннее", Toast.LENGTH_SHORT).show()
                         return true
                     }
                     val turned = abs(dx) * 0.15f
@@ -500,11 +477,6 @@ class SenseFinderScreen(private val ctx: Context) {
                     measuredDeg = turned
                     swipeDx = abs(dx)
                     hasSwipe = true
-                    rectStartX = startX
-                    rectStartY = startY
-                    rectEndX = ev.x
-                    rectEndY = ev.y
-                    hasRect = true
                     rebuildBottom()
                     return true
                 }
