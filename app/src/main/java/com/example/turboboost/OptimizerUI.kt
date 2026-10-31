@@ -136,7 +136,7 @@ class OptimizerUI(private val ctx: Context) {
             colors = fill
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.TOP_BOTTOM
-            setStroke(dp(2), if (active) t.primary else 0x99FF8A00.toInt())
+            setStroke(dp(2), if (active) t.primary else (t.primary and 0xFFFFFF) or 0x99000000.toInt())
         }
     }
 
@@ -174,7 +174,7 @@ class OptimizerUI(private val ctx: Context) {
                 colors = intArrayOf(0xFF454545.toInt(), 0xFF353535.toInt(), 0xFF2A2A2A.toInt())
                 gradientType = GradientDrawable.LINEAR_GRADIENT
                 orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(dp(2), if (isActive) t.primary else 0x99FF8A00.toInt())
+                setStroke(dp(2), if (isActive) t.primary else (t.primary and 0xFFFFFF) or 0x99000000.toInt())
             }
         }
         val a1 = if (isActive) 0x70 else 0x38
@@ -260,6 +260,7 @@ class OptimizerUI(private val ctx: Context) {
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(14))
+            val tt = theme()
             background = if (isGrid()) {
                 GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
@@ -267,7 +268,7 @@ class OptimizerUI(private val ctx: Context) {
                     colors = intArrayOf(0xFF2A2A2A.toInt(), 0xFF1F1F1F.toInt())
                     gradientType = GradientDrawable.LINEAR_GRADIENT
                     orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                    setStroke(dp(1), 0x66FF8A00.toInt())
+                    setStroke(dp(1), (tt.primary and 0xFFFFFF) or 0x66000000.toInt())
                 }
             } else glassBgDrawable(20)
         }
@@ -697,13 +698,14 @@ private fun bigBtn(text: String, size: Float, bg: Drawable, click: () -> Unit): 
 
 private fun glassBgDrawable(radius: Int): Drawable {
     if (isGrid()) {
+        val tt = theme()
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(radius).toFloat()
             colors = intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt())
             gradientType = GradientDrawable.LINEAR_GRADIENT
             orientation = GradientDrawable.Orientation.TOP_BOTTOM
-            setStroke(dp(1), 0x66FF8A00.toInt())
+            setStroke(dp(1), (tt.primary and 0xFFFFFF) or 0x66000000.toInt())
         }
     }
     return GradientDrawable().apply {
