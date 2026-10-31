@@ -20,7 +20,6 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class SenseFinderScreen(private val ctx: Context) {
@@ -40,7 +39,6 @@ class SenseFinderScreen(private val ctx: Context) {
     private var swipePath = mutableListOf<PointF>()
 
     private val accent = 0xFFF2580A.toInt()
-    private val accentSoft = 0x44F2580A
     private val bgDark = Color.parseColor("#05070A")
 
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
@@ -90,11 +88,11 @@ class SenseFinderScreen(private val ctx: Context) {
         sub.setPadding(0, dp(4), 0, dp(20))
         content.addView(sub)
 
-        addSlider(content, "Ширина: $rectW px", 200, maxRectW(), rectW) { v ->
+        addSlider(content, "Ширина: " + rectW + " px", 200, maxRectW(), rectW) { v ->
             rectW = v
             showSetup()
         }
-        addSlider(content, "Высота: $rectH px", 80, maxRectH(), rectH) { v ->
+        addSlider(content, "Высота: " + rectH + " px", 80, maxRectH(), rectH) { v ->
             rectH = v
             showSetup()
         }
@@ -133,7 +131,6 @@ class SenseFinderScreen(private val ctx: Context) {
         overlay.rectW = rectW
         overlay.rectH = rectH
         overlay.path = swipePath
-        overlay.hasSwipe = { hasSwipe }
         root.addView(overlay, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
         val bottom = LinearLayout(ctx)
@@ -156,7 +153,8 @@ class SenseFinderScreen(private val ctx: Context) {
                 showSwipe()
             }
             degRow.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
-                marginStart = dp(2); marginEnd = dp(2)
+                marginStart = dp(2)
+                marginEnd = dp(2)
             })
         }
 
@@ -377,9 +375,7 @@ private fun pill(color: Int): GradientDrawable {
         var rectW = 0
         var rectH = 0
         var path: MutableList<PointF> = mutableListOf()
-        var hasSwipe: () -> Boolean = { false }
 
-        private val margin = marginPx()
         private val paintBox = Paint(Paint.ANTI_ALIAS_FLAG)
         private val paintLine = Paint(Paint.ANTI_ALIAS_FLAG)
         private val paintPath = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -424,8 +420,10 @@ private fun pill(color: Int): GradientDrawable {
             canvas.drawRect(left, top, right, bottom, paintBox)
             canvas.drawLine(left, top, left, bottom, paintLine)
             canvas.drawLine(right, top, right, bottom, paintLine)
-            canvas.drawText("старт", left - dp(4), top - dp(8), paintText.apply { textAlign = Paint.Align.RIGHT })
-            canvas.drawText("финиш", right + dp(4), top - dp(8), paintText.apply { textAlign = Paint.Align.LEFT })
+            paintText.textAlign = Paint.Align.RIGHT
+            canvas.drawText("старт", left - dp(4), top - dp(8), paintText)
+            paintText.textAlign = Paint.Align.LEFT
+            canvas.drawText("финиш", right + dp(4), top - dp(8), paintText)
 
             if (path.size > 1) {
                 val p = Path()
@@ -469,23 +467,19 @@ private fun pill(color: Int): GradientDrawable {
                     if (dx >= minLen && reachedRight) {
                         swipeMs = elapsed.coerceAtLeast(1)
                         swipePath = path
-                        hasSwipe = true
-                        toast("Свайп записан")
+                        this@SenseFinderScreen.hasSwipe = true
+                        Toast.makeText(ctx, "Свайп записан", Toast.LENGTH_SHORT).show()
                         showSwipe()
                     } else {
-                        toast("Проведи ещё раз: от левой линии до правой")
+                        Toast.makeText(ctx, "Проведи ещё раз: от левой линии до правой", Toast.LENGTH_SHORT).show()
                         path.clear()
-                        hasSwipe = false
+                        this@SenseFinderScreen.hasSwipe = false
                         invalidate()
                     }
                     return true
                 }
             }
             return super.onTouchEvent(ev)
-        }
-
-        private fun toast(s: String) {
-            Toast.makeText(ctx, s, Toast.LENGTH_SHORT).show()
         }
     }
 }
