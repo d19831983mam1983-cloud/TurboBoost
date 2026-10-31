@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.drawable.ColorDrawable
@@ -844,31 +845,93 @@ private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
             val t = ThemePalette.get(themeIndex)
             val density = resources.displayMetrics.density
             val step = 56f * density
+            val twoPi = (2.0 * Math.PI).toFloat()
+            val path = Path()
+
             gridPaint.color = if (isActiveMode) t.secondary else t.primary
             gridPaint.alpha = if (isActiveMode) 90 else 55
             gridPaint.strokeWidth = 1.2f * density
+
+            val fineAmp = 3f * density
+            val fineWave = 360f * density
+            val fineSpeed = 0.5f
+            val fineSeg = 20
+
             var x = 0f
+            var li = 0
             while (x < width) {
-                canvas.drawLine(x, 0f, x, height.toFloat(), gridPaint)
+                path.reset()
+                val phase = li * 0.6f
+                var i = 0
+                while (i <= fineSeg) {
+                    val yy = height.toFloat() * i / fineSeg
+                    val off = fineAmp * sin(yy / fineWave * twoPi + time * fineSpeed + phase)
+                    if (i == 0) path.moveTo(x + off, yy) else path.lineTo(x + off, yy)
+                    i++
+                }
+                canvas.drawPath(path, gridPaint)
                 x += step
+                li++
             }
+
             var y = 0f
+            li = 0
             while (y < height) {
-                canvas.drawLine(0f, y, width.toFloat(), y, gridPaint)
+                path.reset()
+                val phase = li * 0.6f + 1.3f
+                var i = 0
+                while (i <= fineSeg) {
+                    val xx = width.toFloat() * i / fineSeg
+                    val off = fineAmp * sin(xx / fineWave * twoPi + time * fineSpeed + phase)
+                    if (i == 0) path.moveTo(xx, y + off) else path.lineTo(xx, y + off)
+                    i++
+                }
+                canvas.drawPath(path, gridPaint)
                 y += step
+                li++
             }
+
             gridPaint.strokeWidth = 2f * density
             gridPaint.alpha = if (isActiveMode) 130 else 80
+
+            val coarseAmp = 5f * density
+            val coarseWave = 480f * density
+            val coarseSpeed = 0.35f
+            val coarseSeg = 26
             val step2 = step * 4f
-            var x2 = 0f
-            while (x2 < width) {
-                canvas.drawLine(x2, 0f, x2, height.toFloat(), gridPaint)
-                x2 += step2
+
+            x = 0f
+            li = 0
+            while (x < width) {
+                path.reset()
+                val phase = li * 0.5f
+                var i = 0
+                while (i <= coarseSeg) {
+                    val yy = height.toFloat() * i / coarseSeg
+                    val off = coarseAmp * sin(yy / coarseWave * twoPi + time * coarseSpeed + phase)
+                    if (i == 0) path.moveTo(x + off, yy) else path.lineTo(x + off, yy)
+                    i++
+                }
+                canvas.drawPath(path, gridPaint)
+                x += step2
+                li++
             }
-            var y2 = 0f
-            while (y2 < height) {
-                canvas.drawLine(0f, y2, width.toFloat(), y2, gridPaint)
-                y2 += step2
+
+            y = 0f
+            li = 0
+            while (y < height) {
+                path.reset()
+                val phase = li * 0.5f + 1.8f
+                var i = 0
+                while (i <= coarseSeg) {
+                    val xx = width.toFloat() * i / coarseSeg
+                    val off = coarseAmp * sin(xx / coarseWave * twoPi + time * coarseSpeed + phase)
+                    if (i == 0) path.moveTo(xx, y + off) else path.lineTo(xx, y + off)
+                    i++
+                }
+                canvas.drawPath(path, gridPaint)
+                y += step2
+                li++
             }
         }
 
