@@ -3,11 +3,10 @@ package com.example.turboboost
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.PointF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -17,7 +16,6 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import kotlin.math.roundToInt
@@ -28,458 +26,440 @@ class SenseFinderScreen(private val ctx: Context) {
     var onResult: ((sens: Float, scope: Float, accel: Float) -> Unit)? = null
 
     private lateinit var root: FrameLayout
-    private lateinit var overlay: SwipeOverlay
+    private lateinit var world: WorldView
 
-    private var stage = 0
-    private var targetDegrees = 180f
-    private var rectW = 800
-    private var rectH = 260
-    private var swipeMs = 0L
+    private var targetDeg = 180f
     private var hasSwipe = false
-    private var swipePath = mutableListOf<PointF>()
+    private var swipeMs = 0L
+    private var measuredDeg = 0f
+    private var swipeDx = 0f
 
     private val accent = 0xFFF2580A.toInt()
-    private val bgDark = Color.parseColor("#05070A")
+    private val bgDark = Color.parseColor("#030508")
 
     private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
 
-    private fun marginPx(): Int {
-        val dm = ctx.resources.displayMetrics
-        val xdpi = if (dm.xdpi < 100f || dm.xdpi.isNaN()) dm.density * 160f else dm.xdpi
-        val px = (xdpi * 1.5f / 2.54f).toInt()
-        return px.coerceIn(dp(24), dm.widthPixels / 6)
-    }
-
-    private fun screenW(): Int = ctx.resources.displayMetrics.widthPixels
-    private fun screenH(): Int = ctx.resources.displayMetrics.heightPixels
-
-    private fun maxRectW(): Int = screenW() - 2 * marginPx() - dp(20)
-    private fun maxRectH(): Int = screenH() - 2 * marginPx() - dp(260)
-
     fun build(): View {
+        try {
+            (ctx as? android.app.Activity)?.requestedOrientation =
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } catch (_: Throwable) {}
+
         root = FrameLayout(ctx)
         root.setBackgroundColor(bgDark)
-        rectW = maxRectW().coerceAtMost(1000)
-        rectH = dp(260)
-        showSetup()
+
+        world = WorldView(ctx)
+        root.addView(world, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        buildUi()
         return root
     }
 
-    private fun showSetup() {
-        stage = 0
-        root.removeAllViews()
+    private fun buildUi() {
+        val top = LinearLayout(ctx)
+        top.orientation = LinearLayout.HORIZONTAL
+        top.gravity = Gravity.CENTER_VERTICAL
+        top.setPadding(dp(16), dp(10), dp(16), dp(10))
+        top.setBackgroundColor(Color.parseColor("#99000000"))
+        val lpTop = FrameLayout.LayoutParams(MATCH_PARENT, dp(52))
+        lpTop.gravity = Gravity.TOP
+        root.addView(top, lpTop)
 
-        val content = LinearLayout(ctx)
-        content.orientation = LinearLayout.VERTICAL
-        content.setPadding(marginPx(), dp(90), marginPx(), dp(30))
-        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        val back = TextView(ctx)
+        back.text = "← Назад"
+        back.setTextColor(Color.WHITE)
+        back.textSize = 14f
+        back.setPadding(dp(4), dp(6), dp(14), dp(6))
+        back.setOnClickListener { finish() }
+        top.addView(back)
 
         val title = TextView(ctx)
-        title.text = "Настройка области свайпа"
-        title.setTextColor(Color.WHITE)
-        title.textSize = 20f
+        title.text = "Подбор сенсы"
+        title.setTextColor(accent)
+        title.textSize = 16f
         title.typeface = Typeface.DEFAULT_BOLD
-        content.addView(title)
+        title.gravity = Gravity.CENTER
+        top.addView(title, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
 
-        val sub = TextView(ctx)
-        sub.text = "Выбери прямоугольник, в котором обычно двигаешь палец. Свайп будет считаться по его ширине."
-        sub.setTextColor(Color.parseColor("#99FFFFFF"))
-        sub.textSize = 12f
-        sub.setPadding(0, dp(4), 0, dp(20))
-        content.addView(sub)
-
-        addSlider(content, "Ширина: " + rectW + " px", 200, maxRectW(), rectW) { v ->
-            rectW = v
-            showSetup()
-        }
-        addSlider(content, "Высота: " + rectH + " px", 80, maxRectH(), rectH) { v ->
-            rectH = v
-            showSetup()
-        }
-
-        val preview = LinearLayout(ctx)
-        preview.orientation = LinearLayout.VERTICAL
-        preview.gravity = Gravity.CENTER
-        preview.setPadding(dp(8), dp(8), dp(8), dp(8))
-        preview.background = glass()
-        content.addView(preview, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
-
-        val boxPreview = View(ctx)
-        boxPreview.setBackground(rectBg())
-        preview.addView(boxPreview, LinearLayout.LayoutParams(
-            (rectW.toFloat() / maxRectW() * (screenW() - 2 * marginPx() - dp(32))).toInt().coerceAtLeast(dp(120)),
-            (rectH.toFloat() / maxRectH() * dp(140)).toInt().coerceAtLeast(dp(40))
-        ))
-
-        val spacer = View(ctx)
-        content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
-
-        val btn = btn("Дальше", accent)
-        btn.setOnClickListener { showSwipe() }
-        content.addView(btn, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { topMargin = dp(12) })
-
-        root.addView(topBar("Подбор сенсы"), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-    }
-
-    private fun showSwipe() {
-        stage = 1
-        hasSwipe = false
-        swipePath.clear()
-        root.removeAllViews()
-
-        overlay = SwipeOverlay(ctx)
-        overlay.rectW = rectW
-        overlay.rectH = rectH
-        overlay.path = swipePath
-        root.addView(overlay, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        val spacer = TextView(ctx)
+        spacer.text = "   "
+        top.addView(spacer)
 
         val bottom = LinearLayout(ctx)
-        bottom.orientation = LinearLayout.VERTICAL
-        bottom.setPadding(marginPx(), dp(8), marginPx(), dp(16))
-        bottom.setBackgroundColor(Color.parseColor("#CC05070A"))
-        val lp = FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
-        lp.gravity = Gravity.BOTTOM
-        root.addView(bottom, lp)
-
-        val degRow = LinearLayout(ctx)
-        degRow.orientation = LinearLayout.HORIZONTAL
-        bottom.addView(degRow, LinearLayout.LayoutParams(MATCH_PARENT, dp(44)))
+        bottom.orientation = LinearLayout.HORIZONTAL
+        bottom.gravity = Gravity.CENTER_VERTICAL
+        bottom.setPadding(dp(16), dp(8), dp(16), dp(14))
+        bottom.setBackgroundColor(Color.parseColor("#99000000"))
+        val lpBottom = FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        lpBottom.gravity = Gravity.BOTTOM
+        root.addView(bottom, lpBottom)
 
         listOf(45f, 90f, 180f).forEach { d ->
-            val b = btn(d.toInt().toString() + "°", if (targetDegrees == d) accent else Color.parseColor("#333333"))
-            b.setTextColor(Color.WHITE)
+            val b = pill(d.toInt().toString() + "°", if (targetDeg == d) accent else Color.parseColor("#333333"))
             b.setOnClickListener {
-                targetDegrees = d
-                showSwipe()
+                targetDeg = d
+                rebuildBottom()
             }
-            degRow.addView(b, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
-                marginStart = dp(2)
-                marginEnd = dp(2)
+            bottom.addView(b, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                marginStart = dp(4)
+                marginEnd = dp(4)
             })
         }
 
-        val hint = TextView(ctx)
-        hint.text = if (hasSwipe) "Свайп записан (" + swipeMs + " мс). Нажми «Измерить»"
-                   else "Проведи пальцем от левой красной линии до правой"
-        hint.setTextColor(Color.parseColor("#CCFFFFFF"))
-        hint.textSize = 12f
-        hint.setPadding(dp(4), dp(10), dp(4), dp(8))
-        bottom.addView(hint)
-
-        val row = LinearLayout(ctx)
-        row.orientation = LinearLayout.HORIZONTAL
-        bottom.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, dp(50)))
-
-        val again = btn("Заново", Color.parseColor("#333333"))
-        again.setOnClickListener { showSwipe() }
-        row.addView(again, LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginEnd = dp(6) })
-
-        val measure = btn("Измерить", accent)
-        measure.setOnClickListener {
+        val action = pill(if (hasSwipe) "Измерить" else "Проведи свайп", if (hasSwipe) Color.parseColor("#34D399") else Color.parseColor("#555555"))
+        action.setOnClickListener {
             if (!hasSwipe) {
-                Toast.makeText(ctx, "Сначала проведи свайп", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, "Сначала проведи свайп от левой линии до правой", Toast.LENGTH_SHORT).show()
             } else {
                 showResult()
             }
         }
-        row.addView(measure, LinearLayout.LayoutParams(0, dp(50), 1f))
+        bottom.addView(action, LinearLayout.LayoutParams(0, dp(48), 1.2f).apply {
+            marginStart = dp(10)
+            marginEnd = dp(4)
+        })
 
-        root.addView(topBar("Свайп по прямоугольнику"), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-    }private fun showResult() {
-    stage = 2
-    root.removeAllViews()
-
-    val s = computeResult()
-
-    val content = LinearLayout(ctx)
-    content.orientation = LinearLayout.VERTICAL
-    content.setPadding(marginPx(), dp(90), marginPx(), dp(30))
-    root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-
-    val title = TextView(ctx)
-    title.text = "Результат"
-    title.setTextColor(Color.WHITE)
-    title.textSize = 22f
-    title.typeface = Typeface.DEFAULT_BOLD
-    content.addView(title)
-
-    val sub = TextView(ctx)
-    sub.text = "Введи эти значения в Standoff 2 → Настройки → Управление"
-    sub.setTextColor(Color.parseColor("#99FFFFFF"))
-    sub.textSize = 12f
-    sub.setPadding(0, dp(4), 0, dp(20))
-    content.addView(sub)
-
-    addResultRow(content, "Чувствительность", s.first, accent)
-    addResultRow(content, "Чувствительность прицела", s.second, accent)
-    addResultRow(content, "Ускорение", s.third, Color.parseColor("#00C7FF"))
-
-    val note = TextView(ctx)
-    note.text = "Aim Smoothing в игре поставь в 0.00.\nЕсли сенса «плавает» — снизь Acceleration на 0.01."
-    note.setTextColor(Color.parseColor("#88FFFFFF"))
-    note.textSize = 11f
-    note.setPadding(dp(4), dp(16), dp(4), 0)
-    content.addView(note)
-
-    val spacer = View(ctx)
-    content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
-
-    val copy = btn("Копировать значения", accent)
-    copy.setOnClickListener {
-        val text = "Standoff 2\nSensitivity: " + fmt(s.first) + "\nScope Sensitivity: " + fmt(s.second) + "\nAcceleration: " + fmt(s.third)
-        try {
-            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            cm?.setPrimaryClip(ClipData.newPlainText("SO2 sens", text))
-            Toast.makeText(ctx, "Скопировано", Toast.LENGTH_SHORT).show()
-        } catch (_: Throwable) {}
-        onResult?.invoke(s.first, s.second, s.third)
+        val hint = TextView(ctx)
+        hint.text = if (hasSwipe) "Готово. Нажми «Измерить»" else "Проведи пальцем от левой красной линии до правой"
+        hint.setTextColor(Color.parseColor("#CCFFFFFF"))
+        hint.textSize = 11f
+        hint.gravity = Gravity.CENTER
+        hint.setPadding(dp(16), dp(4), dp(16), dp(2))
+        val lpHint = FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        lpHint.gravity = Gravity.BOTTOM
+        lpHint.bottomMargin = dp(70)
+        root.addView(hint, lpHint)
     }
-    content.addView(copy, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { bottomMargin = dp(8) })
 
-    val again = btn("Пройти заново", Color.parseColor("#333333"))
-    again.setOnClickListener {
-        hasSwipe = false
-        swipePath.clear()
-        showSetup()
+    private fun rebuildBottom() {
+        root.removeAllViews()
+        root.addView(world, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        buildUi()
+        world.yaw = 0f
+        world.pitch = 0f
+        world.invalidate()
     }
-    content.addView(again, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)))
 
-    root.addView(topBar("Готово"), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-}
+    private fun showResult() {
+        root.removeAllViews()
+        root.setBackgroundColor(bgDark)
 
-private fun computeResult(): Triple<Float, Float, Float> {
-    val baselinePpd = 6.0f
-    val baseSens = 2.0f
-    val w = rectW.toFloat().coerceAtLeast(100f)
-    val rawSens = baseSens * targetDegrees * baselinePpd / w
-    val sens = rawSens.coerceIn(0.30f, 5.00f)
-    val scope = (sens * 0.875f).coerceIn(0.30f, 5.00f)
+        val content = LinearLayout(ctx)
+        content.orientation = LinearLayout.VERTICAL
+        content.setPadding(dp(40), dp(80), dp(40), dp(30))
+        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-    val speedPxPerMs = if (swipeMs > 0L) w / swipeMs.toFloat() else 1.0f
-    val accel = when {
-        speedPxPerMs >= 1.5f -> 0.00f
-        speedPxPerMs >= 0.5f -> 0.03f
-        else -> 0.05f
-    }
-    return Triple(r2(sens), r2(scope), r2(accel))
-}
+        val s = computeResult()
 
-private fun r2(v: Float): Float = (v * 100f).roundToInt() / 100f
+        val title = TextView(ctx)
+        title.text = "Результат"
+        title.setTextColor(Color.WHITE)
+        title.textSize = 22f
+        title.typeface = Typeface.DEFAULT_BOLD
+        content.addView(title)
 
-private fun fmt(v: Float): String = String.format(java.util.Locale.US, "%.2f", v)
+        val sub = TextView(ctx)
+        sub.text = "Введи в Standoff 2 → Настройки → Управление"
+        sub.setTextColor(Color.parseColor("#99FFFFFF"))
+        sub.textSize = 12f
+        sub.setPadding(0, dp(4), 0, dp(16))
+        content.addView(sub)
 
-private fun topBar(titleStr: String): FrameLayout {
-    val bar = FrameLayout(ctx)
-    bar.setBackgroundColor(Color.parseColor("#CC05070A"))
-    val h = LinearLayout(ctx)
-    h.orientation = LinearLayout.HORIZONTAL
-    h.gravity = Gravity.CENTER_VERTICAL
-    h.setPadding(dp(16), dp(12), dp(16), dp(12))
-    bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    val back = TextView(ctx)
-    back.text = "← Назад"
-    back.setTextColor(Color.WHITE)
-    back.textSize = 14f
-    back.setPadding(dp(4), dp(6), dp(12), dp(6))
-    back.setOnClickListener {
-        if (stage == 0) onBack?.invoke() else showSetup()
-    }
-    h.addView(back)
-    val t = TextView(ctx)
-    t.text = titleStr
-    t.setTextColor(accent)
-    t.textSize = 16f
-    t.typeface = Typeface.DEFAULT_BOLD
-    t.gravity = Gravity.CENTER
-    h.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    return bar
-}
+        addRow(content, "Чувствительность", s.first, accent)
+        addRow(content, "Чувствительность прицела", s.second, accent)
+        addRow(content, "Ускорение", s.third, Color.parseColor("#00C7FF"))
 
-private fun addSlider(parent: LinearLayout, label: String, min: Int, max: Int, cur: Int, onChanged: (Int) -> Unit) {
-    val tv = TextView(ctx)
-    tv.text = label
-    tv.setTextColor(Color.WHITE)
-    tv.textSize = 12f
-    tv.setPadding(dp(4), dp(10), dp(4), dp(4))
-    parent.addView(tv)
-    val sb = SeekBar(ctx)
-    sb.max = (max - min).coerceAtLeast(1)
-    sb.progress = (cur - min).coerceIn(0, sb.max)
-    sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {}
-        override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-        override fun onStopTrackingTouch(seekBar: SeekBar?) {
-            val p = seekBar?.progress ?: 0
-            onChanged(min + p)
+        val note = TextView(ctx)
+        note.text = "Aim Smoothing = 0.00. Если сенса «плавает» — снизь Acceleration на 0.01."
+        note.setTextColor(Color.parseColor("#88FFFFFF"))
+        note.textSize = 11f
+        note.setPadding(dp(4), dp(14), dp(4), 0)
+        content.addView(note)
+
+        val spacer = View(ctx)
+        content.addView(spacer, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+
+        val copy = pill("Копировать", accent)
+        copy.setOnClickListener {
+            val text = "Standoff 2\nSensitivity: " + fmt(s.first) + "\nScope Sensitivity: " + fmt(s.second) + "\nAcceleration: " + fmt(s.third)
+            try {
+                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                cm?.setPrimaryClip(ClipData.newPlainText("SO2 sens", text))
+                Toast.makeText(ctx, "Скопировано", Toast.LENGTH_SHORT).show()
+            } catch (_: Throwable) {}
+            onResult?.invoke(s.first, s.second, s.third)
         }
-    })
-    parent.addView(sb, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-}
+        content.addView(copy, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { bottomMargin = dp(8) })
 
-private fun addResultRow(parent: LinearLayout, label: String, value: Float, color: Int) {
-    val row = LinearLayout(ctx)
-    row.orientation = LinearLayout.HORIZONTAL
-    row.gravity = Gravity.CENTER_VERTICAL
-    row.setPadding(dp(14), dp(14), dp(14), dp(14))
-    row.background = glass()
-    val name = TextView(ctx)
-    name.text = label
-    name.setTextColor(Color.WHITE)
-    name.textSize = 14f
-    row.addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    val num = TextView(ctx)
-    num.text = fmt(value)
-    num.setTextColor(color)
-    num.textSize = 22f
-    num.typeface = Typeface.DEFAULT_BOLD
-    row.addView(num)
-    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
-}
+        val again = pill("Заново", Color.parseColor("#333333"))
+        again.setOnClickListener {
+            hasSwipe = false
+            measuredDeg = 0f
+            swipeDx = 0f
+            rebuildBottom()
+        }
+        content.addView(again, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)))
+    }
 
-private fun btn(text: String, color: Int): TextView {
-    val t = TextView(ctx)
-    t.text = text
-    t.setTextColor(Color.WHITE)
-    t.textSize = 14f
-    t.typeface = Typeface.DEFAULT_BOLD
-    t.gravity = Gravity.CENTER
-    t.background = pill(color)
-    return t
-}
+    private fun computeResult(): Triple<Float, Float, Float> {
+        val baseSens = 2.0f
+        val safeMeasured = measuredDeg.coerceAtLeast(1f)
+        val rawSens = baseSens * targetDeg / safeMeasured
+        val sens = rawSens.coerceIn(0.30f, 5.00f)
+        val scope = (sens * 0.875f).coerceIn(0.30f, 5.00f)
 
-private fun glass(): GradientDrawable {
-    val g = GradientDrawable()
-    g.shape = GradientDrawable.RECTANGLE
-    g.cornerRadius = dp(14).toFloat()
-    g.setColor(Color.parseColor("#14FFFFFF"))
-    g.setStroke(dp(1), Color.parseColor("#22FFFFFF"))
-    return g
-}
+        val speedPxPerMs = if (swipeMs > 0L) swipeDx / swipeMs.toFloat() else 1.0f
+        val accel = when {
+            speedPxPerMs >= 1.5f -> 0.00f
+            speedPxPerMs >= 0.5f -> 0.03f
+            else -> 0.05f
+        }
+        return Triple(r2(sens), r2(scope), r2(accel))
+    }
 
-private fun rectBg(): GradientDrawable {
-    val g = GradientDrawable()
-    g.shape = GradientDrawable.RECTANGLE
-    g.cornerRadius = dp(8).toFloat()
-    g.setColor(Color.parseColor("#22F2580A"))
-    g.setStroke(dp(2), accent)
-    return g
-}
+    private fun r2(v: Float): Float = (v * 100f).roundToInt() / 100f
 
-private fun pill(color: Int): GradientDrawable {
-    val g = GradientDrawable()
-    g.shape = GradientDrawable.RECTANGLE
-    g.cornerRadius = dp(12).toFloat()
-    g.setColor(color)
-    return g
-}    private inner class SwipeOverlay(context: Context) : View(context) {
-        var rectW = 0
-        var rectH = 0
-        var path: MutableList<PointF> = mutableListOf()
+    private fun fmt(v: Float): String = String.format(java.util.Locale.US, "%.2f", v)
 
-        private val paintBox = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val paintLine = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val paintPath = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val paintText = Paint(Paint.ANTI_ALIAS_FLAG)
+    private fun addRow(parent: LinearLayout, label: String, value: Float, color: Int) {
+        val row = LinearLayout(ctx)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(14), dp(12), dp(14), dp(12))
+        row.background = glass()
+        val name = TextView(ctx)
+        name.text = label
+        name.setTextColor(Color.WHITE)
+        name.textSize = 14f
+        row.addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        val num = TextView(ctx)
+        num.text = fmt(value)
+        num.setTextColor(color)
+        num.textSize = 22f
+        num.typeface = Typeface.DEFAULT_BOLD
+        row.addView(num)
+        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
+    }
+
+    private fun pill(text: String, color: Int): TextView {
+        val t = TextView(ctx)
+        t.text = text
+        t.setTextColor(Color.WHITE)
+        t.textSize = 14f
+        t.typeface = Typeface.DEFAULT_BOLD
+        t.gravity = Gravity.CENTER
+        t.background = pillBg(color)
+        return t
+    }
+
+    private fun glass(): GradientDrawable {
+        val g = GradientDrawable()
+        g.shape = GradientDrawable.RECTANGLE
+        g.cornerRadius = dp(14).toFloat()
+        g.setColor(Color.parseColor("#14FFFFFF"))
+        g.setStroke(dp(1), Color.parseColor("#22FFFFFF"))
+        return g
+    }
+
+    private fun pillBg(color: Int): GradientDrawable {
+        val g = GradientDrawable()
+        g.shape = GradientDrawable.RECTANGLE
+        g.cornerRadius = dp(12).toFloat()
+        g.setColor(color)
+        return g
+    }
+
+    private fun finish() {
+        try {
+            (ctx as? android.app.Activity)?.requestedOrientation =
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } catch (_: Throwable) {}
+        onBack?.invoke()
+    }    private inner class WorldView(context: Context) : View(context) {
+        var yaw = 0f
+        var pitch = 0f
+
+        private val tanHalfFov = 8.14f
+        private val near = 0.2f
+        private val roomR = 12f
+        private val floorY = -2f
+        private val ceilY = 4f
+
+        private val pGrid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x3344AAFF
+            strokeWidth = 1.5f
+            style = Paint.Style.STROKE
+        }
+        private val pPillar = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x885B8DEF.toInt()
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+        private val pHorizon = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x99FFFFFF.toInt()
+            strokeWidth = 2f
+            style = Paint.Style.STROKE
+        }
+        private val pRedLeft = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFF3B30.toInt()
+            strokeWidth = 6f
+            style = Paint.Style.STROKE
+        }
+        private val pRedRight = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFF3B30.toInt()
+            strokeWidth = 6f
+            style = Paint.Style.STROKE
+        }
+        private val pRedLeftSoft = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x44FF3B30
+            strokeWidth = 12f
+            style = Paint.Style.STROKE
+        }
+        private val pRedRightSoft = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x44FF3B30
+            strokeWidth = 12f
+            style = Paint.Style.STROKE
+        }
 
         private var startX = 0f
-        private var endX = 0f
+        private var startYaw = 0f
         private var startTime = 0L
-        private var isTracking = false
+        private var tracking = false
+        private var cx = 0f
+        private var cy = 0f
+        private var fpx = 1f
+        private var cyw = 1f
+        private var syw = 0f
+        private var cp = 1f
+        private var sp = 0f
 
-        private var left = 0f
-        private var top = 0f
-        private var right = 0f
-        private var bottom = 0f
+        private val ca = FloatArray(3)
+        private val cb = FloatArray(3)
 
-        init {
-            paintBox.style = Paint.Style.STROKE
-            paintBox.strokeWidth = dp(2).toFloat()
-            paintBox.color = accent
-            paintLine.style = Paint.Style.STROKE
-            paintLine.strokeWidth = dp(3).toFloat()
-            paintLine.color = 0xFFFF3B30.toInt()
-            paintPath.style = Paint.Style.STROKE
-            paintPath.strokeWidth = dp(4).toFloat()
-            paintPath.color = 0xFFFFEB3B.toInt()
-            paintPath.strokeCap = Paint.Cap.ROUND
-            paintPath.strokeJoin = Paint.Join.ROUND
-            paintText.color = Color.WHITE
-            paintText.textSize = dp(12).toFloat()
-            paintText.typeface = Typeface.DEFAULT_BOLD
+        private fun sinD(a: Float): Float = Math.sin(Math.toRadians(a.toDouble())).toFloat()
+        private fun cosD(a: Float): Float = Math.cos(Math.toRadians(a.toDouble())).toFloat()
+
+        private fun toCam(x: Float, y: Float, z: Float, out: FloatArray) {
+            val xc = x * cyw - z * syw
+            val z0 = x * syw + z * cyw
+            out[0] = xc
+            out[1] = y * cp - z0 * sp
+            out[2] = z0 * cp + y * sp
+        }
+
+        private fun line3(canvas: Canvas, x1: Float, y1: Float, z1: Float, x2: Float, y2: Float, z2: Float, paint: Paint) {
+            toCam(x1, y1, z1, ca)
+            toCam(x2, y2, z2, cb)
+            var ax = ca[0]; var ay = ca[1]; var az = ca[2]
+            var bx = cb[0]; var by = cb[1]; var bz = cb[2]
+            if (az < near && bz < near) return
+            if (az < near) {
+                val t = (near - az) / (bz - az)
+                val nx = ax + (bx - ax) * t
+                val ny = ay + (by - ay) * t
+                ax = nx; ay = ny; az = near
+            } else if (bz < near) {
+                val t = (near - az) / (bz - az)
+                val nx = ax + (bx - ax) * t
+                val ny = ay + (by - ay) * t
+                bx = nx; by = ny; bz = near
+            }
+            canvas.drawLine(
+                cx + ax / az * fpx, cy - ay / az * fpx,
+                cx + bx / bz * fpx, cy - by / bz * fpx,
+                paint
+            )
         }
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
-            left = (w - rectW) / 2f
-            right = left + rectW
-            top = (h - rectH) / 2f
-            bottom = top + rectH
+            cx = w / 2f
+            cy = h / 2f
+            fpx = (h / 2f) / tanHalfFov
         }
 
         override fun onDraw(canvas: Canvas) {
-            canvas.drawRect(left, top, right, bottom, paintBox)
-            canvas.drawLine(left, top, left, bottom, paintLine)
-            canvas.drawLine(right, top, right, bottom, paintLine)
-            paintText.textAlign = Paint.Align.RIGHT
-            canvas.drawText("старт", left - dp(4), top - dp(8), paintText)
-            paintText.textAlign = Paint.Align.LEFT
-            canvas.drawText("финиш", right + dp(4), top - dp(8), paintText)
+            super.onDraw(canvas)
+            if (width <= 0 || height <= 0) return
+            canvas.drawColor(0xFF030508.toInt())
 
-            if (path.size > 1) {
-                val p = Path()
-                p.moveTo(path[0].x, path[0].y)
-                for (i in 1 until path.size) p.lineTo(path[i].x, path[i].y)
-                canvas.drawPath(p, paintPath)
+            cyw = cosD(yaw)
+            syw = sinD(yaw)
+            cp = cosD(pitch)
+            sp = sinD(pitch)
+
+            var g = -24f
+            while (g <= 24f) {
+                line3(canvas, g, floorY, -24f, g, floorY, 24f, pGrid)
+                line3(canvas, -24f, floorY, g, 24f, floorY, g, pGrid)
+                line3(canvas, g, ceilY, -24f, g, ceilY, 24f, pGrid)
+                line3(canvas, -24f, ceilY, g, 24f, ceilY, g, pGrid)
+                g += 4f
             }
+
+            var i = 0
+            while (i < 48) {
+                val a1 = i * 7.5f
+                val a2 = (i + 1) * 7.5f
+                line3(canvas, roomR * sinD(a1), 0f, roomR * cosD(a1),
+                    roomR * sinD(a2), 0f, roomR * cosD(a2), pHorizon)
+                i++
+            }
+
+            var k = 0
+            while (k < 12) {
+                val ang = k * 30f
+                val px = roomR * sinD(ang)
+                val pz = roomR * cosD(ang)
+                line3(canvas, px, floorY, pz, px, ceilY, pz, pPillar)
+                k++
+            }
+
+            val lineDist = 6f
+            val lineTop = 3f
+            val lineBottom = -1f
+
+            line3(canvas, -lineDist, lineBottom, -lineDist, -lineDist, lineTop, -lineDist, pRedLeftSoft)
+            line3(canvas, -lineDist, lineBottom, -lineDist, -lineDist, lineTop, -lineDist, pRedLeft)
+            line3(canvas, lineDist, lineBottom, -lineDist, lineDist, lineTop, -lineDist, pRedRightSoft)
+            line3(canvas, lineDist, lineBottom, -lineDist, lineDist, lineTop, -lineDist, pRedRight)
         }
 
         override fun onTouchEvent(ev: MotionEvent): Boolean {
-            val x = ev.x
-            val y = ev.y
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (x in left..right && y in top..bottom) {
-                        isTracking = true
-                        startX = x
-                        endX = x
-                        startTime = System.currentTimeMillis()
-                        path.clear()
-                        path.add(PointF(x, y))
-                        invalidate()
-                    }
+                    tracking = true
+                    startX = ev.x
+                    startYaw = yaw
+                    startTime = System.currentTimeMillis()
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!isTracking) return true
-                    endX = x
-                    path.add(PointF(x, y))
+                    if (!tracking) return true
+                    val dx = ev.x - startX
+                    yaw = startYaw + dx * 0.15f
                     invalidate()
                     return true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (!isTracking) return true
-                    isTracking = false
-                    endX = x
-                    val elapsed = System.currentTimeMillis() - startTime
-                    val dx = endX - startX
-                    val minLen = rectW * 0.40f
-                    val reachedRight = endX >= right - (right - left) * 0.15f
-                    if (dx >= minLen && reachedRight) {
-                        swipeMs = elapsed.coerceAtLeast(1)
-                        swipePath = path
-                        this@SenseFinderScreen.hasSwipe = true
-                        Toast.makeText(ctx, "Свайп записан", Toast.LENGTH_SHORT).show()
-                        showSwipe()
-                    } else {
-                        Toast.makeText(ctx, "Проведи ещё раз: от левой линии до правой", Toast.LENGTH_SHORT).show()
-                        path.clear()
-                        this@SenseFinderScreen.hasSwipe = false
-                        invalidate()
+                    if (!tracking) return true
+                    tracking = false
+                    val elapsed = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
+                    val dx = ev.x - startX
+                    if (kotlin.math.abs(dx) < 40f) {
+                        Toast.makeText(ctx, "Слишком короткий свайп", Toast.LENGTH_SHORT).show()
+                        return true
                     }
+                    val turned = kotlin.math.abs(dx) * 0.15f
+                    swipeMs = elapsed
+                    measuredDeg = turned
+                    swipeDx = kotlin.math.abs(dx)
+                    hasSwipe = true
+                    rebuildBottom()
                     return true
                 }
             }
             return super.onTouchEvent(ev)
         }
     }
-}
+}}
