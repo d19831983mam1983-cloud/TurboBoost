@@ -33,7 +33,6 @@ class SettingsScreen(private val ctx: Context) {
     var onPickBackground: (() -> Unit)? = null
     var onResetBackground: (() -> Unit)? = null
 
-    // 2.0
     var onAutoSessionToggle: ((Boolean) -> Unit)? = null
     var onOverlayToggle: ((Boolean) -> Unit)? = null
     var onRequestUsageAccess: (() -> Unit)? = null
@@ -41,6 +40,7 @@ class SettingsScreen(private val ctx: Context) {
     var onImportBackup: (() -> Unit)? = null
     var onShowLog: (() -> Unit)? = null
     var onGameOverlayToggle: ((Boolean) -> Unit)? = null
+    var onGameSelected: ((String) -> Unit)? = null
 
     private var autoSessionOn = false
     private var overlayOn = false
@@ -70,6 +70,51 @@ class SettingsScreen(private val ctx: Context) {
             setPadding(0, dp(72), 0, 0)
         }
         root.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        content.addView(tv("Игра", 14f, Color.parseColor("#AAFFFFFF")).apply {
+            setPadding(dp(4), dp(16), 0, dp(8))
+        })
+
+        val selectedGame = try { AppPrefs(ctx).getSelectedGame() } catch (_: Throwable) { "standoff" }
+
+        val gameRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, dp(16))
+        }
+
+        val standoffBtn = TextView(ctx).apply {
+            text = "Standoff 2"
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            background = if (selectedGame == "standoff") accentPill() else glassItem()
+            setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                onGameSelected?.invoke("standoff")
+            }
+        }
+        gameRow.addView(standoffBtn, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
+            marginEnd = dp(6)
+        })
+
+        val pubgBtn = TextView(ctx).apply {
+            text = "PUBG"
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            background = if (selectedGame == "pubg") accentPill() else glassItem()
+            setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                onGameSelected?.invoke("pubg")
+            }
+        }
+        gameRow.addView(pubgBtn, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
+            marginStart = dp(6)
+        })
+
+        content.addView(gameRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
 
         content.addView(tv("Темы", 14f, Color.parseColor("#AAFFFFFF")).apply {
             setPadding(dp(4), dp(16), 0, dp(8))
@@ -247,7 +292,15 @@ class SettingsScreen(private val ctx: Context) {
         return bar
     }
 
-    /** Строка-переключатель: возвращает контейнер и функцию обновления текста состояния. */
+    private fun accentPill() = android.graphics.drawable.GradientDrawable().apply {
+        shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+        cornerRadius = dp(20).toFloat()
+        colors = intArrayOf(0xFF5B8DEF.toInt(), 0xFF4A7AD8.toInt())
+        gradientType = android.graphics.drawable.GradientDrawable.LINEAR_GRADIENT
+        orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+        setStroke(dp(1), 0xAAFFFFFF.toInt())
+    }
+
     private fun toggleRow(title: String, subtitle: String, initial: Boolean, onChange: (Boolean) -> Unit): Pair<LinearLayout, (Boolean) -> Unit> {
         val stateText = tv("", 13f, Color.parseColor("#F2580A"))
         var updateState: ((Boolean) -> Unit)? = null
