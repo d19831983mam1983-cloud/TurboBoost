@@ -16,6 +16,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import kotlin.math.abs
@@ -71,6 +72,9 @@ class SenseFinderScreen(private val ctx: Context) {
     private var strokeStart = 0L
     private var stepMs = 0f
     private lateinit var resultBox: LinearLayout
+    private lateinit var resultScroll: ScrollView
+    private var topSpacer: View? = null
+    private var bottomSpacer: View? = null
 
     private val finishRunnable = Runnable { finishStep() }
 
@@ -166,10 +170,9 @@ class SenseFinderScreen(private val ctx: Context) {
         )
         overlay.addView(top)
 
-        overlay.addView(
-            View(ctx),
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        )
+        val ts = View(ctx)
+        topSpacer = ts
+        overlay.addView(ts, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
         titleTv = TextView(ctx)
         titleTv.setTextColor(Color.WHITE)
@@ -197,15 +200,19 @@ class SenseFinderScreen(private val ctx: Context) {
 
         resultBox = LinearLayout(ctx)
         resultBox.orientation = LinearLayout.VERTICAL
-        resultBox.visibility = View.GONE
-        val boxLp = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        boxLp.leftMargin = dp(70)
-        boxLp.rightMargin = dp(70)
-        boxLp.bottomMargin = dp(8)
-        overlay.addView(resultBox, boxLp)
+        resultBox.setPadding(dp(70), 0, dp(70), dp(8))
+
+        resultScroll = ScrollView(ctx)
+        resultScroll.isFillViewport = false
+        resultScroll.isVerticalScrollBarEnabled = true
+        resultScroll.visibility = View.GONE
+        resultScroll.addView(resultBox, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            WRAP_CONTENT
+        ))
+        overlay.addView(resultScroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
 
         gameRow = LinearLayout(ctx)
         gameRow.orientation = LinearLayout.HORIZONTAL
@@ -266,10 +273,9 @@ class SenseFinderScreen(private val ctx: Context) {
         btnLp.gravity = Gravity.CENTER_HORIZONTAL
         overlay.addView(actionBtn, btnLp)
 
-        overlay.addView(
-            View(ctx),
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.55f)
-        )
+        val bs = View(ctx)
+        bottomSpacer = bs
+        overlay.addView(bs, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 0.55f))
 
         root.setOnTouchListener { _, ev -> handleTouch(ev) }
         root.setOnHoverListener { _, ev -> handleHover(ev) }
@@ -296,33 +302,33 @@ class SenseFinderScreen(private val ctx: Context) {
         root.post { try { root.requestFocus() } catch (_: Throwable) {} }
         showStep()
         return root
+    }private fun updateGameRow() {
+    if (!::gameRow.isInitialized) return
+    for (i in 0 until gameRow.childCount) {
+        val b = gameRow.getChildAt(i) as TextView
+        val id = b.tag as? String ?: continue
+        b.background = pillBg(if (id == game) Color.parseColor("#5B8DEF") else Color.parseColor("#333333"))
     }
+}
 
-    private fun updateGameRow() {
-        if (!::gameRow.isInitialized) return
-        for (i in 0 until gameRow.childCount) {
-            val b = gameRow.getChildAt(i) as TextView
-            val id = b.tag as? String ?: continue
-            b.background = pillBg(if (id == game) Color.parseColor("#5B8DEF") else Color.parseColor("#333333"))
-        }
+private fun pillBg(color: Int): GradientDrawable {
+    val g = GradientDrawable()
+    g.shape = GradientDrawable.RECTANGLE
+    g.cornerRadius = dp(12).toFloat()
+    g.setColor(color)
+    return g
+}
+
+private fun noteSource(ev: MotionEvent) {
+    try {
+        if (ev.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE ||
+            ev.isFromSource(android.view.InputDevice.SOURCE_MOUSE)
+        ) mouseUsed = true
+    } catch (_: Throwable) {
     }
+}
 
-    private fun pillBg(color: Int): GradientDrawable {
-        val g = GradientDrawable()
-        g.shape = GradientDrawable.RECTANGLE
-        g.cornerRadius = dp(12).toFloat()
-        g.setColor(color)
-        return g
-    }
-
-    private fun noteSource(ev: MotionEvent) {
-        try {
-            if (ev.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE ||
-                ev.isFromSource(android.view.InputDevice.SOURCE_MOUSE)
-            ) mouseUsed = true
-        } catch (_: Throwable) {
-        }
-    }private fun applyMove(st: Step, dx: Float, dy: Float) {
+private fun applyMove(st: Step, dx: Float, dy: Float) {
     if (st.dYaw != 0f) {
         val sgn = if (st.dYaw > 0f) 1f else -1f
         yaw = (yaw + dx * TURN_K).coerceIn(-360f, 360f)
@@ -476,12 +482,12 @@ private fun onAction() {
         onResult?.invoke(r.first, r.second, r.third)
         finish()
     }
-}
-
-private fun showStep() {
+}private fun showStep() {
     axisSum = 0f
     stepMs = 0f
-    resultBox.visibility = View.GONE
+    resultScroll.visibility = View.GONE
+    topSpacer?.visibility = View.VISIBLE
+    bottomSpacer?.visibility = View.VISIBLE
     tracking = false
     world.showTarget = false
     world.flash = false
@@ -556,7 +562,10 @@ private fun showStep() {
             addSliderRow("Чувствительность прицела (Scope Sensitivity)", r.second, gameSensMax())
             addSliderRow("Ускорение (Acceleration)", r.third, ACCEL_MAX)
         }
-        resultBox.visibility = View.VISIBLE
+        resultScroll.visibility = View.VISIBLE
+        topSpacer?.visibility = View.GONE
+        bottomSpacer?.visibility = View.GONE
+        resultScroll.post { resultScroll.scrollTo(0, 0) }
         val noteText = when (game) {
             "pubg" -> "FPP No Scope измерен: Camera " + fmt(r.first) + "%. TPP No Scope = FPP + 20 = " + fmt(r.first + 20f) + "%. Остальные прицелы рассчитаны от TPP. Gyroscope подбирай отдельно."
             "oxide" -> "Сенса 0–500%. Aim Smoothing = 0. Если сенса «плавает» — снизь Acceleration."
@@ -583,7 +592,9 @@ private fun fmt(v: Float): String {
     } else {
         String.format(java.util.Locale.US, "%.2f", v)
     }
-}private fun r2(v: Float): Float = (v * 100f).roundToInt() / 100f
+}
+
+private fun r2(v: Float): Float = (v * 100f).roundToInt() / 100f
 
 private fun median(list: List<Float>, def: Float): Float {
     if (list.isEmpty()) return def
@@ -597,7 +608,7 @@ private fun addSliderRow(label: String, value: Float, maxValue: Float) {
     row.orientation = LinearLayout.VERTICAL
     val rowLp = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT
+        WRAP_CONTENT
     )
     rowLp.bottomMargin = dp(8)
 
@@ -607,7 +618,7 @@ private fun addSliderRow(label: String, value: Float, maxValue: Float) {
     name.text = label
     name.setTextColor(Color.WHITE)
     name.textSize = 13f
-    head.addView(name, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+    head.addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
     val num = TextView(ctx)
     num.text = fmt(value)
     num.setTextColor(Color.parseColor("#5B8DEF"))
@@ -632,7 +643,7 @@ private fun addSliderRow(label: String, value: Float, maxValue: Float) {
     track.addView(View(ctx), LinearLayout.LayoutParams(0, dp(6), 1f - frac))
     val trackLp = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT
+        WRAP_CONTENT
     )
     trackLp.topMargin = dp(4)
     row.addView(track, trackLp)
@@ -671,118 +682,118 @@ private fun finish() {
 
 private fun dp(v: Int): Int {
     return (v * ctx.resources.displayMetrics.density).toInt()
-}
+}    private class SimpleView(context: Context) : View(context) {
+        var yaw = 0f
+        var pitch = 0f
+        var markerYaw = 0f
+        var markerPitch = 0f
+        var showTarget = false
+        var showLabels = true
+        var showHud = false
+        var flash = false
+        var flashColor = 0
 
-private class SimpleView(context: Context) : View(context) {
-    var yaw = 0f
-    var pitch = 0f
-    var markerYaw = 0f
-    var markerPitch = 0f
-    var showTarget = false
-    var showLabels = true
-    var showHud = false
-    var flash = false
-    var flashColor = 0
+        private var cx = 0f
+        private var cy = 0f
+        private var fpx = 1f
+        private var cyw = 1f
+        private var syw = 0f
+        private var cp = 1f
+        private var sp = 0f
 
-    private var cx = 0f
-    private var cy = 0f
-    private var fpx = 1f
-    private var cyw = 1f
-    private var syw = 0f
-    private var cp = 1f
-    private var sp = 0f
+        private val ca = FloatArray(3)
+        private val cb = FloatArray(3)
 
-    private val ca = FloatArray(3)
-    private val cb = FloatArray(3)
+        private val pGrid = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pPillar = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pPillar0 = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pHorizon = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pRing = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pCross = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pMarkFill = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pMarkRing = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pText = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val pFlash = Paint()
 
-    private val pGrid = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pPillar = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pPillar0 = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pHorizon = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pRing = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pCross = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pMarkFill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pMarkRing = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pText = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pFlash = Paint()
-
-    init {
-        pGrid.color = Color.parseColor("#2A44AAFF")
-        pGrid.strokeWidth = 1.5f
-        pGrid.style = Paint.Style.STROKE
-        pPillar.color = Color.parseColor("#885B8DEF")
-        pPillar.strokeWidth = 3f
-        pPillar.style = Paint.Style.STROKE
-        pPillar0.color = Color.parseColor("#FFFF5555")
-        pPillar0.strokeWidth = 5f
-        pPillar0.style = Paint.Style.STROKE
-        pHorizon.color = Color.parseColor("#99FFFFFF")
-        pHorizon.strokeWidth = 2.5f
-        pHorizon.style = Paint.Style.STROKE
-        pRing.color = Color.parseColor("#335B8DEF")
-        pRing.strokeWidth = 2f
-        pRing.style = Paint.Style.STROKE
-        pCross.color = Color.parseColor("#CCFFFFFF")
-        pCross.strokeWidth = 2f
-        pCross.style = Paint.Style.STROKE
-        pMarkFill.color = Color.parseColor("#66FF4D4D")
-        pMarkFill.style = Paint.Style.FILL
-        pMarkRing.color = Color.parseColor("#FFFF4D4D")
-        pMarkRing.strokeWidth = 4f
-        pMarkRing.style = Paint.Style.STROKE
-        pText.color = Color.parseColor("#CCFFFFFF")
-        pText.textSize = 28f
-        pText.textAlign = Paint.Align.CENTER
-        pText.typeface = Typeface.DEFAULT_BOLD
-    }
-
-    private fun sinD(a: Float): Float = Math.sin(Math.toRadians(a.toDouble())).toFloat()
-    private fun cosD(a: Float): Float = Math.cos(Math.toRadians(a.toDouble())).toFloat()
-
-    private fun toCam(x: Float, y: Float, z: Float, out: FloatArray) {
-        val xc = x * cyw - z * syw
-        val z0 = x * syw + z * cyw
-        out[0] = xc
-        out[1] = y * cp - z0 * sp
-        out[2] = z0 * cp + y * sp
-    }
-
-    private fun line3(
-        canvas: Canvas,
-        x1: Float, y1: Float, z1: Float,
-        x2: Float, y2: Float, z2: Float,
-        paint: Paint
-    ) {
-        toCam(x1, y1, z1, ca)
-        toCam(x2, y2, z2, cb)
-        var ax = ca[0]
-        var ay = ca[1]
-        var az = ca[2]
-        var bx = cb[0]
-        var by = cb[1]
-        var bz = cb[2]
-        if (az < NEAR && bz < NEAR) return
-        if (az < NEAR) {
-            val t = (NEAR - az) / (bz - az)
-            val nx = ax + (bx - ax) * t
-            val ny = ay + (by - ay) * t
-            ax = nx
-            ay = ny
-            az = NEAR
-        } else if (bz < NEAR) {
-            val t = (NEAR - az) / (bz - az)
-            val nx = ax + (bx - ax) * t
-            val ny = ay + (by - ay) * t
-            bx = nx
-            by = ny
-            bz = NEAR
+        init {
+            pGrid.color = Color.parseColor("#2A44AAFF")
+            pGrid.strokeWidth = 1.5f
+            pGrid.style = Paint.Style.STROKE
+            pPillar.color = Color.parseColor("#885B8DEF")
+            pPillar.strokeWidth = 3f
+            pPillar.style = Paint.Style.STROKE
+            pPillar0.color = Color.parseColor("#FFFF5555")
+            pPillar0.strokeWidth = 5f
+            pPillar0.style = Paint.Style.STROKE
+            pHorizon.color = Color.parseColor("#99FFFFFF")
+            pHorizon.strokeWidth = 2.5f
+            pHorizon.style = Paint.Style.STROKE
+            pRing.color = Color.parseColor("#335B8DEF")
+            pRing.strokeWidth = 2f
+            pRing.style = Paint.Style.STROKE
+            pCross.color = Color.parseColor("#CCFFFFFF")
+            pCross.strokeWidth = 2f
+            pCross.style = Paint.Style.STROKE
+            pMarkFill.color = Color.parseColor("#66FF4D4D")
+            pMarkFill.style = Paint.Style.FILL
+            pMarkRing.color = Color.parseColor("#FFFF4D4D")
+            pMarkRing.strokeWidth = 4f
+            pMarkRing.style = Paint.Style.STROKE
+            pText.color = Color.parseColor("#CCFFFFFF")
+            pText.textSize = 28f
+            pText.textAlign = Paint.Align.CENTER
+            pText.typeface = Typeface.DEFAULT_BOLD
         }
-        canvas.drawLine(
-            cx + ax / az * fpx, cy - ay / az * fpx,
-            cx + bx / bz * fpx, cy - by / bz * fpx,
-            paint
-        )
-    }        override fun onDraw(canvas: Canvas) {
+
+        private fun sinD(a: Float): Float = Math.sin(Math.toRadians(a.toDouble())).toFloat()
+        private fun cosD(a: Float): Float = Math.cos(Math.toRadians(a.toDouble())).toFloat()
+
+        private fun toCam(x: Float, y: Float, z: Float, out: FloatArray) {
+            val xc = x * cyw - z * syw
+            val z0 = x * syw + z * cyw
+            out[0] = xc
+            out[1] = y * cp - z0 * sp
+            out[2] = z0 * cp + y * sp
+        }
+
+        private fun line3(
+            canvas: Canvas,
+            x1: Float, y1: Float, z1: Float,
+            x2: Float, y2: Float, z2: Float,
+            paint: Paint
+        ) {
+            toCam(x1, y1, z1, ca)
+            toCam(x2, y2, z2, cb)
+            var ax = ca[0]
+            var ay = ca[1]
+            var az = ca[2]
+            var bx = cb[0]
+            var by = cb[1]
+            var bz = cb[2]
+            if (az < NEAR && bz < NEAR) return
+            if (az < NEAR) {
+                val t = (NEAR - az) / (bz - az)
+                val nx = ax + (bx - ax) * t
+                val ny = ay + (by - ay) * t
+                ax = nx
+                ay = ny
+                az = NEAR
+            } else if (bz < NEAR) {
+                val t = (NEAR - az) / (bz - az)
+                val nx = ax + (bx - ax) * t
+                val ny = ay + (by - ay) * t
+                bx = nx
+                by = ny
+                bz = NEAR
+            }
+            canvas.drawLine(
+                cx + ax / az * fpx, cy - ay / az * fpx,
+                cx + bx / bz * fpx, cy - by / bz * fpx,
+                paint
+            )
+        }
+
+        override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val w = width.toFloat()
             val h = height.toFloat()
