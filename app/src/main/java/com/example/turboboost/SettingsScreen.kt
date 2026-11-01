@@ -85,9 +85,9 @@ class SettingsScreen(private val ctx: Context) {
         val standoffBtn = TextView(ctx).apply {
             text = "Standoff 2"
             setTextColor(Color.WHITE)
-            textSize = 15f
+            textSize = 14f
             gravity = Gravity.CENTER
-            setPadding(dp(20), dp(14), dp(20), dp(14))
+            setPadding(dp(12), dp(14), dp(12), dp(14))
             background = if (selectedGame == "standoff") accentPill() else glassItem()
             setOnClickListener {
                 performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
@@ -95,15 +95,15 @@ class SettingsScreen(private val ctx: Context) {
             }
         }
         gameRow.addView(standoffBtn, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
-            marginEnd = dp(6)
+            marginEnd = dp(4)
         })
 
         val pubgBtn = TextView(ctx).apply {
             text = "PUBG"
             setTextColor(Color.WHITE)
-            textSize = 15f
+            textSize = 14f
             gravity = Gravity.CENTER
-            setPadding(dp(20), dp(14), dp(20), dp(14))
+            setPadding(dp(12), dp(14), dp(12), dp(14))
             background = if (selectedGame == "pubg") accentPill() else glassItem()
             setOnClickListener {
                 performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
@@ -111,7 +111,24 @@ class SettingsScreen(private val ctx: Context) {
             }
         }
         gameRow.addView(pubgBtn, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
-            marginStart = dp(6)
+            marginStart = dp(4)
+            marginEnd = dp(4)
+        })
+
+        val oxideBtn = TextView(ctx).apply {
+            text = "Oxide"
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(14), dp(12), dp(14))
+            background = if (selectedGame == "oxide") accentPill() else glassItem()
+            setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                onGameSelected?.invoke("oxide")
+            }
+        }
+        gameRow.addView(oxideBtn, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
+            marginStart = dp(4)
         })
 
         content.addView(gameRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -260,9 +277,7 @@ class SettingsScreen(private val ctx: Context) {
         root.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
 
         return root
-    }
-
-    private fun buildTopBar(): FrameLayout {
+    }    private fun buildTopBar(): FrameLayout {
         val bar = FrameLayout(ctx)
         bar.setBackgroundColor(Color.parseColor("#000000"))
 
