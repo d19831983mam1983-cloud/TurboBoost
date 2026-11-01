@@ -129,9 +129,10 @@ class OptimizerUI(private val ctx: Context) {
     private fun applyGameVisibility() {
         if (!::hzSection.isInitialized || !::resSection.isInitialized) return
         val selected = try { prefs().getSelectedGame() } catch (_: Throwable) { "standoff" }
-        val show = selected == "standoff"
-        hzSection.visibility = if (show) View.VISIBLE else View.GONE
-        resSection.visibility = if (show) View.VISIBLE else View.GONE
+        val showHz = selected == "standoff" || selected == "oxide"
+        val showRes = selected == "standoff"
+        hzSection.visibility = if (showHz) View.VISIBLE else View.GONE
+        resSection.visibility = if (showRes) View.VISIBLE else View.GONE
     }
 
     private fun gridButton(active: Boolean): Drawable {
