@@ -58,7 +58,7 @@ class SenseFinderScreen(private val ctx: Context) {
     private lateinit var degTv: TextView
     private lateinit var actionBtn: TextView
     private lateinit var gameRow: LinearLayout
-    private lateinit var outerScroll: ScrollView
+    private lateinit var outerScroll: PassThroughScrollView
     private lateinit var resultBox: LinearLayout
 
     private var idx = -1
@@ -168,7 +168,7 @@ class SenseFinderScreen(private val ctx: Context) {
         )
         overlay.addView(top)
 
-        outerScroll = ScrollView(ctx)
+        outerScroll = PassThroughScrollView(ctx)
         outerScroll.isFillViewport = false
         outerScroll.isVerticalScrollBarEnabled = true
         val inner = LinearLayout(ctx)
@@ -485,6 +485,7 @@ class SenseFinderScreen(private val ctx: Context) {
         tracking = false
         world.showTarget = false
         world.flash = false
+        outerScroll.disable = idx >= 0 && idx < steps.size
 
         if (idx < 0) {
             gameRow.visibility = View.VISIBLE
@@ -673,6 +674,18 @@ class SenseFinderScreen(private val ctx: Context) {
 
     private fun dp(v: Int): Int {
         return (v * ctx.resources.displayMetrics.density).toInt()
+    }
+
+    private class PassThroughScrollView(context: Context) : ScrollView(context) {
+        var disable = false
+        override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+            if (disable) return false
+            return super.onInterceptTouchEvent(ev)
+        }
+        override fun onTouchEvent(ev: MotionEvent): Boolean {
+            if (disable) return false
+            return super.onTouchEvent(ev)
+        }
     }
 
     private class SimpleView(context: Context) : View(context) {
