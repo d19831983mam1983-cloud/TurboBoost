@@ -67,6 +67,8 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var statusResult: TextView
     lateinit var senseRow: LinearLayout
     lateinit var hzRow: LinearLayout
+    lateinit var hzSection: LinearLayout
+    lateinit var resSection: LinearLayout
 
     var onToggle: (() -> Unit)? = null
     var onDiagnostics: (() -> Unit)? = null
@@ -122,6 +124,14 @@ class OptimizerUI(private val ctx: Context) {
     private fun prefs(): AppPrefs {
         val p = prefsRef ?: AppPrefs(ctx).also { prefsRef = it }
         return p
+    }
+
+    private fun applyGameVisibility() {
+        if (!::hzSection.isInitialized || !::resSection.isInitialized) return
+        val selected = try { prefs().getSelectedGame() } catch (_: Throwable) { "standoff" }
+        val show = selected == "standoff"
+        hzSection.visibility = if (show) View.VISIBLE else View.GONE
+        resSection.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun gridButton(active: Boolean): Drawable {
@@ -190,6 +200,7 @@ class OptimizerUI(private val ctx: Context) {
     fun setThemeIndex(i: Int) {
         themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
         if (!::root.isInitialized) return
+        applyGameVisibility()
         heroBox?.background = heroBgDrawable()
         if (::bgView.isInitialized) bgView.setTheme(themeIndex, isActive)
         if (::btnModePerf.isInitialized) setMode(currentMode)
@@ -330,11 +341,6 @@ class OptimizerUI(private val ctx: Context) {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val t = s?.toString()?.trim() ?: ""
-                if (GameBlocklist.isBlocked(t)) {
-                    s?.clear()
-                    android.widget.Toast.makeText(ctx, GameBlocklist.MESSAGE, android.widget.Toast.LENGTH_SHORT).show()
-                    return
-                }
                 onPackageChanged?.invoke(t)
             }
         })
@@ -358,12 +364,17 @@ class OptimizerUI(private val ctx: Context) {
     mr.addView(btnModePerf, lpf())
     btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
     mr.addView(btnModeBal, lpl())
-    sMode.addView(lbl("Частота экрана, Гц"))
-    hzRow = row(sMode, 2)
+
+    hzSection = LinearLayout(ctx)
+    hzSection.orientation = LinearLayout.VERTICAL
+    hzSection.addView(lbl("Частота экрана, Гц"))
+    hzRow = row(hzSection, 2)
     listOf(60, 90, 120, 144).forEach { hz ->
         hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, lpf())
     }
+    sMode.addView(hzSection, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     applyHzLimit()
+
     btnGpuBoost = toggleRow(sMode, "GPU Boost") { onGpuBoostToggle?.invoke() }
     btnBgLimit = toggleRow(sMode, "Лимит фона") { onBgLimitToggle?.invoke() }
 
@@ -387,8 +398,8 @@ class OptimizerUI(private val ctx: Context) {
     val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
     sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
-    val sGfx = section("РАЗРЕШЕНИЕ ЭКРАНА")
-    sGfx.addView(lbl("Своё разрешение (высота × ширина)"))
+    resSection = section("РАЗРЕШЕНИЕ ЭКРАНА")
+    resSection.addView(lbl("Своё разрешение (высота × ширина)"))
     val resRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     val hInput = EditText(ctx).apply {
         hint = "Высота"
@@ -418,9 +429,9 @@ class OptimizerUI(private val ctx: Context) {
     }
     resRow.addView(hInput, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(8) })
     resRow.addView(wInput, LinearLayout.LayoutParams(0, dp(46), 1f))
-    sGfx.addView(resRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(4) })
+    resSection.addView(resRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(4) })
 
-    sGfx.addView(glass("Применить и запустить Standoff 2") {
+    resSection.addView(glass("Применить и запустить Standoff 2") {
         val w = wInput.text.toString().trim().toIntOrNull() ?: 0
         val h = hInput.text.toString().trim().toIntOrNull() ?: 0
         if (w < 320 || h < 320) {
@@ -430,10 +441,10 @@ class OptimizerUI(private val ctx: Context) {
         }
     }, LinearLayout.LayoutParams(MATCH_PARENT, dp(46)).apply { topMargin = dp(10) })
 
-    sGfx.addView(glass("Сбросить разрешение") { onResetCustomResolution?.invoke() },
+    resSection.addView(glass("Сбросить разрешение") { onResetCustomResolution?.invoke() },
         LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
 
-    sGfx.addView(tv("Разрешение применится, Standoff 2 запустится, через 25 секунд вернётся исходное.", 11f, Color.parseColor("#99FFFFFF")).apply {
+    resSection.addView(tv("Разрешение применится, Standoff 2 запустится, через 25 секунд вернётся исходное.", 11f, Color.parseColor("#99FFFFFF")).apply {
         setPadding(dp(4), dp(8), dp(4), dp(0))
     })
 
@@ -455,6 +466,7 @@ class OptimizerUI(private val ctx: Context) {
     sSys.addView(btnAdvanced, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(6) })
 
     page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
+    applyGameVisibility()
 }
 
 private fun animateIn() {
@@ -510,9 +522,7 @@ fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
     dialog.window?.setLayout(MATCH_PARENT, WRAP_CONTENT)
     dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
     dialog.show()
-}
-
-fun setMode(m: Int) {
+}fun setMode(m: Int) {
     currentMode = m
     if (::btnModePerf.isInitialized) fade(btnModePerf, if (m == 0) accentDrawable() else unselDrawable())
     if (::btnModeBal.isInitialized) fade(btnModeBal, if (m == 1) accentDrawable() else unselDrawable())
