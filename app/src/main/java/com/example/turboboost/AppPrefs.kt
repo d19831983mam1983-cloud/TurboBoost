@@ -15,8 +15,11 @@ class AppPrefs(ctx: Context) {
     fun getTargetHz(): Int = prefs.getInt("target_hz", 120)
     fun setTargetHz(hz: Int) = prefs.edit().putInt("target_hz", hz).apply()
 
-    fun getLastPackage(): String { val v = prefs.getString("last_pkg", "") ?: ""; return if (GameBlocklist.isBlocked(v)) "" else v }
-    fun setLastPackage(pkg: String) { val v = pkg ?: ""; prefs.edit().putString("last_pkg", if (GameBlocklist.isBlocked(v)) "" else v).commit() }
+    fun getLastPackage(): String = prefs.getString("last_pkg", "") ?: ""
+    fun setLastPackage(pkg: String) { prefs.edit().putString("last_pkg", pkg ?: "").commit() }
+
+    fun getSelectedGame(): String = prefs.getString("selected_game", "standoff") ?: "standoff"
+    fun setSelectedGame(game: String) = prefs.edit().putString("selected_game", game).apply()
 
     fun getSenseLevel(): Int = prefs.getInt("sense_level", -1)
     fun setSenseLevel(level: Int) = prefs.edit().putInt("sense_level", level).apply()
@@ -100,28 +103,28 @@ class AppPrefs(ctx: Context) {
     fun setFeat(key: String, v: Boolean) = prefs.edit().putBoolean("feat_$key", v).apply()
 
     fun getFeatInt(key: String, def: Int = 0): Int = prefs.getInt("feati_$key", def)
-    fun setFeatInt(key: String, v: Int) = prefs.edit().putInt("feati_$key", v).apply()fun getCrosshairStyle(): Int = prefs.getInt("crosshair_style", 1).coerceIn(0, 11)
-fun setCrosshairStyle(v: Int) = prefs.edit().putInt("crosshair_style", v.coerceIn(0, 11)).apply()
+    fun setFeatInt(key: String, v: Int) = prefs.edit().putInt("feati_$key", v).apply()
 
-fun getCrosshairOpacity(): Int = prefs.getInt("crosshair_opacity", 100).coerceIn(10, 100)
-fun setCrosshairOpacity(v: Int) = prefs.edit().putInt("crosshair_opacity", v.coerceIn(10, 100)).apply()
+    fun getCrosshairStyle(): Int = prefs.getInt("crosshair_style", 1).coerceIn(0, 11)
+    fun setCrosshairStyle(v: Int) = prefs.edit().putInt("crosshair_style", v.coerceIn(0, 11)).apply()
 
-fun isCrosshairOutline(): Boolean = prefs.getBoolean("crosshair_outline", true)
-fun setCrosshairOutline(v: Boolean) = prefs.edit().putBoolean("crosshair_outline", v).apply()
+    fun getCrosshairOpacity(): Int = prefs.getInt("crosshair_opacity", 100).coerceIn(10, 100)
+    fun setCrosshairOpacity(v: Int) = prefs.edit().putInt("crosshair_opacity", v.coerceIn(10, 100)).apply()
 
-fun getCrosshairGap(): Int = prefs.getInt("crosshair_gap", 2).coerceIn(0, 5)
-fun setCrosshairGap(v: Int) = prefs.edit().putInt("crosshair_gap", v.coerceIn(0, 5)).apply()
+    fun isCrosshairOutline(): Boolean = prefs.getBoolean("crosshair_outline", true)
+    fun setCrosshairOutline(v: Boolean) = prefs.edit().putBoolean("crosshair_outline", v).apply()
 
-fun getCrosshairOffsetX(): Int = prefs.getInt("crosshair_ox", 0).coerceIn(-200, 200)
-fun setCrosshairOffsetX(v: Int) = prefs.edit().putInt("crosshair_ox", v.coerceIn(-200, 200)).apply()
+    fun getCrosshairGap(): Int = prefs.getInt("crosshair_gap", 2).coerceIn(0, 5)
+    fun setCrosshairGap(v: Int) = prefs.edit().putInt("crosshair_gap", v.coerceIn(0, 5)).apply()
 
-fun getCrosshairOffsetY(): Int = prefs.getInt("crosshair_oy", 0).coerceIn(-200, 200)
-fun setCrosshairOffsetY(v: Int) = prefs.edit().putInt("crosshair_oy", v.coerceIn(-200, 200)).apply()
+    fun getCrosshairOffsetX(): Int = prefs.getInt("crosshair_ox", 0).coerceIn(-200, 200)
+    fun setCrosshairOffsetX(v: Int) = prefs.edit().putInt("crosshair_ox", v.coerceIn(-200, 200)).apply()
 
-fun getParticleMode(): Int = prefs.getInt("particle_mode", 0).coerceIn(0, 3)
-fun setParticleMode(v: Int) = prefs.edit().putInt("particle_mode", v.coerceIn(0, 3)).apply()
+    fun getCrosshairOffsetY(): Int = prefs.getInt("crosshair_oy", 0).coerceIn(-200, 200)
+    fun setCrosshairOffsetY(v: Int) = prefs.edit().putInt("crosshair_oy", v.coerceIn(-200, 200)).apply()
 
-fun isFpsHud(): Boolean = prefs.getBoolean("fps_hud", false)
+    fun getParticleMode(): Int = prefs.getInt("particle_mode", 0).coerceIn(0, 3)
+    fun setParticleMode(v: Int) = prefs.edit().putInt("particle_mode", v.coerceIn(0, 3)).apply()fun isFpsHud(): Boolean = prefs.getBoolean("fps_hud", false)
 fun setFpsHud(v: Boolean) = prefs.edit().putBoolean("fps_hud", v).apply()
 
 fun isNetHud(): Boolean = prefs.getBoolean("net_hud", false)
@@ -281,11 +284,11 @@ fun setSessionStartMs(v: Long) = prefs.edit().putLong("session_start_ms", v).app
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
         if (raw.isBlank()) return emptyList()
-        return try { val arr = JSONArray(raw); val list = mutableListOf<String>(); for (i in 0 until arr.length()) { val s = arr.optString(i, ""); if (s.isNotBlank() && !GameBlocklist.isBlocked(s)) list.add(s) }; list } catch (e: Throwable) { emptyList() }
+        return try { val arr = JSONArray(raw); val list = mutableListOf<String>(); for (i in 0 until arr.length()) { val s = arr.optString(i, ""); if (s.isNotBlank()) list.add(s) }; list } catch (e: Throwable) { emptyList() }
     }
 
     fun saveGame(pkg: String) {
-        if (pkg.isBlank() || GameBlocklist.isBlocked(pkg)) return
+        if (pkg.isBlank()) return
         val list = getSavedGames().toMutableList()
         if (!list.contains(pkg)) { list.add(pkg); val arr = JSONArray(); for (p in list) arr.put(p); prefs.edit().putString("saved_games", arr.toString()).commit() }
     }
@@ -311,7 +314,7 @@ fun setSessionStartMs(v: Long) = prefs.edit().putLong("session_start_ms", v).app
     }
 
     fun saveProfile(p: GameProfile) {
-        if (p.pkg.isBlank() || GameBlocklist.isBlocked(p.pkg)) return
+        if (p.pkg.isBlank()) return
         val list = getProfiles().toMutableList(); list.removeAll { it.pkg == p.pkg }; list.add(p)
         val arr = JSONArray(); for (item in list) { val o = JSONObject(); o.put("pkg", item.pkg); o.put("mode", item.mode); o.put("sense", item.sense); o.put("thermal", item.thermal); o.put("turbo", item.turbo); o.put("hz", item.hz); o.put("gpuBoost", item.gpuBoost); o.put("bgLimit", item.bgLimit); arr.put(o) }
         prefs.edit().putString("profiles", arr.toString()).commit()
