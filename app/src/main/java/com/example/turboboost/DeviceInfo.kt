@@ -129,6 +129,51 @@ class DeviceInfo(private val ctx: Context) {
         return l.lastOrNull { it <= hz } ?: l.first()
     }
 
+    @Suppress("DEPRECATION")
+    fun currentRefreshRate(): Float {
+        return try {
+            val dm = ctx.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
+            val d = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+            d?.refreshRate ?: 60f
+        } catch (_: Throwable) { 60f }
+    }
+
+    fun setRefreshRate(hz: Int): String {
+        if (hz < 30) return "Некорректная частота"
+        val hzStr = hz.toString()
+
+        saveAndSet("system", "peak_refresh_rate", hzStr)
+        saveAndSet("system", "min_refresh_rate", hzStr)
+
+        if (isXiaomi()) {
+            saveAndSet("secure", "miui_refresh_rate", hzStr)
+        }
+
+        val readback = SystemReader.read("settings get system peak_refresh_rate").trim()
+        val readbackVal = readback.toFloatOrNull() ?: 0f
+        val current = currentRefreshRate()
+
+        if (readbackVal >= hz - 1 || current >= hz - 1) {
+            val vendor = when {
+                isXiaomi() -> " (Xiaomi)"
+                isRealme() -> " (ColorOS)"
+                else -> ""
+            }
+            return "Частота: ${hz} Гц$vendor"
+        }
+
+        if (isRealme()) {
+            saveAndSet("system", "peak_refresh_rate", "1")
+            saveAndSet("system", "min_refresh_rate", "1")
+            val current2 = currentRefreshRate()
+            if (current2 >= hz - 1) {
+                return "Частота: ${hz} Гц (ColorOS — '1' как макс.)"
+            }
+        }
+
+        return "Частота: $hz Гц (устройство не поддерживает)"
+    }
+
     fun getTier(): Int = tier()
     fun tierName(): String = when (tier()) { 0 -> "Слабый"; 2 -> "Флагман"; else -> "Средний" }
 
@@ -165,458 +210,458 @@ class DeviceInfo(private val ctx: Context) {
     private fun hasJoyoseInternal(): Boolean =
         SystemReader.read("pm list packages com.xiaomi.joyose").contains("com.xiaomi.joyose")
 
-    fun hasJoyose(): Boolean = joyose()    fun disableJoyose(): String {
-        if (!isXiaomi()) return "Только Xiaomi"
-        if (!isRooted()) return "Требуется root"
-        if (!joyose()) return "Joyose не найден"
-        SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose; am force-stop com.xiaomi.joyose")
-        return "Joyose отключён"
-    }
+    fun hasJoyose(): Boolean = joyose()fun disableJoyose(): String {
+    if (!isXiaomi()) return "Только Xiaomi"
+    if (!isRooted()) return "Требуется root"
+    if (!joyose()) return "Joyose не найден"
+    SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose; am force-stop com.xiaomi.joyose")
+    return "Joyose отключён"
+}
 
-    fun enableJoyose(): String {
-        if (!isXiaomi()) return "Только Xiaomi"
-        if (!isRooted()) return "Требуется root"
-        if (!joyose()) return "Joyose не найден"
-        SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
-        return "Joyose включён"
-    }
+fun enableJoyose(): String {
+    if (!isXiaomi()) return "Только Xiaomi"
+    if (!isRooted()) return "Требуется root"
+    if (!joyose()) return "Joyose не найден"
+    SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
+    return "Joyose включён"
+}
 
-    fun toggleMglru(enable: Boolean): String {
-        if (!isRooted()) return "Требуется root"
-        if (!isMglruSupported()) return "MGLRU не поддерживается ядром"
-        val v = if (enable) "y" else "n"
-        val res = SystemReader.read("echo $v > $mglruPath 2>&1")
-        val check = SystemReader.read("cat $mglruPath 2>/dev/null")
-        return if (check.contains(v)) "MGLRU: ${if (enable) "вкл" else "выкл"}"
-        else "MGLRU: нет доступа на запись${if (res.isNotBlank()) " ($res)" else ""}"
-    }
+fun toggleMglru(enable: Boolean): String {
+    if (!isRooted()) return "Требуется root"
+    if (!isMglruSupported()) return "MGLRU не поддерживается ядром"
+    val v = if (enable) "y" else "n"
+    val res = SystemReader.read("echo $v > $mglruPath 2>&1")
+    val check = SystemReader.read("cat $mglruPath 2>/dev/null")
+    return if (check.contains(v)) "MGLRU: ${if (enable) "вкл" else "выкл"}"
+    else "MGLRU: нет доступа на запись${if (res.isNotBlank()) " ($res)" else ""}"
+}
 
-    fun checkSystemState(): Boolean {
-        if (!ShizukuHelper.hasPermission()) return false
-        return SystemReader.isReady()
-    }
+fun checkSystemState(): Boolean {
+    if (!ShizukuHelper.hasPermission()) return false
+    return SystemReader.isReady()
+}
 
-    fun detectGpu(): String {
-        if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-            val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
-            return if (name.isNotBlank()) name else "Adreno"
-        }
-        if (SystemReader.test("/sys/class/misc/mali0")) return "Mali"
-        if (SystemReader.test("/sys/class/misc/pvrsrvkm")) return "PowerVR"
-        val sf = SystemReader.read("dumpsys SurfaceFlinger | grep -iE 'GLES|Vulkan'")
-        if (sf.contains("Mali", true)) return "Mali"
-        if (sf.contains("Adreno", true)) return "Adreno"
-        return "неизвестно"
+fun detectGpu(): String {
+    if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
+        val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
+        return if (name.isNotBlank()) name else "Adreno"
     }
+    if (SystemReader.test("/sys/class/misc/mali0")) return "Mali"
+    if (SystemReader.test("/sys/class/misc/pvrsrvkm")) return "PowerVR"
+    val sf = SystemReader.read("dumpsys SurfaceFlinger | grep -iE 'GLES|Vulkan'")
+    if (sf.contains("Mali", true)) return "Mali"
+    if (sf.contains("Adreno", true)) return "Adreno"
+    return "неизвестно"
+}
 
-    private fun detectClusters(): List<Pair<Int, String>> {
-        val result = mutableListOf<Pair<Int, String>>()
-        val freqs = mutableListOf<Pair<Int, Long>>()
-        for (i in 0 until 8) {
-            val f = SystemReader.read("cat /sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
-            if (f > 0L) freqs.add(i to f)
-        }
-        if (freqs.isEmpty()) {
-            for (i in 0 until 8) if (SystemReader.test("/sys/devices/system/cpu/cpu$i")) result.add(i to if (i < 4) "little" else "big")
-            return result
-        }
-        val minF = freqs.minOf { it.second }
-        val maxF = freqs.maxOf { it.second }
-        val mid = (minF + maxF) / 2
-        for ((idx, f) in freqs) {
-            val label = when {
-                f <= mid -> "little"
-                f >= maxF - (maxF - minF) / 4 -> "big"
-                else -> "mid"
-            }
-            result.add(idx to label)
-        }
+private fun detectClusters(): List<Pair<Int, String>> {
+    val result = mutableListOf<Pair<Int, String>>()
+    val freqs = mutableListOf<Pair<Int, Long>>()
+    for (i in 0 until 8) {
+        val f = SystemReader.read("cat /sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
+        if (f > 0L) freqs.add(i to f)
+    }
+    if (freqs.isEmpty()) {
+        for (i in 0 until 8) if (SystemReader.test("/sys/devices/system/cpu/cpu$i")) result.add(i to if (i < 4) "little" else "big")
         return result
     }
-
-    fun gpuBoost(enable: Boolean): String {
-        if (!isRooted()) return "Требуется root"
-        val sb = StringBuilder()
-        if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-            if (enable) {
-                sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
-                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
-                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
-                sb.append("echo 10000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
-                sb.append("echo performance > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
-                SystemReader.read(sb.toString())
-                return "GPU: boost"
-            } else {
-                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
-                sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
-                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
-                sb.append("echo 64 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
-                sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
-                SystemReader.read(sb.toString())
-                return "GPU: stock"
-            }
+    val minF = freqs.minOf { it.second }
+    val maxF = freqs.maxOf { it.second }
+    val mid = (minF + maxF) / 2
+    for ((idx, f) in freqs) {
+        val label = when {
+            f <= mid -> "little"
+            f >= maxF - (maxF - minF) / 4 -> "big"
+            else -> "mid"
         }
-        if (SystemReader.test("/sys/class/misc/mali0")) {
-            if (enable) {
-                sb.append("echo always_on > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
-                sb.append("echo performance > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
-                SystemReader.read(sb.toString())
-                return "GPU Mali: boost"
-            } else {
-                sb.append("echo coarse_demand > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
-                sb.append("echo simple_ondemand > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
-                SystemReader.read(sb.toString())
-                return "GPU Mali: stock"
-            }
-        }
-        return "GPU: не поддерживается"
+        result.add(idx to label)
     }
+    return result
+}
 
-    fun activateMaxPerformance(hzRaw: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
-        val hz = clampHz(hzRaw)
-        val bgLimit = if (mode == 0) "96" else "64"
-        val sb = StringBuilder()
-        sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
-        sb.append("settings put system peak_refresh_rate $hz; settings put system min_refresh_rate $hz; ")
-        if (pkg.isNotBlank()) {
-            sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
+fun gpuBoost(enable: Boolean): String {
+    if (!isRooted()) return "Требуется root"
+    val sb = StringBuilder()
+    if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
+        if (enable) {
+            sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
+            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
+            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
+            sb.append("echo 10000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
+            sb.append("echo performance > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
+            SystemReader.read(sb.toString())
+            return "GPU: boost"
+        } else {
+            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
+            sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
+            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
+            sb.append("echo 64 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
+            sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
+            SystemReader.read(sb.toString())
+            return "GPU: stock"
         }
-        SystemReader.read(sb.toString())
-        val gpuResult = if (gpuBoost && isGpuBoostSupported()) gpuBoost(true) else ""
-        if (pkg.isNotBlank()) compilePackageSpeedProfile(pkg)
-        applyMemoryTweaks(true)
-        applyPowerTweaks(true)
-        applyNotificationTweaks(true)
-        val gpuLabel = when {
-            !gpuBoost -> "stock"
-            gpuResult.startsWith("GPU:") -> "boost"
-            else -> gpuResult.ifBlank { "stock" }
-        }
-        return "Класс: ${tierName()} | RAM: настроена | Hz: $hz | AOT: да | GPU: $gpuLabel"
     }
-
-    fun deactivateMaxPerformance(): String {
-        SystemReader.read("settings delete global activity_manager_constants; settings delete system peak_refresh_rate; settings delete system min_refresh_rate")
-        if (isGpuBoostSupported()) gpuBoost(false)
-        resetSense()
-        restoreAllSettings()
-        applyMemoryTweaks(false)
-        applyPowerTweaks(false)
-        applyNotificationTweaks(false)
-        return "Настройки возвращены"
-    }
-
-    private fun firstPid(pkg: String): Int? =
-        SystemReader.read("pidof $pkg").trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull()
-
-    fun foregroundPackage(): String {
-        val out = SystemReader.read("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
-        if (out.isBlank()) return ""
-        val re = Regex("u\\d+\\s+([A-Za-z0-9_.]+)/")
-        for (line in out.lines()) {
-            if (line.contains("mCurrentFocus")) {
-                val m = re.find(line)
-                if (m != null) return m.groupValues[1]
-            }
+    if (SystemReader.test("/sys/class/misc/mali0")) {
+        if (enable) {
+            sb.append("echo always_on > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
+            sb.append("echo performance > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
+            SystemReader.read(sb.toString())
+            return "GPU Mali: boost"
+        } else {
+            sb.append("echo coarse_demand > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
+            sb.append("echo simple_ondemand > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
+            SystemReader.read(sb.toString())
+            return "GPU Mali: stock"
         }
-        for (line in out.lines()) {
+    }
+    return "GPU: не поддерживается"
+}
+
+fun activateMaxPerformance(hzRaw: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
+    val hz = clampHz(hzRaw)
+    val bgLimit = if (mode == 0) "96" else "64"
+    val sb = StringBuilder()
+    sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
+    if (pkg.isNotBlank()) {
+        sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
+    }
+    SystemReader.read(sb.toString())
+    val hzResult = setRefreshRate(hz)
+    val gpuResult = if (gpuBoost && isGpuBoostSupported()) gpuBoost(true) else ""
+    if (pkg.isNotBlank()) compilePackageSpeedProfile(pkg)
+    applyMemoryTweaks(true)
+    applyPowerTweaks(true)
+    applyNotificationTweaks(true)
+    val gpuLabel = when {
+        !gpuBoost -> "stock"
+        gpuResult.startsWith("GPU:") -> "boost"
+        else -> gpuResult.ifBlank { "stock" }
+    }
+    return "Класс: ${tierName()} | RAM: настроена | $hzResult | AOT: да | GPU: $gpuLabel"
+}
+
+fun deactivateMaxPerformance(): String {
+    SystemReader.read("settings delete global activity_manager_constants")
+    if (isGpuBoostSupported()) gpuBoost(false)
+    resetSense()
+    restoreAllSettings()
+    applyMemoryTweaks(false)
+    applyPowerTweaks(false)
+    applyNotificationTweaks(false)
+    return "Настройки возвращены"
+}
+
+private fun firstPid(pkg: String): Int? =
+    SystemReader.read("pidof $pkg").trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull()
+
+fun foregroundPackage(): String {
+    val out = SystemReader.read("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+    if (out.isBlank()) return ""
+    val re = Regex("u\\d+\\s+([A-Za-z0-9_.]+)/")
+    for (line in out.lines()) {
+        if (line.contains("mCurrentFocus")) {
             val m = re.find(line)
             if (m != null) return m.groupValues[1]
         }
-        return ""
     }
+    for (line in out.lines()) {
+        val m = re.find(line)
+        if (m != null) return m.groupValues[1]
+    }
+    return ""
+}fun prioritizeGameThreads(pkg: String): String {
+    if (!isRooted()) return "Требуется root"
+    if (pkg.isBlank()) return "Пакет не указан"
+    val pidInt = firstPid(pkg) ?: return "Игра не запущена"
+    val pid = pidInt.toString()
+    val allCores = clusters().map { it.first }.sorted()
+    if (allCores.isEmpty()) return "Ядра не определены"
+    var mask = 0
+    for (core in allCores) mask = mask or (1 shl core)
+    val hexMask = Integer.toHexString(mask)
+    var tids = SystemReader.read("ps -T -p $pid -o TID").lines().map { it.trim() }
+        .filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
+    if (tids.isEmpty()) {
+        tids = SystemReader.read("top -H -b -n 1 -p $pid").lines().map { it.trim().split(Regex("\\s+")) }
+            .filter { it.size > 1 && it[0].toIntOrNull() != null }.map { it[0] }.filter { it != pid }
+    }
+    if (tids.isEmpty()) return "Потоки не найдены"
+    val sb = StringBuilder()
+    for (tid in tids) sb.append("taskset -p $hexMask $tid 2>/dev/null; ")
+    SystemReader.read(sb.toString())
+    return "Игра $pkg: ${tids.size} потоков на ${allCores.size} ядрах"
+}
 
-    fun prioritizeGameThreads(pkg: String): String {
-        if (!isRooted()) return "Требуется root"
-        if (pkg.isBlank()) return "Пакет не указан"
-        val pidInt = firstPid(pkg) ?: return "Игра не запущена"
-        val pid = pidInt.toString()
-        val allCores = clusters().map { it.first }.sorted()
-        if (allCores.isEmpty()) return "Ядра не определены"
-        var mask = 0
-        for (core in allCores) mask = mask or (1 shl core)
-        val hexMask = Integer.toHexString(mask)
-        var tids = SystemReader.read("ps -T -p $pid -o TID").lines().map { it.trim() }
-            .filter { it.isNotEmpty() && it.toIntOrNull() != null && it.toInt() != pid.toInt() }
-        if (tids.isEmpty()) {
-            tids = SystemReader.read("top -H -b -n 1 -p $pid").lines().map { it.trim().split(Regex("\\s+")) }
-                .filter { it.size > 1 && it[0].toIntOrNull() != null }.map { it[0] }.filter { it != pid }
+fun pinGameToPrimeCore(pkg: String): String {
+    if (!isRooted()) return "Требуется root"
+    if (pkg.isBlank()) return "Пакет не указан"
+    val pidInt = firstPid(pkg) ?: return "Игра не запущена"
+    val pid = pidInt.toString()
+    val big = clusters().filter { it.second == "big" }.map { it.first }.sorted()
+    if (big.isEmpty()) return "Нет big-ядер"
+    var mask = 0
+    for (core in big) mask = mask or (1 shl core)
+    val hexMask = Integer.toHexString(mask)
+    val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines().map { it.trim() }
+        .filter { it.isNotEmpty() }.mapNotNull { line ->
+            val parts = line.split(Regex("\\s+"))
+            if (parts.size >= 2) {
+                val tid = parts[0].toIntOrNull()
+                if (tid != null && tid != pid.toInt()) tid to parts[1] else null
+            } else null
         }
-        if (tids.isEmpty()) return "Потоки не найдены"
-        val sb = StringBuilder()
-        for (tid in tids) sb.append("taskset -p $hexMask $tid 2>/dev/null; ")
-        SystemReader.read(sb.toString())
-        return "Игра $pkg: ${tids.size} потоков на ${allCores.size} ядрах"
+    if (allTids.isEmpty()) return "Потоки не найдены"
+    var target = allTids.firstOrNull { (_, name) ->
+        name.contains("GameThread", true) || name.contains("UnityMain", true) || name == "main"
     }
+    if (target == null) target = allTids.firstOrNull { (_, name) ->
+        name.contains("RenderThread", true) || name.contains("UnityGfx", true)
+    }
+    if (target == null) target = allTids.firstOrNull()
+    if (target == null) return "Главный поток не найден"
+    SystemReader.read("taskset -p $hexMask ${target.first} 2>/dev/null; renice -n -15 -p ${target.first} 2>/dev/null")
+    return "Отклик: ${target.second} -> big-ядра"
+}
 
-    fun pinGameToPrimeCore(pkg: String): String {
-        if (!isRooted()) return "Требуется root"
-        if (pkg.isBlank()) return "Пакет не указан"
-        val pidInt = firstPid(pkg) ?: return "Игра не запущена"
-        val pid = pidInt.toString()
-        val big = clusters().filter { it.second == "big" }.map { it.first }.sorted()
-        if (big.isEmpty()) return "Нет big-ядер"
-        var mask = 0
-        for (core in big) mask = mask or (1 shl core)
-        val hexMask = Integer.toHexString(mask)
-        val allTids = SystemReader.read("ps -T -p $pid -o TID,CMD").lines().map { it.trim() }
-            .filter { it.isNotEmpty() }.mapNotNull { line ->
-                val parts = line.split(Regex("\\s+"))
-                if (parts.size >= 2) {
-                    val tid = parts[0].toIntOrNull()
-                    if (tid != null && tid != pid.toInt()) tid to parts[1] else null
-                } else null
+fun boostInputDispatcher(): String {
+    if (!isRooted()) return "Требуется root"
+    val sb = StringBuilder()
+    val inputPid = SystemReader.read("pidof inputflinger").trim()
+    if (inputPid.isNotBlank()) {
+        sb.append("renice -n -15 -p $inputPid 2>/dev/null; ")
+        val tids = SystemReader.read("ps -T -p $inputPid -o TID,CMD").lines().map { it.trim() }
+            .filter { it.contains("InputDispatcher", true) }
+            .mapNotNull { it.split(Regex("\\s+")).firstOrNull()?.toIntOrNull() }
+        for (tid in tids) sb.append("renice -n -15 -p $tid 2>/dev/null; ")
+    }
+    SystemReader.read(sb.toString())
+    return if (inputPid.isNotBlank()) "InputDispatcher: усилен" else "inputflinger не найден"
+}
+
+fun boostThreadPriorities(): String {
+    if (!isRooted()) return "Требуется root"
+    val sb = StringBuilder()
+    val sfNice = when (tier()) { 0 -> -10; 2 -> -18; else -> -15 }
+    val sysNice = when (tier()) { 0 -> -5; 2 -> -10; else -> -8 }
+    val surface = SystemReader.read("pidof surfaceflinger")
+    if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
+    val sys = SystemReader.read("pidof system_server")
+    if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
+    SystemReader.read(sb.toString())
+    return "Приоритеты: усилены"
+}
+
+fun resetThreadPriorities(): String {
+    if (!isRooted()) return "Требуется root"
+    val surface = SystemReader.read("pidof surfaceflinger")
+    if (surface.isNotBlank()) SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
+    val sys = SystemReader.read("pidof system_server")
+    if (sys.isNotBlank()) SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
+    return "Приоритеты: сброшены"
+}
+
+fun restrictPowerKeeper(): String {
+    val pkg = "com.miui.powerkeeper"
+    if (!SystemReader.read("pm list packages $pkg").contains(pkg)) return "PowerKeeper не найден"
+    SystemReader.read("appops set $pkg WRITE_SETTINGS deny; appops set $pkg GET_USAGE_STATS deny; appops set $pkg RUN_IN_BACKGROUND deny")
+    return "PowerKeeper: ограничен"
+}
+
+fun restorePowerKeeper(): String {
+    SystemReader.read("appops set com.miui.powerkeeper WRITE_SETTINGS allow; appops set com.miui.powerkeeper GET_USAGE_STATS allow; appops set com.miui.powerkeeper RUN_IN_BACKGROUND allow")
+    return "PowerKeeper: восстановлен"
+}
+
+fun cleanupDozeWhitelist(): String {
+    var count = 0
+    for (pkg in listOf("com.facebook.katana", "com.facebook.orca", "com.instagram.android")) {
+        if (SystemReader.read("pm list packages $pkg").contains(pkg)) {
+            SystemReader.read("dumpsys deviceidle whitelist -$pkg")
+            count++
+        }
+    }
+    return if (count > 0) "Doze: очищен" else "Нечего чистить"
+}
+
+fun restrictGms(): String {
+    if (!SystemReader.read("pm list packages com.google.android.gms").contains("com.google.android.gms")) return "GMS не найден"
+    SystemReader.read("am set-standby-bucket com.google.android.gms rare")
+    return "GMS: rare"
+}
+
+fun restoreGms(): String {
+    SystemReader.read("am set-standby-bucket com.google.android.gms active")
+    return "GMS: active"
+}
+
+private fun pingPrefs() = ctx.getSharedPreferences("turbo_ping", Context.MODE_PRIVATE)
+
+private fun devPrefs() = ctx.getSharedPreferences("turbo_devcfg", Context.MODE_PRIVATE)
+
+private fun saveAndSet(ns: String, key: String, value: String) {
+    val p = pingPrefs()
+    val pk = "prev|$ns|$key"
+    if (!p.contains(pk)) {
+        val prev = SystemReader.read("settings get $ns $key").trim()
+        p.edit().putString(pk, if (prev.isEmpty() || prev == "null") "null" else prev).apply()
+    }
+    SystemReader.read("settings put $ns $key $value")
+}
+
+private fun saveAndSetDeviceConfig(name: String, key: String, value: String) {
+    val p = devPrefs()
+    val pk = "prev|$name|$key"
+    if (!p.contains(pk)) {
+        val prev = SystemReader.read("device_config get $name $key").trim()
+        p.edit().putString(pk, if (prev.isBlank() || prev == "null") "null" else prev).apply()
+    }
+    SystemReader.read("device_config put $name $key $value")
+}
+
+fun applyGlobalSetting(ns: String, key: String, value: String): String {
+    saveAndSet(ns, key, value)
+    return "Применено"
+}
+
+fun revertSetting(ns: String, key: String): String {
+    val p = pingPrefs()
+    val pk = "prev|$ns|$key"
+    val prev = p.getString(pk, null) ?: return "Нечего откатывать"
+    if (prev == "null") SystemReader.read("settings delete $ns $key")
+    else SystemReader.read("settings put $ns $key $prev")
+    p.edit().remove(pk).apply()
+    return "Возвращено"
+}
+
+fun applyDeviceConfig(name: String, key: String, value: String): String {
+    saveAndSetDeviceConfig(name, key, value)
+    return "Применено"
+}
+
+fun revertDeviceConfig(name: String, key: String): String {
+    val p = devPrefs()
+    val pk = "prev|$name|$key"
+    val prev = p.getString(pk, null) ?: return "Нечего откатывать"
+    if (prev == "null") SystemReader.read("device_config put $name $key null")
+    else SystemReader.read("device_config put $name $key $prev")
+    p.edit().remove(pk).apply()
+    return "Возвращено"
+}
+
+fun applyMemoryTweaks(enable: Boolean): String {
+    return if (enable) {
+        saveAndSetDeviceConfig("activity_manager", "max_phantom_processes", "2147483647")
+        saveAndSet("global", "settings_enable_monitor_phantom_procs", "false")
+        SystemReader.read("cmd package trim-caches 1000M")
+        "Память: твики применены"
+    } else {
+        "Память: твики возвращены"
+    }
+}
+
+fun applyPowerTweaks(enable: Boolean): String {
+    return if (enable) {
+        saveAndSet("global", "low_power", "0")
+        saveAndSet("global", "automatic_power_save_mode", "0")
+        saveAndSet("global", "adaptive_battery_management_enabled", "0")
+        saveAndSet("global", "app_standby_enabled", "0")
+        saveAndSet("global", "cached_apps_freezer", "0")
+        "Батарея: твики применены"
+    } else {
+        "Батарея: твики возвращены"
+    }
+}
+
+fun applyNotificationTweaks(enable: Boolean): String {
+    return if (enable) {
+        saveAndSet("global", "heads_up_notifications_enabled", "0")
+        "Уведомления: heads-up выключены"
+    } else {
+        "Уведомления: heads-up возвращены"
+    }
+}
+
+fun optimizePing(): String {
+    saveAndSet("global", "wifi_scan_always_enabled", "0")
+    saveAndSet("global", "ble_scan_always_enabled", "0")
+    saveAndSet("global", "wifi_networks_available_notification_on", "0")
+    saveAndSet("global", "wifi_sleep_policy", "2")
+    val p = pingPrefs()
+    if (!p.getBoolean("ds_by_us", false)) {
+        val st = SystemReader.read("cmd netpolicy get restrict-background")
+        if (st.contains("disabled", ignoreCase = true)) {
+            SystemReader.read("cmd netpolicy set restrict-background true")
+            p.edit().putBoolean("ds_by_us", true).apply()
+        }
+    }
+    val pkg = AppPrefs(ctx).getLastPackage()
+    if (pkg.isNotBlank()) {
+        SystemReader.read("cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow")
+        SystemReader.read("am set-standby-bucket $pkg active")
+    }
+    return "Пинг: оптимизирован"
+}
+
+fun restoreAllSettings(): String {
+    val ps = pingPrefs()
+    val ep = ps.edit()
+    for ((k, v) in ps.all) {
+        if (!k.startsWith("prev|")) continue
+        val parts = k.split("|")
+        if (parts.size != 3) continue
+        val value = v as? String ?: continue
+        if (value == "null") SystemReader.read("settings delete ${parts[1]} ${parts[2]}")
+        else SystemReader.read("settings put ${parts[1]} ${parts[2]} $value")
+        ep.remove(k)
+    }
+    if (ps.getBoolean("ds_by_us", false)) {
+        SystemReader.read("cmd netpolicy set restrict-background false")
+        ep.remove("ds_by_us")
+    }
+    ep.apply()
+
+    val pd = devPrefs()
+    val ed = pd.edit()
+    for ((k, v) in pd.all) {
+        if (!k.startsWith("prev|")) continue
+        val parts = k.split("|")
+        if (parts.size != 3) continue
+        val value = v as? String ?: continue
+        if (value == "null") SystemReader.read("device_config put ${parts[1]} ${parts[2]} null")
+        else SystemReader.read("device_config put ${parts[1]} ${parts[2]} $value")
+        ed.remove(k)
+    }
+    ed.apply()
+
+    val pkg = AppPrefs(ctx).getLastPackage()
+    if (pkg.isNotBlank()) {
+        SystemReader.read("cmd appops set $pkg RUN_ANY_IN_BACKGROUND default")
+        SystemReader.read("am set-standby-bucket $pkg active")
+    }
+    return "Настройки возвращены"
+}
+
+fun pingTest(): String {
+    val hosts = listOf("1.1.1.1", "8.8.8.8")
+    val times = ArrayList<Long>()
+    for (h in hosts) {
+        for (i in 0 until 4) {
+            val sock = java.net.Socket()
+            try {
+                val t0 = System.nanoTime()
+                sock.connect(java.net.InetSocketAddress(h, 443), 1500)
+                times.add((System.nanoTime() - t0) / 1_000_000L)
+            } catch (_: Throwable) {
+            } finally {
+                try { sock.close() } catch (_: Throwable) {}
             }
-        if (allTids.isEmpty()) return "Потоки не найдены"
-        var target = allTids.firstOrNull { (_, name) ->
-            name.contains("GameThread", true) || name.contains("UnityMain", true) || name == "main"
-        }
-        if (target == null) target = allTids.firstOrNull { (_, name) ->
-            name.contains("RenderThread", true) || name.contains("UnityGfx", true)
-        }
-        if (target == null) target = allTids.firstOrNull()
-        if (target == null) return "Главный поток не найден"
-        SystemReader.read("taskset -p $hexMask ${target.first} 2>/dev/null; renice -n -15 -p ${target.first} 2>/dev/null")
-        return "Отклик: ${target.second} -> big-ядра"
-    }
-
-    fun boostInputDispatcher(): String {
-        if (!isRooted()) return "Требуется root"
-        val sb = StringBuilder()
-        val inputPid = SystemReader.read("pidof inputflinger").trim()
-        if (inputPid.isNotBlank()) {
-            sb.append("renice -n -15 -p $inputPid 2>/dev/null; ")
-            val tids = SystemReader.read("ps -T -p $inputPid -o TID,CMD").lines().map { it.trim() }
-                .filter { it.contains("InputDispatcher", true) }
-                .mapNotNull { it.split(Regex("\\s+")).firstOrNull()?.toIntOrNull() }
-            for (tid in tids) sb.append("renice -n -15 -p $tid 2>/dev/null; ")
-        }
-        SystemReader.read(sb.toString())
-        return if (inputPid.isNotBlank()) "InputDispatcher: усилен" else "inputflinger не найден"
-    }
-
-    fun boostThreadPriorities(): String {
-        if (!isRooted()) return "Требуется root"
-        val sb = StringBuilder()
-        val sfNice = when (tier()) { 0 -> -10; 2 -> -18; else -> -15 }
-        val sysNice = when (tier()) { 0 -> -5; 2 -> -10; else -> -8 }
-        val surface = SystemReader.read("pidof surfaceflinger")
-        if (surface.isNotBlank()) sb.append("renice -n $sfNice -p $surface 2>/dev/null; ")
-        val sys = SystemReader.read("pidof system_server")
-        if (sys.isNotBlank()) sb.append("renice -n $sysNice -p $sys 2>/dev/null; ")
-        SystemReader.read(sb.toString())
-        return "Приоритеты: усилены"
-    }
-
-    fun resetThreadPriorities(): String {
-        if (!isRooted()) return "Требуется root"
-        val surface = SystemReader.read("pidof surfaceflinger")
-        if (surface.isNotBlank()) SystemReader.read("renice -n 0 -p $surface 2>/dev/null")
-        val sys = SystemReader.read("pidof system_server")
-        if (sys.isNotBlank()) SystemReader.read("renice -n 0 -p $sys 2>/dev/null")
-        return "Приоритеты: сброшены"
-    }    fun restrictPowerKeeper(): String {
-        val pkg = "com.miui.powerkeeper"
-        if (!SystemReader.read("pm list packages $pkg").contains(pkg)) return "PowerKeeper не найден"
-        SystemReader.read("appops set $pkg WRITE_SETTINGS deny; appops set $pkg GET_USAGE_STATS deny; appops set $pkg RUN_IN_BACKGROUND deny")
-        return "PowerKeeper: ограничен"
-    }
-
-    fun restorePowerKeeper(): String {
-        SystemReader.read("appops set com.miui.powerkeeper WRITE_SETTINGS allow; appops set com.miui.powerkeeper GET_USAGE_STATS allow; appops set com.miui.powerkeeper RUN_IN_BACKGROUND allow")
-        return "PowerKeeper: восстановлен"
-    }
-
-    fun cleanupDozeWhitelist(): String {
-        var count = 0
-        for (pkg in listOf("com.facebook.katana", "com.facebook.orca", "com.instagram.android")) {
-            if (SystemReader.read("pm list packages $pkg").contains(pkg)) {
-                SystemReader.read("dumpsys deviceidle whitelist -$pkg")
-                count++
-            }
-        }
-        return if (count > 0) "Doze: очищен" else "Нечего чистить"
-    }
-
-    fun restrictGms(): String {
-        if (!SystemReader.read("pm list packages com.google.android.gms").contains("com.google.android.gms")) return "GMS не найден"
-        SystemReader.read("am set-standby-bucket com.google.android.gms rare")
-        return "GMS: rare"
-    }
-
-    fun restoreGms(): String {
-        SystemReader.read("am set-standby-bucket com.google.android.gms active")
-        return "GMS: active"
-    }
-
-    private fun pingPrefs() = ctx.getSharedPreferences("turbo_ping", Context.MODE_PRIVATE)
-
-    private fun devPrefs() = ctx.getSharedPreferences("turbo_devcfg", Context.MODE_PRIVATE)
-
-    private fun saveAndSet(ns: String, key: String, value: String) {
-        val p = pingPrefs()
-        val pk = "prev|$ns|$key"
-        if (!p.contains(pk)) {
-            val prev = SystemReader.read("settings get $ns $key").trim()
-            p.edit().putString(pk, if (prev.isEmpty() || prev == "null") "null" else prev).apply()
-        }
-        SystemReader.read("settings put $ns $key $value")
-    }
-
-    private fun saveAndSetDeviceConfig(name: String, key: String, value: String) {
-        val p = devPrefs()
-        val pk = "prev|$name|$key"
-        if (!p.contains(pk)) {
-            val prev = SystemReader.read("device_config get $name $key").trim()
-            p.edit().putString(pk, if (prev.isBlank() || prev == "null") "null" else prev).apply()
-        }
-        SystemReader.read("device_config put $name $key $value")
-    }
-
-    fun applyGlobalSetting(ns: String, key: String, value: String): String {
-        saveAndSet(ns, key, value)
-        return "Применено"
-    }
-
-    fun revertSetting(ns: String, key: String): String {
-        val p = pingPrefs()
-        val pk = "prev|$ns|$key"
-        val prev = p.getString(pk, null) ?: return "Нечего откатывать"
-        if (prev == "null") SystemReader.read("settings delete $ns $key")
-        else SystemReader.read("settings put $ns $key $prev")
-        p.edit().remove(pk).apply()
-        return "Возвращено"
-    }
-
-    fun applyDeviceConfig(name: String, key: String, value: String): String {
-        saveAndSetDeviceConfig(name, key, value)
-        return "Применено"
-    }
-
-    fun revertDeviceConfig(name: String, key: String): String {
-        val p = devPrefs()
-        val pk = "prev|$name|$key"
-        val prev = p.getString(pk, null) ?: return "Нечего откатывать"
-        if (prev == "null") SystemReader.read("device_config put $name $key null")
-        else SystemReader.read("device_config put $name $key $prev")
-        p.edit().remove(pk).apply()
-        return "Возвращено"
-    }
-
-    fun applyMemoryTweaks(enable: Boolean): String {
-        return if (enable) {
-            saveAndSetDeviceConfig("activity_manager", "max_phantom_processes", "2147483647")
-            saveAndSet("global", "settings_enable_monitor_phantom_procs", "false")
-            SystemReader.read("cmd package trim-caches 1000M")
-            "Память: твики применены"
-        } else {
-            "Память: твики возвращены"
         }
     }
-
-    fun applyPowerTweaks(enable: Boolean): String {
-        return if (enable) {
-            saveAndSet("global", "low_power", "0")
-            saveAndSet("global", "automatic_power_save_mode", "0")
-            saveAndSet("global", "adaptive_battery_management_enabled", "0")
-            saveAndSet("global", "app_standby_enabled", "0")
-            saveAndSet("global", "cached_apps_freezer", "0")
-            "Батарея: твики применены"
-        } else {
-            "Батарея: твики возвращены"
-        }
-    }
-
-    fun applyNotificationTweaks(enable: Boolean): String {
-        return if (enable) {
-            saveAndSet("global", "heads_up_notifications_enabled", "0")
-            "Уведомления: heads-up выключены"
-        } else {
-            "Уведомления: heads-up возвращены"
-        }
-    }
-
-    fun optimizePing(): String {
-        saveAndSet("global", "wifi_scan_always_enabled", "0")
-        saveAndSet("global", "ble_scan_always_enabled", "0")
-        saveAndSet("global", "wifi_networks_available_notification_on", "0")
-        saveAndSet("global", "wifi_sleep_policy", "2")
-        val p = pingPrefs()
-        if (!p.getBoolean("ds_by_us", false)) {
-            val st = SystemReader.read("cmd netpolicy get restrict-background")
-            if (st.contains("disabled", ignoreCase = true)) {
-                SystemReader.read("cmd netpolicy set restrict-background true")
-                p.edit().putBoolean("ds_by_us", true).apply()
-            }
-        }
-        val pkg = AppPrefs(ctx).getLastPackage()
-        if (pkg.isNotBlank()) {
-            SystemReader.read("cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow")
-            SystemReader.read("am set-standby-bucket $pkg active")
-        }
-        return "Пинг: оптимизирован"
-    }
-
-    fun restoreAllSettings(): String {
-        val ps = pingPrefs()
-        val ep = ps.edit()
-        for ((k, v) in ps.all) {
-            if (!k.startsWith("prev|")) continue
-            val parts = k.split("|")
-            if (parts.size != 3) continue
-            val value = v as? String ?: continue
-            if (value == "null") SystemReader.read("settings delete ${parts[1]} ${parts[2]}")
-            else SystemReader.read("settings put ${parts[1]} ${parts[2]} $value")
-            ep.remove(k)
-        }
-        if (ps.getBoolean("ds_by_us", false)) {
-            SystemReader.read("cmd netpolicy set restrict-background false")
-            ep.remove("ds_by_us")
-        }
-        ep.apply()
-
-        val pd = devPrefs()
-        val ed = pd.edit()
-        for ((k, v) in pd.all) {
-            if (!k.startsWith("prev|")) continue
-            val parts = k.split("|")
-            if (parts.size != 3) continue
-            val value = v as? String ?: continue
-            if (value == "null") SystemReader.read("device_config put ${parts[1]} ${parts[2]} null")
-            else SystemReader.read("device_config put ${parts[1]} ${parts[2]} $value")
-            ed.remove(k)
-        }
-        ed.apply()
-
-        val pkg = AppPrefs(ctx).getLastPackage()
-        if (pkg.isNotBlank()) {
-            SystemReader.read("cmd appops set $pkg RUN_ANY_IN_BACKGROUND default")
-            SystemReader.read("am set-standby-bucket $pkg active")
-        }
-        return "Настройки возвращены"
-    }
-
-    fun pingTest(): String {
-        val hosts = listOf("1.1.1.1", "8.8.8.8")
-        val times = ArrayList<Long>()
-        for (h in hosts) {
-            for (i in 0 until 4) {
-                val sock = java.net.Socket()
-                try {
-                    val t0 = System.nanoTime()
-                    sock.connect(java.net.InetSocketAddress(h, 443), 1500)
-                    times.add((System.nanoTime() - t0) / 1_000_000L)
-                } catch (_: Throwable) {
-                } finally {
-                    try { sock.close() } catch (_: Throwable) {}
-                }
-            }
-        }
-        if (times.isEmpty()) return "Пинг: нет сети"
-        val sorted = times.sorted()
-        val med = sorted[sorted.size / 2]
-        return "Пинг ~$med мс (мин ${sorted.first()}, макс ${sorted.last()})"
-    }    private fun even(v: Int): Int = if (v % 2 == 0) v else v - 1
+    if (times.isEmpty()) return "Пинг: нет сети"
+    val sorted = times.sorted()
+    val med = sorted[sorted.size / 2]
+    return "Пинг ~$med мс (мин ${sorted.first()}, макс ${sorted.last()})"
+}    private fun even(v: Int): Int = if (v % 2 == 0) v else v - 1
 
     private fun resPrefs() = ctx.getSharedPreferences("turbo_res", Context.MODE_PRIVATE)
 
@@ -829,7 +874,6 @@ class DeviceInfo(private val ctx: Context) {
         for (a in pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
             if (pm.getLaunchIntentForPackage(a.packageName) == null) continue
             val label = pm.getApplicationLabel(a).toString()
-            if (GameBlocklist.isBlocked(a.packageName, label)) continue
             result.add(a.packageName to label)
         }
         return result.sortedBy { it.second.lowercase() }
