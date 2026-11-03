@@ -747,174 +747,176 @@ private fun games(g: List<Pair<String, String>>) {
         prefs.setLastPackage(p)
         async { info.compilePackage(p) }
     }
-}private fun diag() {
-    bg {
-        val a = prefs.isActive()
-        val mode = when {
-            SystemReader.rootMode -> "Root"
-            SystemReader.directMode -> "Shizuku (Direct)"
-            SystemReader.service != null -> "Shizuku (UserService)"
-            else -> "Нет"
-        }
-        val t = "Режим: $mode\n" +
-            "Готов: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
-            "Root: ${if (info.isRooted()) "да" else "нет"}\n" +
-            "Xiaomi: ${if (info.isXiaomi()) "да" else "нет"}\n" +
-            "Realme/Oppo: ${if (info.isRealme()) "да" else "нет"}\n" +
-            "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
-            "Тема: ${ThemePalette.get(prefs.getThemeIndex()).name}\n" +
-            "Игра: ${if (prefs.getSelectedGame() == "pubg") "PUBG" else "Standoff 2"}\n" +
-            "MGLRU: ${if (info.isMglruSupported()) "есть" else "нет"}\n" +
-            "GPU Boost: ${if (info.isGpuBoostSupported()) "есть" else "нет"}\n" +
-            "Game cmd: ${if (info.isVendorGameCmdSupported()) "есть" else "нет"}\n" +
-            "Sense tuning: ${if (info.isSenseTuningSupported()) "есть" else "нет"}\n" +
-            "Чип: ${info.chipName()}\n" +
-            "GPU: ${info.gpuName()}\n" +
-            "Класс: ${info.tierName()}\n" +
-            "Температура: ${"%.0f".format(info.cpuTemp())}°C\n" +
-            "Батарея: ${info.batteryLevel()}%${if (info.isCharging()) " ⚡" else ""}"
-        main.post { if (!isFinishing && !destroyed) try { AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show() } catch (_: Throwable) {} }
-    }
-}
-
-private fun ready(): Boolean {
-    if (!SystemReader.isReady()) { Toast.makeText(this, "Нет доступа (Root/Shizuku)", Toast.LENGTH_SHORT).show(); return false }
-    return true
-}
-
-private fun profiles() {
-    val p = prefs.getLastPackage()
-    if (p.isBlank()) { Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show(); return }
-    val ps = prefs.getProfiles()
-    val items = mutableListOf("Сохранить профиль для текущей игры")
-    if (ps.isNotEmpty()) {
-        items.add("Удалить профиль текущей игры")
-        items.add("── Профили ──")
-        items.addAll(ps.map { it.pkg })
-    }
-    ui.showGlassList("Профили", items) { w ->
-        val c = items[w]
-        when {
-            c.startsWith("Сохранить") -> {
-                prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), 0, false, prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
-                Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show()
-            }
-            c.startsWith("Удалить") -> {
-                prefs.deleteProfile(p)
-                Toast.makeText(this, "Удалён", Toast.LENGTH_SHORT).show()
-            }
-            c.startsWith("──") -> {}
-            else -> ps.firstOrNull { it.pkg == c }?.let { applyProfile(it) }
-        }
-    }
-}
-
-private fun applyProfile(p: GameProfile) {
-    prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setTargetHz(p.hz)
-    prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit)
-    prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
-    ui.setMode(p.mode)
-    if (p.sense >= 0) ui.setSenseLevel(p.sense)
-    ui.setHz(info.clampHz(p.hz))
-    ui.setGpuBoostState(p.gpuBoost && info.isGpuBoostSupported()); ui.setBgLimitState(p.bgLimit)
-    ui.setPackageText(p.pkg)
-    bg {
-        if (p.sense >= 0) info.applySense(p.sense)
-        else info.applyCustomSense(
-            prefs.getPointerSpeed(),
-            prefs.getSenseTouchRate(),
-            prefs.isTouchPredictionOff(),
-            prefs.isTouchBlockingZero(),
-            prefs.isMotionAggregationOff()
-        )
-        if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost && info.isGpuBoostSupported(), p.pkg)
-    }
-}
-
-fun toggle() {
-    if (!ready() || busy) return
-    busy = true
-
-    val timeoutRunnable = Runnable {
-        if (busy) { busy = false; if (uiBuilt) ui.setStatus("Готово (таймаут)") }
-    }
-    main.postDelayed(timeoutRunnable, 30000)
-
-    if (!prefs.isActive() && info.batteryLevel() <= 10) {
-        Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show()
-        busy = false
-        main.removeCallbacks(timeoutRunnable)
-        return
-    }
-
-    val on = !prefs.isActive()
-    val p = prefs.getLastPackage()
-    val m = prefs.getPerfMode()
-    val hz = prefs.getTargetHz()
-    val gpuBoost = prefs.isGpuBoost() && info.isGpuBoostSupported()
-
-    if (on) {
-        if (uiBuilt) ui.setStatus("Оптимизация...")
+}    private fun diag() {
         bg {
-            try {
-                val r = info.activateMaxPerformance(hz, m, gpuBoost, p)
-                if (p.isNotBlank() && info.isVendorGameCmdSupported()) info.unlockGameFps(p, hz)
-                if (p.isNotBlank() && info.isRooted()) info.pinGameToPrimeCore(p)
-                if (p.isNotBlank() && info.isRooted()) info.prioritizeGameThreads(p)
-                info.runFstrim()
-                if (prefs.isFeat("adv_auto_aot") && p.isNotBlank()) {
-                    try { info.compilePackageSpeedProfile(p) } catch (_: Throwable) {}
-                }
-                if (info.isRooted()) info.boostInputDispatcher()
-                info.optimizePing()
-                val senseLv = prefs.getSenseLevel()
-                if (senseLv == -1) {
-                    info.applyCustomSense(
-                        prefs.getPointerSpeed(),
-                        prefs.getSenseTouchRate(),
-                        prefs.isTouchPredictionOff(),
-                        prefs.isTouchBlockingZero(),
-                        prefs.isMotionAggregationOff()
-                    )
-                    info.applyAnimationScale(prefs.getAnimScale())
-                    info.applyLongPress(prefs.getLongPressTimeout())
-                    if (info.isGtGpuTunerSupported()) info.applyGtGpuTuner(prefs.isGtGpuTuner())
-                } else if (senseLv >= 0) info.applySense(senseLv)
-                info.restrictPowerKeeper()
-                info.cleanupDozeWhitelist()
-                info.restrictGms()
-                OpLog.log("Турбо: включено (пакет: ${if (p.isBlank()) "—" else p})")
-                main.removeCallbacks(timeoutRunnable)
-                main.post {
-                    busy = false
-                    prefs.setActive(true)
-                    alive(true)
-                    if (uiBuilt) { ui.setActive(true); ui.setStatus(r); refresh() }
-                }
-            } catch (e: Throwable) {
-                main.removeCallbacks(timeoutRunnable)
-                main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
+            val a = prefs.isActive()
+            val mode = when {
+                SystemReader.rootMode -> "Root"
+                SystemReader.directMode -> "Shizuku (Direct)"
+                SystemReader.service != null -> "Shizuku (UserService)"
+                else -> "Нет"
             }
+            val t = "Режим: $mode\n" +
+                "Готов: ${if (SystemReader.isReady()) "✓" else "✗"}\n" +
+                "Root: ${if (info.isRooted()) "да" else "нет"}\n" +
+                "Xiaomi: ${if (info.isXiaomi()) "да" else "нет"}\n" +
+                "Realme/Oppo: ${if (info.isRealme()) "да" else "нет"}\n" +
+                "Оптимизация: ${if (a) "вкл" else "выкл"}\n" +
+                "Тема: ${ThemePalette.get(prefs.getThemeIndex()).name}\n" +
+                "Игра: ${if (prefs.getSelectedGame() == "pubg") "PUBG" else "Standoff 2"}\n" +
+                "MGLRU: ${if (info.isMglruSupported()) "есть" else "нет"}\n" +
+                "GPU Boost: ${if (info.isGpuBoostSupported()) "есть" else "нет"}\n" +
+                "Game cmd: ${if (info.isVendorGameCmdSupported()) "есть" else "нет"}\n" +
+                "Sense tuning: ${if (info.isSenseTuningSupported()) "есть" else "нет"}\n" +
+                "Чип: ${info.chipName()}\n" +
+                "GPU: ${info.gpuName()}\n" +
+                "Класс: ${info.tierName()}\n" +
+                "Температура: ${"%.0f".format(info.cpuTemp())}°C\n" +
+                "Батарея: ${info.batteryLevel()}%${if (info.isCharging()) " ⚡" else ""}"
+            main.post { if (!isFinishing && !destroyed) try { AlertDialog.Builder(this).setTitle("Диагностика").setMessage(t).setPositiveButton("ОК", null).show() } catch (_: Throwable) {} }
         }
-    } else {
-        if (uiBuilt) ui.setStatus("Отключение...")
-        bg {
-            try {
-                val r = info.revertAll(p, prefs)
-                OpLog.log("Турбо: выключено")
-                main.removeCallbacks(timeoutRunnable)
-                main.post {
-                    busy = false
-                    alive(false)
-                    if (uiBuilt) { ui.setActive(false); ui.setStatus(r); refresh() }
+    }
+
+    private fun ready(): Boolean {
+        if (!SystemReader.isReady()) { Toast.makeText(this, "Нет доступа (Root/Shizuku)", Toast.LENGTH_SHORT).show(); return false }
+        return true
+    }
+
+    private fun profiles() {
+        val p = prefs.getLastPackage()
+        if (p.isBlank()) { Toast.makeText(this, "Сначала выберите игру", Toast.LENGTH_SHORT).show(); return }
+        val ps = prefs.getProfiles()
+        val items = mutableListOf("Сохранить профиль для текущей игры")
+        if (ps.isNotEmpty()) {
+            items.add("Удалить профиль текущей игры")
+            items.add("── Профили ──")
+            items.addAll(ps.map { it.pkg })
+        }
+        ui.showGlassList("Профили", items) { w ->
+            val c = items[w]
+            when {
+                c.startsWith("Сохранить") -> {
+                    prefs.saveProfile(GameProfile(p, prefs.getPerfMode(), prefs.getSenseLevel(), 0, false, prefs.getTargetHz(), prefs.isGpuBoost(), prefs.isBackgroundLimit()))
+                    Toast.makeText(this, "Сохранён", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Throwable) {
-                main.removeCallbacks(timeoutRunnable)
-                main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
+                c.startsWith("Удалить") -> {
+                    prefs.deleteProfile(p)
+                    Toast.makeText(this, "Удалён", Toast.LENGTH_SHORT).show()
+                }
+                c.startsWith("──") -> {}
+                else -> ps.firstOrNull { it.pkg == c }?.let { applyProfile(it) }
             }
         }
     }
-}    private fun applyCustomResAndLaunch(w: Int, h: Int) {
+
+    private fun applyProfile(p: GameProfile) {
+        prefs.setPerfMode(p.mode); prefs.setSenseLevel(p.sense); prefs.setTargetHz(p.hz)
+        prefs.setGpuBoost(p.gpuBoost); prefs.setBackgroundLimit(p.bgLimit)
+        prefs.setLastPackage(p.pkg); prefs.setActiveProfilePkg(p.pkg)
+        ui.setMode(p.mode)
+        if (p.sense >= 0) ui.setSenseLevel(p.sense)
+        ui.setHz(info.clampHz(p.hz))
+        ui.setGpuBoostState(p.gpuBoost && info.isGpuBoostSupported()); ui.setBgLimitState(p.bgLimit)
+        ui.setPackageText(p.pkg)
+        bg {
+            if (p.sense >= 0) info.applySense(p.sense)
+            else info.applyCustomSense(
+                prefs.getPointerSpeed(),
+                prefs.getSenseTouchRate(),
+                prefs.isTouchPredictionOff(),
+                prefs.isTouchBlockingZero(),
+                prefs.isMotionAggregationOff()
+            )
+            if (prefs.isActive()) info.activateMaxPerformance(p.hz, p.mode, p.gpuBoost && info.isGpuBoostSupported(), p.pkg)
+        }
+    }
+
+    fun toggle() {
+        if (!ready() || busy) return
+        busy = true
+
+        val timeoutRunnable = Runnable {
+            if (busy) { busy = false; if (uiBuilt) ui.setStatus("Готово (таймаут)") }
+        }
+        main.postDelayed(timeoutRunnable, 30000)
+
+        if (!prefs.isActive() && info.batteryLevel() <= 10) {
+            Toast.makeText(this, "Заряд ≤ 10%", Toast.LENGTH_SHORT).show()
+            busy = false
+            main.removeCallbacks(timeoutRunnable)
+            return
+        }
+
+        val on = !prefs.isActive()
+        val p = prefs.getLastPackage()
+        val m = prefs.getPerfMode()
+        val hz = prefs.getTargetHz()
+        val gpuBoost = prefs.isGpuBoost() && info.isGpuBoostSupported()
+
+        if (on) {
+            if (uiBuilt) ui.setStatus("Оптимизация...")
+            bg {
+                try {
+                    val r = info.activateMaxPerformance(hz, m, gpuBoost, p)
+                    if (p.isNotBlank() && info.isVendorGameCmdSupported()) info.unlockGameFps(p, hz)
+                    if (p.isNotBlank() && info.isRooted()) info.pinGameToPrimeCore(p)
+                    if (p.isNotBlank() && info.isRooted()) info.prioritizeGameThreads(p)
+                    info.runFstrim()
+                    if (prefs.isFeat("adv_auto_aot") && p.isNotBlank()) {
+                        try { info.compilePackageSpeedProfile(p) } catch (_: Throwable) {}
+                    }
+                    if (info.isRooted()) info.boostInputDispatcher()
+                    info.optimizePing()
+                    val senseLv = prefs.getSenseLevel()
+                    if (senseLv == -1) {
+                        info.applyCustomSense(
+                            prefs.getPointerSpeed(),
+                            prefs.getSenseTouchRate(),
+                            prefs.isTouchPredictionOff(),
+                            prefs.isTouchBlockingZero(),
+                            prefs.isMotionAggregationOff()
+                        )
+                        info.applyAnimationScale(prefs.getAnimScale())
+                        info.applyLongPress(prefs.getLongPressTimeout())
+                        if (info.isGtGpuTunerSupported()) info.applyGtGpuTuner(prefs.isGtGpuTuner())
+                    } else if (senseLv >= 0) info.applySense(senseLv)
+                    info.restrictPowerKeeper()
+                    info.cleanupDozeWhitelist()
+                    info.restrictGms()
+                    OpLog.log("Турбо: включено (пакет: ${if (p.isBlank()) "—" else p})")
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post {
+                        busy = false
+                        prefs.setActive(true)
+                        alive(true)
+                        if (uiBuilt) { ui.setActive(true); ui.setStatus(r); refresh() }
+                    }
+                } catch (e: Throwable) {
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
+                }
+            }
+        } else {
+            if (uiBuilt) ui.setStatus("Отключение...")
+            bg {
+                try {
+                    val r = info.revertAll(p, prefs)
+                    OpLog.log("Турбо: выключено")
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post {
+                        busy = false
+                        alive(false)
+                        if (uiBuilt) { ui.setActive(false); ui.setStatus(r); refresh() }
+                    }
+                } catch (e: Throwable) {
+                    main.removeCallbacks(timeoutRunnable)
+                    main.post { busy = false; if (uiBuilt) ui.setStatus("Ошибка: ${e.message ?: "неизвестно"}") }
+                }
+            }
+        }
+    }
+
+    private fun applyCustomResAndLaunch(w: Int, h: Int) {
         prefs.setCustomW(w)
         prefs.setCustomH(h)
         val appCtx = applicationContext
@@ -1003,14 +1005,7 @@ fun toggle() {
                         if (!uiBuilt) return@post
                         ui.setOverheat(temp > 75f && temp <= 85f, temp > 85f)
                         ui.setBatteryLowBlock(bat <= 10)
-                        if (active && temp > 85f) {
-                            busy = true
-                            ui.setOverheat(true, true)
-                            bg {
-                                info.revertAll(prefs.getLastPackage(), prefs)
-                                main.post { ui.setActive(false); ui.setAppliedState(false, false); ui.setStatus("КРИТИЧЕСКИЙ ПЕРЕГРЕВ — всё откачено"); busy = false; alive(false) }
-                            }
-                        } else if (active && bat <= 10) {
+                        if (active && bat <= 10) {
                             busy = true
                             bg {
                                 info.revertAll(prefs.getLastPackage(), prefs)
