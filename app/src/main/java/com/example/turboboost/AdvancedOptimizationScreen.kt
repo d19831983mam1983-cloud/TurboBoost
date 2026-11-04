@@ -45,9 +45,11 @@ class AdvancedOptimizationScreen(
     fun build(): FrameLayout {
         val root = FrameLayout(ctx)
         root.setBackgroundColor(bgDark)
+
         val content = LinearLayout(ctx)
         content.orientation = LinearLayout.VERTICAL
         content.setPadding(dp(12), dp(12), dp(12), dp(12))
+
         val scroll = ScrollView(ctx)
         scroll.isFillViewport = true
         scroll.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
@@ -114,77 +116,7 @@ class AdvancedOptimizationScreen(
                 run = { _, p -> info.nextDriverMode(p) })
         ))
 
-        section(content, "СЕТЬ И СКАНЕРЫ", listOf(
-            Item("Wi-Fi scan", "Фоновое сканирование", "adv_wifi_scan",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0")
-                    else info.revertSetting("global", "wifi_scan_always_enabled")
-                }),
-            Item("BLE scan", "Bluetooth-сканирование", "adv_ble_scan",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "ble_scan_always_enabled", "0")
-                    else info.revertSetting("global", "ble_scan_always_enabled")
-                }),
-            Item("Wi-Fi notif", "Уведомления о сетях", "adv_wifi_notif",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "wifi_networks_available_notification_on", "0")
-                    else info.revertSetting("global", "wifi_networks_available_notification_on")
-                }),
-            Item("Wi-Fi sleep", "Не отключать Wi-Fi", "adv_wifi_sleep",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "wifi_sleep_policy", "2")
-                    else info.revertSetting("global", "wifi_sleep_policy")
-                })
-        ))
-
-        section(content, "ЭНЕРГОСБЕРЕЖЕНИЕ", listOf(
-            Item("low_power", "Не экономить", "adv_low_power",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "low_power", "0")
-                    else info.revertSetting("global", "low_power")
-                }),
-            Item("Auto save", "Авто-энергосбережение", "adv_auto_power",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "automatic_power_save_mode", "0")
-                    else info.revertSetting("global", "automatic_power_save_mode")
-                }),
-            Item("Adaptive", "Адаптивная батарея", "adv_adaptive_bat",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "adaptive_battery_management_enabled", "0")
-                    else info.revertSetting("global", "adaptive_battery_management_enabled")
-                }),
-            Item("Standby", "App Standby", "adv_app_standby",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "app_standby_enabled", "0")
-                    else info.revertSetting("global", "app_standby_enabled")
-                }),
-            Item("Freezer", "Заморозка кэша", "adv_freezer",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "cached_apps_freezer", "0")
-                    else info.revertSetting("global", "cached_apps_freezer")
-                })
-        ))
-
-        section(content, "УВЕДОМЛЕНИЯ", listOf(
-            Item("Heads-up", "Всплывающие уведомления", "adv_heads_up",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("global", "heads_up_notifications_enabled", "0")
-                    else info.revertSetting("global", "heads_up_notifications_enabled")
-                })
-        ))
-
-        section(content, "СИСТЕМА", listOf(
-            Item("Блокировка\nповорота", "Фиксирует ориентацию", "adv_rot_lock",
-                run = { on, _ ->
-                    if (on) info.applyGlobalSetting("system", "accelerometer_rotation", "0")
-                    else info.revertSetting("system", "accelerometer_rotation")
-                })
-        ))
-
-        content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
-        root.addView(topBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-        return root
-    }    private fun section(parent: LinearLayout, title: String, items: List<Item>) {
+    private fun section(parent: LinearLayout, title: String, items: List<Item>) {
         header(parent, title)
         items.chunked(2).forEach { pair ->
             val row = LinearLayout(ctx)
@@ -270,9 +202,87 @@ class AdvancedOptimizationScreen(
             onStatus?.invoke(r)
         }
         return card
-    }
+    }    section(content, "СЕТЬ И СКАНЕРЫ", listOf(
+        Item("Wi-Fi scan", "Фоновое сканирование", "adv_wifi_scan",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0")
+                else info.revertSetting("global", "wifi_scan_always_enabled")
+            }),
+        Item("BLE scan", "Bluetooth-сканирование", "adv_ble_scan",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "ble_scan_always_enabled", "0")
+                else info.revertSetting("global", "ble_scan_always_enabled")
+            }),
+        Item("Wi-Fi notif", "Уведомления о сетях", "adv_wifi_notif",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "wifi_networks_available_notification_on", "0")
+                else info.revertSetting("global", "wifi_networks_available_notification_on")
+            }),
+        Item("Wi-Fi sleep", "Не отключать Wi-Fi", "adv_wifi_sleep",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "wifi_sleep_policy", "2")
+                else info.revertSetting("global", "wifi_sleep_policy")
+            })
+    ))
 
-    private fun cardBg(color: Int): GradientDrawable {
+    section(content, "ЭНЕРГОСБЕРЕЖЕНИЕ", listOf(
+        Item("low_power", "Не экономить", "adv_low_power",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "low_power", "0")
+                else info.revertSetting("global", "low_power")
+            }),
+        Item("Auto save", "Авто-энергосбережение", "adv_auto_power",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "automatic_power_save_mode", "0")
+                else info.revertSetting("global", "automatic_power_save_mode")
+            }),
+        Item("Adaptive", "Адаптивная батарея", "adv_adaptive_bat",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "adaptive_battery_management_enabled", "0")
+                else info.revertSetting("global", "adaptive_battery_management_enabled")
+            }),
+        Item("Standby", "App Standby", "adv_app_standby",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "app_standby_enabled", "0")
+                else info.revertSetting("global", "app_standby_enabled")
+            }),
+        Item("Freezer", "Заморозка кэша", "adv_freezer",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "cached_apps_freezer", "0")
+                else info.revertSetting("global", "cached_apps_freezer")
+            })
+    ))
+
+    section(content, "УВЕДОМЛЕНИЯ", listOf(
+        Item("Heads-up", "Всплывающие уведомления", "adv_heads_up",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("global", "heads_up_notifications_enabled", "0")
+                else info.revertSetting("global", "heads_up_notifications_enabled")
+            })
+    ))
+
+    section(content, "СИСТЕМА", listOf(
+        Item("Блокировка\nповорота", "Фиксирует ориентацию", "adv_rot_lock",
+            run = { on, _ ->
+                if (on) info.applyGlobalSetting("system", "accelerometer_rotation", "0")
+                else info.revertSetting("system", "accelerometer_rotation")
+            })
+    ))
+
+    val moduleItems = OptimizationModules.modules.map { m ->
+        Item(
+            title = m.title,
+            hint = m.hint,
+            key = "mod_${m.id}",
+            run = { on, _ -> OptimizationModules.apply(info, m.id, on) }
+        )
+    }
+    section(content, "МОДУЛИ ОПТИМИЗАЦИИ", moduleItems)
+
+    content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
+    root.addView(topBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
+    return root
+    }    private fun cardBg(color: Int): GradientDrawable {
         val g = GradientDrawable()
         g.shape = GradientDrawable.RECTANGLE
         g.cornerRadius = dp(14).toFloat()
