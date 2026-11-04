@@ -116,182 +116,182 @@ class AdvancedOptimizationScreen(
                 run = { _, p -> info.nextDriverMode(p) })
         ))
 
-    private fun section(parent: LinearLayout, title: String, items: List<Item>) {
-        header(parent, title)
-        items.chunked(2).forEach { pair ->
-            val row = LinearLayout(ctx)
-            row.orientation = LinearLayout.HORIZONTAL
-            row.setPadding(0, dp(4), 0, dp(4))
-            pair.forEach { item ->
-                row.addView(makeCard(item), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
-                    marginStart = dp(4)
-                    marginEnd = dp(4)
+        section(content, "СЕТЬ И СКАНЕРЫ", listOf(
+            Item("Wi-Fi scan", "Фоновое сканирование", "adv_wifi_scan",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0")
+                    else info.revertSetting("global", "wifi_scan_always_enabled")
+                }),
+            Item("BLE scan", "Bluetooth-сканирование", "adv_ble_scan",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "ble_scan_always_enabled", "0")
+                    else info.revertSetting("global", "ble_scan_always_enabled")
+                }),
+            Item("Wi-Fi notif", "Уведомления о сетях", "adv_wifi_notif",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "wifi_networks_available_notification_on", "0")
+                    else info.revertSetting("global", "wifi_networks_available_notification_on")
+                }),
+            Item("Wi-Fi sleep", "Не отключать Wi-Fi", "adv_wifi_sleep",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "wifi_sleep_policy", "2")
+                    else info.revertSetting("global", "wifi_sleep_policy")
                 })
-            }
-            if (pair.size == 1) {
-                val filler = LinearLayout(ctx)
-                row.addView(filler, LinearLayout.LayoutParams(0, 1, 1f).apply {
-                    marginStart = dp(4)
-                    marginEnd = dp(4)
+        ))
+
+        section(content, "ЭНЕРГОСБЕРЕЖЕНИЕ", listOf(
+            Item("low_power", "Не экономить", "adv_low_power",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "low_power", "0")
+                    else info.revertSetting("global", "low_power")
+                }),
+            Item("Auto save", "Авто-энергосбережение", "adv_auto_power",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "automatic_power_save_mode", "0")
+                    else info.revertSetting("global", "automatic_power_save_mode")
+                }),
+            Item("Adaptive", "Адаптивная батарея", "adv_adaptive_bat",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "adaptive_battery_management_enabled", "0")
+                    else info.revertSetting("global", "adaptive_battery_management_enabled")
+                }),
+            Item("Standby", "App Standby", "adv_app_standby",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "app_standby_enabled", "0")
+                    else info.revertSetting("global", "app_standby_enabled")
+                }),
+            Item("Freezer", "Заморозка кэша", "adv_freezer",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "cached_apps_freezer", "0")
+                    else info.revertSetting("global", "cached_apps_freezer")
                 })
-            }
-            parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        ))
+
+        section(content, "УВЕДОМЛЕНИЯ", listOf(
+            Item("Heads-up", "Всплывающие уведомления", "adv_heads_up",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("global", "heads_up_notifications_enabled", "0")
+                    else info.revertSetting("global", "heads_up_notifications_enabled")
+                })
+        ))
+
+        section(content, "СИСТЕМА", listOf(
+            Item("Блокировка\nповорота", "Фиксирует ориентацию", "adv_rot_lock",
+                run = { on, _ ->
+                    if (on) info.applyGlobalSetting("system", "accelerometer_rotation", "0")
+                    else info.revertSetting("system", "accelerometer_rotation")
+                })
+        ))
+
+        val moduleItems = OptimizationModules.modules.map { m ->
+            Item(
+                title = m.title,
+                hint = m.hint,
+                key = "mod_${m.id}",
+                run = { on, _ -> OptimizationModules.apply(info, m.id, on) }
+            )
         }
+        section(content, "МОДУЛИ ОПТИМИЗАЦИИ", moduleItems)
+
+        content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
+        root.addView(topBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
+        return root
+    }private fun section(parent: LinearLayout, title: String, items: List<Item>) {
+    header(parent, title)
+    items.chunked(2).forEach { pair ->
+        val row = LinearLayout(ctx)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.setPadding(0, dp(4), 0, dp(4))
+        pair.forEach { item ->
+            row.addView(makeCard(item), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply {
+                marginStart = dp(4)
+                marginEnd = dp(4)
+            })
+        }
+        if (pair.size == 1) {
+            val filler = LinearLayout(ctx)
+            row.addView(filler, LinearLayout.LayoutParams(0, 1, 1f).apply {
+                marginStart = dp(4)
+                marginEnd = dp(4)
+            })
+        }
+        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     }
+}
 
-    private fun makeCard(item: Item): LinearLayout {
-        val state = if (item.isButton) false else prefs.isFeat(item.key)
-        val pkg = prefs.getLastPackage()
-        val card = LinearLayout(ctx)
-        card.orientation = LinearLayout.VERTICAL
-        card.setPadding(dp(10), dp(10), dp(10), dp(10))
-        card.setBackground(cardBg(if (state) accentSoft else cardDefault))
-        card.isClickable = true
+private fun makeCard(item: Item): LinearLayout {
+    val state = if (item.isButton) false else prefs.isFeat(item.key)
+    val pkg = prefs.getLastPackage()
+    val card = LinearLayout(ctx)
+    card.orientation = LinearLayout.VERTICAL
+    card.setPadding(dp(10), dp(10), dp(10), dp(10))
+    card.setBackground(cardBg(if (state) accentSoft else cardDefault))
+    card.isClickable = true
 
-        val titleTv = TextView(ctx)
-        titleTv.text = item.title
-        titleTv.setTextColor(Color.WHITE)
-        titleTv.textSize = 12f
-        titleTv.typeface = Typeface.DEFAULT_BOLD
-        titleTv.maxLines = 2
-        card.addView(titleTv)
+    val titleTv = TextView(ctx)
+    titleTv.text = item.title
+    titleTv.setTextColor(Color.WHITE)
+    titleTv.textSize = 12f
+    titleTv.typeface = Typeface.DEFAULT_BOLD
+    titleTv.maxLines = 2
+    card.addView(titleTv)
 
-        val hintTv = TextView(ctx)
-        hintTv.text = item.hint
-        hintTv.setTextColor(Color.parseColor("#88FFFFFF"))
-        hintTv.textSize = 9f
-        hintTv.maxLines = 2
-        hintTv.setPadding(0, dp(2), 0, dp(6))
-        card.addView(hintTv)
+    val hintTv = TextView(ctx)
+    hintTv.text = item.hint
+    hintTv.setTextColor(Color.parseColor("#88FFFFFF"))
+    hintTv.textSize = 9f
+    hintTv.maxLines = 2
+    hintTv.setPadding(0, dp(2), 0, dp(6))
+    card.addView(hintTv)
 
-        val stateTv = TextView(ctx)
-        stateTv.setTextColor(if (state) accent else Color.parseColor("#8899AA"))
-        stateTv.textSize = 10f
-        stateTv.typeface = Typeface.DEFAULT_BOLD
-        stateTv.gravity = Gravity.END
+    val stateTv = TextView(ctx)
+    stateTv.setTextColor(if (state) accent else Color.parseColor("#8899AA"))
+    stateTv.textSize = 10f
+    stateTv.typeface = Typeface.DEFAULT_BOLD
+    stateTv.gravity = Gravity.END
+    if (item.isCycle) {
+        stateTv.text = if (pkg.isBlank()) "-" else item.cycleLabel?.invoke(pkg) ?: "-"
+    } else if (item.isButton) {
+        stateTv.text = "→"
+    } else {
+        stateTv.text = if (state) "ВКЛ" else "ВЫКЛ"
+    }
+    card.addView(stateTv)
+
+    card.setOnClickListener {
+        val p = prefs.getLastPackage()
+        if (item.perGame && p.isBlank()) {
+            Toast.makeText(ctx, "Сначала выберите игру", Toast.LENGTH_SHORT).show()
+            return@setOnClickListener
+        }
         if (item.isCycle) {
-            stateTv.text = if (pkg.isBlank()) "-" else item.cycleLabel?.invoke(pkg) ?: "-"
-        } else if (item.isButton) {
-            stateTv.text = "→"
-        } else {
-            stateTv.text = if (state) "ВКЛ" else "ВЫКЛ"
-        }
-        card.addView(stateTv)
-
-        card.setOnClickListener {
-            val p = prefs.getLastPackage()
-            if (item.perGame && p.isBlank()) {
-                Toast.makeText(ctx, "Сначала выберите игру", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (item.isCycle) {
-                val r = try { item.run(true, p) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
-                stateTv.text = item.cycleLabel?.invoke(p) ?: "-"
-                stateTv.setTextColor(accent)
-                onStatus?.invoke(r)
-                return@setOnClickListener
-            }
-            val next = if (item.isButton) true else stateTv.text != "ВКЛ"
-            val r = try { item.run(next, p) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
-            if (!item.isButton) {
-                prefs.setFeat(item.key, next)
-                stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
-                stateTv.setTextColor(if (next) accent else Color.parseColor("#8899AA"))
-                card.setBackground(cardBg(if (next) accentSoft else cardDefault))
-            }
+            val r = try { item.run(true, p) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
+            stateTv.text = item.cycleLabel?.invoke(p) ?: "-"
+            stateTv.setTextColor(accent)
             onStatus?.invoke(r)
+            return@setOnClickListener
         }
-        return card
-    }    section(content, "СЕТЬ И СКАНЕРЫ", listOf(
-        Item("Wi-Fi scan", "Фоновое сканирование", "adv_wifi_scan",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "wifi_scan_always_enabled", "0")
-                else info.revertSetting("global", "wifi_scan_always_enabled")
-            }),
-        Item("BLE scan", "Bluetooth-сканирование", "adv_ble_scan",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "ble_scan_always_enabled", "0")
-                else info.revertSetting("global", "ble_scan_always_enabled")
-            }),
-        Item("Wi-Fi notif", "Уведомления о сетях", "adv_wifi_notif",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "wifi_networks_available_notification_on", "0")
-                else info.revertSetting("global", "wifi_networks_available_notification_on")
-            }),
-        Item("Wi-Fi sleep", "Не отключать Wi-Fi", "adv_wifi_sleep",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "wifi_sleep_policy", "2")
-                else info.revertSetting("global", "wifi_sleep_policy")
-            })
-    ))
-
-    section(content, "ЭНЕРГОСБЕРЕЖЕНИЕ", listOf(
-        Item("low_power", "Не экономить", "adv_low_power",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "low_power", "0")
-                else info.revertSetting("global", "low_power")
-            }),
-        Item("Auto save", "Авто-энергосбережение", "adv_auto_power",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "automatic_power_save_mode", "0")
-                else info.revertSetting("global", "automatic_power_save_mode")
-            }),
-        Item("Adaptive", "Адаптивная батарея", "adv_adaptive_bat",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "adaptive_battery_management_enabled", "0")
-                else info.revertSetting("global", "adaptive_battery_management_enabled")
-            }),
-        Item("Standby", "App Standby", "adv_app_standby",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "app_standby_enabled", "0")
-                else info.revertSetting("global", "app_standby_enabled")
-            }),
-        Item("Freezer", "Заморозка кэша", "adv_freezer",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "cached_apps_freezer", "0")
-                else info.revertSetting("global", "cached_apps_freezer")
-            })
-    ))
-
-    section(content, "УВЕДОМЛЕНИЯ", listOf(
-        Item("Heads-up", "Всплывающие уведомления", "adv_heads_up",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("global", "heads_up_notifications_enabled", "0")
-                else info.revertSetting("global", "heads_up_notifications_enabled")
-            })
-    ))
-
-    section(content, "СИСТЕМА", listOf(
-        Item("Блокировка\nповорота", "Фиксирует ориентацию", "adv_rot_lock",
-            run = { on, _ ->
-                if (on) info.applyGlobalSetting("system", "accelerometer_rotation", "0")
-                else info.revertSetting("system", "accelerometer_rotation")
-            })
-    ))
-
-    val moduleItems = OptimizationModules.modules.map { m ->
-        Item(
-            title = m.title,
-            hint = m.hint,
-            key = "mod_${m.id}",
-            run = { on, _ -> OptimizationModules.apply(info, m.id, on) }
-        )
+        val next = if (item.isButton) true else stateTv.text != "ВКЛ"
+        val r = try { item.run(next, p) } catch (e: Throwable) { "Ошибка: " + (e.message ?: "?") }
+        if (!item.isButton) {
+            prefs.setFeat(item.key, next)
+            stateTv.text = if (next) "ВКЛ" else "ВЫКЛ"
+            stateTv.setTextColor(if (next) accent else Color.parseColor("#8899AA"))
+            card.setBackground(cardBg(if (next) accentSoft else cardDefault))
+        }
+        onStatus?.invoke(r)
     }
-    section(content, "МОДУЛИ ОПТИМИЗАЦИИ", moduleItems)
+    return card
+}
 
-    content.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
-    root.addView(topBar(), FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-    return root
-    }    private fun cardBg(color: Int): GradientDrawable {
-        val g = GradientDrawable()
-        g.shape = GradientDrawable.RECTANGLE
-        g.cornerRadius = dp(14).toFloat()
-        g.setColor(color)
-        g.setStroke(dp(1), accentSoft)
-        return g
-    }
-
-    private fun topBar(): FrameLayout {
+private fun cardBg(color: Int): GradientDrawable {
+    val g = GradientDrawable()
+    g.shape = GradientDrawable.RECTANGLE
+    g.cornerRadius = dp(14).toFloat()
+    g.setColor(color)
+    g.setStroke(dp(1), accentSoft)
+    return g
+}    private fun topBar(): FrameLayout {
         val bar = FrameLayout(ctx)
         bar.setBackgroundColor(Color.parseColor("#CC05070A"))
         val h = LinearLayout(ctx)
