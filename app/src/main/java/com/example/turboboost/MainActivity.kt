@@ -433,7 +433,7 @@ fun MainActivity.launchStretch() {
     }
     val delay = when (game) {
         "pubg" -> 7000L
-        "oxide" -> 10000L
+        "oxide" -> 27000L
         else -> 25000L
     }
     val launch = try { packageManager.getLaunchIntentForPackage(pkg) } catch (_: Throwable) { null }
