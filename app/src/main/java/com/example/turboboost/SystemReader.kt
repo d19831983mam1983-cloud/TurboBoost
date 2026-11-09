@@ -62,6 +62,13 @@ object SystemReader {
         }
     }
 
+    fun read(cmd: String, timeoutMs: Long, arg1: String): String {
+        val safe = cmd.replace("\${1}", "").replace("$1", arg1.replace("\"", ""))
+        return read(safe, timeoutMs)
+    }
+
+    fun read(cmd: String, arg1: String): String = read(cmd, TIMEOUT_MS, arg1)
+
     private fun execRoot(cmd: String, timeoutMs: Long): String {
         var p: Process? = null
         return try {
