@@ -2,12 +2,11 @@ package com.example.turboboost
 
 object RamEngine {
 
-    private const val SCRIPT = """
+    private val SCRIPT = """
         ok=0; total=0
         _dc() { total=$((total+1)); cmd device_config put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(cmd device_config get "${'$'}1" "${'$'}2" 2>/dev/null | tr -d '\r')" = "${'$'}3" ] && ok=$((ok+1)); }
         _put() { total=$((total+1)); settings put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(settings get "${'$'}1" "${'$'}2" 2>/dev/null)" = "${'$'}3" ] && ok=$((ok+1)); }
         _sp()  { total=$((total+1)); setprop "${'$'}1" "${'$'}2" >/dev/null 2>&1; [ "$(getprop "${'$'}1" 2>/dev/null)" = "${'$'}2" ] && ok=$((ok+1)); }
-
         _dc activity_manager use_compaction true
         _dc activity_manager_native_boot use_freezer true
         _dc activity_manager max_cached_processes 64
@@ -23,12 +22,10 @@ object RamEngine {
         _dc device_idle light_idle_maintenance_max_budget 30000
         _dc device_idle min_light_maintenance_time 5000
         _dc device_idle min_deep_maintenance_time 8000
-
         _put global app_standby_enabled 1
         _put secure adaptive_battery_management_enabled 1
         _put global always_finish_activities 0
         _put global cached_apps_freezer 1
-
         _sp ro.lmk.use_psi true
         _sp ro.lmk.psi_partial_stall_ms 70
         _sp ro.lmk.psi_complete_stall_ms 150
@@ -45,7 +42,6 @@ object RamEngine {
         _sp dalvik.vm.usejit true
         _sp dalvik.vm.usejitprofiles true
         _sp persist.logd.size 512K
-
         am idle-maintenance >/dev/null 2>&1 && ok=$((ok+1)); total=$((total+1))
         am kill-all >/dev/null 2>&1 && ok=$((ok+1)); total=$((total+1))
         pm trim-caches 1000M >/dev/null 2>&1 && ok=$((ok+1)); total=$((total+1))
@@ -53,7 +49,7 @@ object RamEngine {
         echo "${'$'}ok ${'$'}total"
     """.trimIndent()
 
-    private const val RESTORE_SCRIPT = """
+    private val RESTORE_SCRIPT = """
         cmd device_config delete activity_manager use_compaction
         cmd device_config delete activity_manager_native_boot use_freezer
         cmd device_config delete activity_manager max_cached_processes
