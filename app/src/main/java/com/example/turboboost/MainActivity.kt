@@ -412,9 +412,9 @@ fun MainActivity.stretchName(p: Int): String = when (p) {
 }
 
 fun MainActivity.stretchDims(p: Int): Pair<Int, Int>? = when (p) {
-    1 -> 1440 to 1080
-    2 -> 1350 to 1080
-    3 -> 1600 to 750
+    1 -> 1080 to 1440
+    2 -> 1080 to 1350
+    3 -> 750 to 1600
     else -> null
 }
 
