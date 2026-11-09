@@ -211,10 +211,7 @@ class SenseCustomScreen(
 
         val row2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         row2.addView(compactToggle("Без агрегации", "Меньше группировки (может не работать)", prefs.isMotionAggregationOff()) { prefs.setMotionAggregationOff(it) },
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(10) })
-        row2.addView(compactStepper("Удержание", { "${prefs.getLongPressTimeout()} мс" }, { d ->
-            prefs.setLongPressTimeout(prefs.getLongPressTimeout() + d * 50)
-        }), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         card.addView(row2, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(10) })
         return card
     }
@@ -252,9 +249,7 @@ class SenseCustomScreen(
         })
 
         return card
-    }
-
-    private fun sectionAnim(): LinearLayout {
+    }    private fun sectionAnim(): LinearLayout {
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(14))
@@ -307,7 +302,9 @@ class SenseCustomScreen(
             setPadding(0, dp(10), 0, 0)
         })
         return card
-    }    private fun rateBlock(): LinearLayout {
+    }
+
+    private fun rateBlock(): LinearLayout {
         val wrapper = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(14))
@@ -350,50 +347,6 @@ class SenseCustomScreen(
             setPadding(0, dp(8), 0, 0)
         })
         return wrapper
-    }
-
-    private fun compactStepper(title: String, value: () -> String, onDelta: (Int) -> Unit): LinearLayout {
-        val cell = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = unselDrawable()
-        }
-        cell.addView(TextView(ctx).apply {
-            text = title
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        })
-        val v = TextView(ctx).apply {
-            text = value()
-            setTextColor(t.primary)
-            textSize = 12f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, dp(2), 0, dp(6))
-        }
-        cell.addView(v)
-        val row = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-        }
-        val minus = TextView(ctx).apply {
-            text = "−"
-            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER
-            background = unselDrawable()
-            setPadding(dp(10), dp(4), dp(10), dp(4))
-            setOnClickListener { onDelta(-1); v.text = value() }
-        }
-        val plus = TextView(ctx).apply {
-            text = "+"
-            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER
-            background = unselDrawable()
-            setPadding(dp(10), dp(4), dp(10), dp(4))
-            setOnClickListener { onDelta(1); v.text = value() }
-        }
-        row.addView(minus, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { marginEnd = dp(6) })
-        row.addView(plus, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
-        cell.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        return cell
     }
 
     private fun stepperRow(title: String, value: () -> String, onDelta: (Int) -> Unit): LinearLayout {
@@ -468,7 +421,6 @@ class SenseCustomScreen(
         text = "«Без предикта» отключает предсказание движения — палец идёт 1:1 (Android 13+). На части прошивок не работает.\n\n" +
             "«Мгновенный тач» убирает минимальную задержку между касаниями. Поддержка зависит от прошивки.\n\n" +
             "«Без агрегации» уменьшает группировку событий — меньше задержка на части прошивок.\n\n" +
-            "«Удержание» — время до срабатывания long-press, влияет на мелкую моторику.\n\n" +
             "GPU Tuner открывает скрытые настройки GPU в Game Turbo (только Xiaomi). После включения перезапусти Game Turbo."
         setTextColor(Color.parseColor("#88FFFFFF"))
         textSize = 11f
