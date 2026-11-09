@@ -694,16 +694,15 @@ fun pingTest(): String {
         val oldShort = Math.min(ow, oh)
         val newShort = Math.min(w, h)
         if (!p.getBoolean("rot_saved", false)) {
-            val ar = SystemReader.read("settings get system accelerometer_rotation").trim().ifBlank { "1" }
-            val ur = SystemReader.read("settings get system user_rotation").trim().ifBlank { "0" }
-            p.edit().putString("old_ar", ar).putString("old_ur", ur).putBoolean("rot_saved", true).apply()
+            val prevFixed = SystemReader.read("wm get-fixed-to-user-rotation").trim()
+            p.edit().putString("old_fixed", prevFixed).putBoolean("rot_saved", true).apply()
         }
         val cmd = StringBuilder("wm size ${w}x${h}")
         if (od > 0) {
             val nd = Math.max(120, (od * newShort.toFloat() / oldShort).toInt())
             cmd.append("; wm density $nd")
         }
-        cmd.append("; settings put system accelerometer_rotation 0; settings put system user_rotation 1")
+        cmd.append("; wm set-fixed-to-user-rotation enabled true; wm user-rotation lock 1")
         SystemReader.read(cmd.toString())
         AppPrefs(ctx).setDisplayTweaked(true)
         p.edit().putLong("revert_at", System.currentTimeMillis() + 25_000L).apply()
@@ -716,14 +715,17 @@ fun pingTest(): String {
         val oh = p.getInt("oh", 0)
         val od = p.getInt("od", -1)
         val rotSaved = p.getBoolean("rot_saved", false)
-        val oldAr = p.getString("old_ar", "1") ?: "1"
-        val oldUr = p.getString("old_ur", "0") ?: "0"
+        val oldFixed = p.getString("old_fixed", "") ?: ""
         val cmd = StringBuilder()
         if (ow > 0 && oh > 0) cmd.append("wm size ${ow}x${oh}; ") else cmd.append("wm size reset; ")
         if (od > 0) cmd.append("wm density $od") else cmd.append("wm density reset")
         if (rotSaved) {
-            cmd.append("; settings put system accelerometer_rotation $oldAr")
-            if (oldAr == "0") cmd.append("; settings put system user_rotation $oldUr")
+            cmd.append("; wm user-rotation free")
+            if (oldFixed.contains("enabled=true")) {
+                cmd.append("; wm set-fixed-to-user-rotation enabled true")
+            } else {
+                cmd.append("; wm set-fixed-to-user-rotation enabled false")
+            }
         }
         SystemReader.read(cmd.toString())
         p.edit().clear().apply()
