@@ -47,6 +47,7 @@ class OptimizerUI(val ctx: Context) {
     var hzRow: LinearLayout? = null
     var hzSection: LinearLayout? = null
     var stretchRow: LinearLayout? = null
+    val stretchBtns = mutableListOf<TextView>()
 
     val engineViews = LinkedHashMap<String, Triple<ToggleSwitch, TextView, LinearLayout>>()
 
@@ -97,7 +98,7 @@ class OptimizerUI(val ctx: Context) {
 
     val senseLevels = listOf(1, 2, 3, -1)
     val senseNames = listOf("Сильный", "Эксп.", "Макс", "Кастом")
-    val stretchNames = listOf("Стандарт", "4:3", "5:4", "27:9", "750p")
+    val stretchNames = listOf("Стандарт", "4:3", "5:4", "750p")
     val engineList = listOf(
         "fps" to "FPS", "gpu" to "GPU", "internet" to "Internet",
         "launch" to "Launch", "ram" to "RAM", "touch" to "Touch", "ui" to "UI"
@@ -535,10 +536,9 @@ fun OptimizerUI.buildEngineCell(key: String, title: String): LinearLayout {
 }
 
 fun OptimizerUI.updStretch() {
-    val row = stretchRow ?: return
-    for (i in 0 until row.childCount) {
-        val v = row.getChildAt(i) as TextView
-        v.background = if (i == currentStretch) accent() else unsel()
+    for (btn in stretchBtns) {
+        val idx = btn.tag as? Int ?: continue
+        btn.background = if (idx == currentStretch) accent() else unsel()
     }
 }
 
@@ -697,25 +697,31 @@ fun OptimizerUI.applyHzLimit() {
     sSense.addView(finderBtn, finderLp)
 
     val sStretch = section("РАСТЯГ (STRETCH)")
-    val str = row(sStretch, 4)
-    stretchRow = str
-    stretchNames.forEachIndexed { i, name ->
-        val btn = glass(name) {
-            currentStretch = i
-            onStretchPreset?.invoke(i)
+    stretchBtns.clear()
+    val rowA = row(sStretch, 4)
+    stretchRow = rowA
+    val presets1 = listOf(0 to "Стандарт", 1 to "4:3", 2 to "5:4")
+    presets1.forEachIndexed { i, pair ->
+        val btn = glass(pair.second) {
+            currentStretch = pair.first
+            onStretchPreset?.invoke(pair.first)
             updStretch()
         }
-        if (i < stretchNames.size - 1) {
-            str.addView(btn, lpf())
-        } else {
-            str.addView(btn, lpl())
-        }
+        btn.tag = pair.first
+        stretchBtns.add(btn)
+        if (i == presets1.size - 1) rowA.addView(btn, lpl()) else rowA.addView(btn, lpf())
     }
-
-    btnLaunchStretch = bigBtn("ПРИМЕНИТЬ И ЗАПУСТИТЬ", 15f, accent()) { onLaunchStretch?.invoke() }
-    val launchLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(52))
-    launchLp.topMargin = dp(12)
-    sStretch.addView(btnLaunchStretch, launchLp)
+    val rowB = row(sStretch, 4)
+    val btn750 = glass("750p") {
+        currentStretch = 3
+        onStretchPreset?.invoke(3)
+        updStretch()
+    }
+    btn750.tag = 3
+    stretchBtns.add(btn750)
+    rowB.addView(btn750, lpf())
+    btnLaunchStretch = glass("Применить и запустить") { onLaunchStretch?.invoke() }
+    rowB.addView(btnLaunchStretch, lpl())
 
     val resetBtn = glass("Сбросить разрешение") { onResetCustomResolution?.invoke() }
     val resetLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(42))
@@ -760,7 +766,7 @@ fun OptimizerUI.applyHzLimit() {
     applyLp.topMargin = dp(8)
     sStretch.addView(applyBtn, applyLp)
 
-    val hint = tv("Игра выбирается в Настройках. Разрешение применится, игра запустится, и через 7 сек (PUBG) / 10 сек (Oxide) / 25 сек (Standoff 2) вернётся исходное.", 11f, Color.parseColor("#99FFFFFF"))
+    val hint = tv("Игра выбирается в Настройках. Разрешение применится, игра запустится, и через 7 сек (PUBG) / 27 сек (Oxide) / 25 сек (Standoff 2) вернётся исходное.", 11f, Color.parseColor("#99FFFFFF"))
     hint.setPadding(dp(4), dp(10), dp(4), dp(0))
     sStretch.addView(hint)
 
