@@ -261,6 +261,9 @@ class AppPrefs(ctx: Context) {
     fun isUiEngine(): Boolean = prefs.getBoolean("engine_ui", false)
     fun setUiEngine(v: Boolean) = prefs.edit().putBoolean("engine_ui", v).apply()
 
+    fun getEngineScore(key: String): String = prefs.getString("engine_score_$key", "") ?: ""
+    fun setEngineScore(key: String, value: String) = prefs.edit().putString("engine_score_$key", value).apply()
+
     fun getSavedGames(): List<String> {
         val raw = prefs.getString("saved_games", "") ?: ""
         if (raw.isBlank()) return emptyList()
