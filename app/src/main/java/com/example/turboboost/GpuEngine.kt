@@ -2,7 +2,7 @@ package com.example.turboboost
 
 object GpuEngine {
 
-    private const val SCRIPT = """
+    private val SCRIPT = """
         ok=0; total=0
         _put() { total=$((total+1)); settings put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(settings get "${'$'}1" "${'$'}2" 2>/dev/null)" = "${'$'}3" ] && ok=$((ok+1)); }
         _sp()  { total=$((total+1)); setprop "${'$'}1" "${'$'}2" >/dev/null 2>&1; [ "$(getprop "${'$'}1" 2>/dev/null)" = "${'$'}2" ] && ok=$((ok+1)); }
@@ -60,7 +60,7 @@ object GpuEngine {
         echo "${'$'}ok ${'$'}total"
     """.trimIndent()
 
-    private const val RESTORE_SCRIPT = """
+    private val RESTORE_SCRIPT = """
         settings delete global force_hw_accel
         setprop debug.hwui.texture_cache_size ""
         setprop debug.hwui.layer_cache_size ""
