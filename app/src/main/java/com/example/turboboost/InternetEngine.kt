@@ -2,10 +2,9 @@ package com.example.turboboost
 
 object InternetEngine {
 
-    private const val SCRIPT = """
+    private val SCRIPT = """
         ok=0; total=0
         _put() { total=$((total+1)); settings put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(settings get "${'$'}1" "${'$'}2" 2>/dev/null)" = "${'$'}3" ] && ok=$((ok+1)); }
-        _dc()  { total=$((total+1)); cmd device_config put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(cmd device_config get "${'$'}1" "${'$'}2" 2>/dev/null | tr -d '\r')" = "${'$'}3" ] && ok=$((ok+1)); }
         _put global captive_portal_mode 0
         _put global captive_portal_https_url https://www.google.com/generate_204
         _put global captive_portal_http_url http://connectivitycheck.gstatic.com/generate_204
@@ -50,7 +49,7 @@ object InternetEngine {
         echo "${'$'}ok ${'$'}total"
     """.trimIndent()
 
-    private const val RESTORE_SCRIPT = """
+    private val RESTORE_SCRIPT = """
         settings delete global captive_portal_mode
         settings delete global captive_portal_https_url
         settings delete global captive_portal_http_url
