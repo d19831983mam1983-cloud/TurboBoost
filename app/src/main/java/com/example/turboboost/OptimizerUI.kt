@@ -82,7 +82,9 @@ class OptimizerUI(val ctx: Context) {
     var maxHz = 144
     var currentStretch = 0
     var isActive = false
+        private set
     var themeIndex = 0
+        private set
     var currentGpu = false
     var currentBg = false
     var currentThreads = false
@@ -130,6 +132,7 @@ class OptimizerUI(val ctx: Context) {
         return root
     }
 
+    @JvmName("applyThemeIndex")
     fun setThemeIndex(i: Int) {
         themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
         if (!::root.isInitialized) return
@@ -184,6 +187,7 @@ class OptimizerUI(val ctx: Context) {
         if (senseRow != null) updSense()
     }
 
+    @JvmName("applyActive")
     fun setActive(a: Boolean) {
         isActive = a
         heroBox?.background = heroBg()
