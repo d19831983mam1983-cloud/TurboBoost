@@ -108,15 +108,20 @@ class OptimizerUI(val ctx: Context) {
     fun setThemeIndexBeforeBuild(i: Int) { themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1) }
 
     fun build(): FrameLayout {
-        root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
-        bgView = LiquidBackgroundView(ctx).also { it.setTheme(themeIndex, isActive); root.addView(it, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)) }
-        val content = FrameLayout(ctx).also { root.addView(it, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)) }
-        page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
-        scroll1 = ScrollView(ctx).apply {
-            isFillViewport = true
-            addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-            setPadding(0, dp(80), 0, 0)
-        }
+        root = FrameLayout(ctx)
+        root.setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A"))
+        bgView = LiquidBackgroundView(ctx)
+        bgView.setTheme(themeIndex, isActive)
+        root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        val content = FrameLayout(ctx)
+        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        page1 = LinearLayout(ctx)
+        page1.orientation = LinearLayout.VERTICAL
+        page1.setPadding(dp(16), dp(24), dp(16), dp(24))
+        scroll1 = ScrollView(ctx)
+        scroll1.isFillViewport = true
+        scroll1.addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        scroll1.setPadding(0, dp(80), 0, 0)
         content.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         topBar = buildTopBar()
         content.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
@@ -132,11 +137,26 @@ class OptimizerUI(val ctx: Context) {
         if (::bgView.isInitialized) bgView.setTheme(themeIndex, isActive)
         if (::btnModePerf.isInitialized) setMode(currentMode)
         if (::btnOpt.isInitialized) btnOpt.background = accent()
-        if (::btnGpuBoost.isInitialized) { applyGrid(btnGpuBoost, currentGpu); btnGpuBoost.setOn(currentGpu) }
-        if (::btnBgLimit.isInitialized) { applyGrid(btnBgLimit, currentBg); btnBgLimit.setOn(currentBg) }
-        if (::btnThreads.isInitialized) { applyGrid(btnThreads, currentThreads); btnThreads.setOn(currentThreads) }
-        if (::btnMglru.isInitialized) { applyGrid(btnMglru, currentMglru); btnMglru.setOn(currentMglru) }
-        if (::btnJoyose.isInitialized) { applyGrid(btnJoyose, currentJoyose); btnJoyose.setOn(currentJoyose) }
+        if (::btnGpuBoost.isInitialized) {
+            applyGrid(btnGpuBoost, currentGpu)
+            btnGpuBoost.setOn(currentGpu)
+        }
+        if (::btnBgLimit.isInitialized) {
+            applyGrid(btnBgLimit, currentBg)
+            btnBgLimit.setOn(currentBg)
+        }
+        if (::btnThreads.isInitialized) {
+            applyGrid(btnThreads, currentThreads)
+            btnThreads.setOn(currentThreads)
+        }
+        if (::btnMglru.isInitialized) {
+            applyGrid(btnMglru, currentMglru)
+            btnMglru.setOn(currentMglru)
+        }
+        if (::btnJoyose.isInitialized) {
+            applyGrid(btnJoyose, currentJoyose)
+            btnJoyose.setOn(currentJoyose)
+        }
         if (hzRow != null) updHz()
         if (senseRow != null) updSense()
         if (stretchRow != null) updStretch()
@@ -149,44 +169,124 @@ class OptimizerUI(val ctx: Context) {
         if (::btnModeBal.isInitialized) btnModeBal.background = if (m == 1) accent() else unsel()
     }
 
-    fun setHz(hz: Int) { currentHz = hz; if (hzRow != null) updHz() }
-    fun setPackageText(t: String) { if (t.isNotEmpty() && ::pkgInput.isInitialized) pkgInput.setText(t) }
-    fun setSenseLevel(l: Int) { currentSense = l; isCustomSense = (l == -1); if (senseRow != null) updSense() }
+    fun setHz(hz: Int) {
+        currentHz = hz
+        if (hzRow != null) updHz()
+    }
+
+    fun setPackageText(t: String) {
+        if (t.isNotEmpty() && ::pkgInput.isInitialized) pkgInput.setText(t)
+    }
+
+    fun setSenseLevel(l: Int) {
+        currentSense = l
+        isCustomSense = (l == -1)
+        if (senseRow != null) updSense()
+    }
 
     fun setActive(a: Boolean) {
         isActive = a
         heroBox?.background = heroBg()
-        if (::btnOpt.isInitialized) { btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"; btnOpt.background = accent() }
+        if (::btnOpt.isInitialized) {
+            btnOpt.text = if (a) "ВЕРНУТЬ АВТО" else "ОПТИМИЗИРОВАТЬ"
+            btnOpt.background = accent()
+        }
         if (::bgView.isInitialized) bgView.setActive(a)
         setMode(currentMode)
-        if (::btnGpuBoost.isInitialized) { applyGrid(btnGpuBoost, currentGpu); btnGpuBoost.setOn(currentGpu) }
-        if (::btnBgLimit.isInitialized) { applyGrid(btnBgLimit, currentBg); btnBgLimit.setOn(currentBg) }
-        if (::btnThreads.isInitialized) { applyGrid(btnThreads, currentThreads); btnThreads.setOn(currentThreads) }
-        if (::btnMglru.isInitialized) { applyGrid(btnMglru, currentMglru); btnMglru.setOn(currentMglru) }
-        if (::btnJoyose.isInitialized) { applyGrid(btnJoyose, currentJoyose); btnJoyose.setOn(currentJoyose) }
+        if (::btnGpuBoost.isInitialized) {
+            applyGrid(btnGpuBoost, currentGpu)
+            btnGpuBoost.setOn(currentGpu)
+        }
+        if (::btnBgLimit.isInitialized) {
+            applyGrid(btnBgLimit, currentBg)
+            btnBgLimit.setOn(currentBg)
+        }
+        if (::btnThreads.isInitialized) {
+            applyGrid(btnThreads, currentThreads)
+            btnThreads.setOn(currentThreads)
+        }
+        if (::btnMglru.isInitialized) {
+            applyGrid(btnMglru, currentMglru)
+            btnMglru.setOn(currentMglru)
+        }
+        if (::btnJoyose.isInitialized) {
+            applyGrid(btnJoyose, currentJoyose)
+            btnJoyose.setOn(currentJoyose)
+        }
         if (hzRow != null) updHz()
         if (senseRow != null) updSense()
         if (stretchRow != null) updStretch()
     }
 
-    fun setGpuBoostState(a: Boolean) { currentGpu = a; if (::btnGpuBoost.isInitialized) { applyGrid(btnGpuBoost, a); btnGpuBoost.setOn(a) } }
-    fun setBgLimitState(a: Boolean) { currentBg = a; if (::btnBgLimit.isInitialized) { applyGrid(btnBgLimit, a); btnBgLimit.setOn(a) } }
-    fun setThreadsState(a: Boolean) { currentThreads = a; if (::btnThreads.isInitialized) { applyGrid(btnThreads, a); btnThreads.setOn(a) } }
-    fun setMglruState(a: Boolean) { currentMglru = a; if (::btnMglru.isInitialized) { applyGrid(btnMglru, a); btnMglru.setOn(a) } }
-    fun setJoyoseState(a: Boolean) { currentJoyose = a; if (::btnJoyose.isInitialized) { applyGrid(btnJoyose, a); btnJoyose.setOn(a) } }
+    fun setGpuBoostState(a: Boolean) {
+        currentGpu = a
+        if (::btnGpuBoost.isInitialized) {
+            applyGrid(btnGpuBoost, a)
+            btnGpuBoost.setOn(a)
+        }
+    }
 
-    fun setJoyoseVisible(v: Boolean) { if (::btnJoyose.isInitialized) btnJoyose.visibility = if (v) View.VISIBLE else View.GONE }
-    fun setGpuBoostVisible(v: Boolean) { if (::btnGpuBoost.isInitialized) btnGpuBoost.visibility = if (v) View.VISIBLE else View.GONE }
-    fun setThreadsVisible(v: Boolean) { if (::btnThreads.isInitialized) btnThreads.visibility = if (v) View.VISIBLE else View.GONE }
-    fun setMglruVisible(v: Boolean) { if (::btnMglru.isInitialized) btnMglru.visibility = if (v) View.VISIBLE else View.GONE }
+    fun setBgLimitState(a: Boolean) {
+        currentBg = a
+        if (::btnBgLimit.isInitialized) {
+            applyGrid(btnBgLimit, a)
+            btnBgLimit.setOn(a)
+        }
+    }
+
+    fun setThreadsState(a: Boolean) {
+        currentThreads = a
+        if (::btnThreads.isInitialized) {
+            applyGrid(btnThreads, a)
+            btnThreads.setOn(a)
+        }
+    }
+
+    fun setMglruState(a: Boolean) {
+        currentMglru = a
+        if (::btnMglru.isInitialized) {
+            applyGrid(btnMglru, a)
+            btnMglru.setOn(a)
+        }
+    }
+
+    fun setJoyoseState(a: Boolean) {
+        currentJoyose = a
+        if (::btnJoyose.isInitialized) {
+            applyGrid(btnJoyose, a)
+            btnJoyose.setOn(a)
+        }
+    }
+
+    fun setJoyoseVisible(v: Boolean) {
+        if (::btnJoyose.isInitialized) btnJoyose.visibility = if (v) View.VISIBLE else View.GONE
+    }
+
+    fun setGpuBoostVisible(v: Boolean) {
+        if (::btnGpuBoost.isInitialized) btnGpuBoost.visibility = if (v) View.VISIBLE else View.GONE
+    }
+
+    fun setThreadsVisible(v: Boolean) {
+        if (::btnThreads.isInitialized) btnThreads.visibility = if (v) View.VISIBLE else View.GONE
+    }
+
+    fun setMglruVisible(v: Boolean) {
+        if (::btnMglru.isInitialized) btnMglru.visibility = if (v) View.VISIBLE else View.GONE
+    }
 
     fun setAppliedState(active: Boolean, gov: Boolean) {
         if (!::cardApplied.isInitialized) return
         cardApplied.text = if (!active) "Применено: —" else "Применено: RAM очищена"
     }
 
-    fun setBatteryLowBlock(b: Boolean) { if (::btnOpt.isInitialized) btnOpt.alpha = if (b) 0.4f else 1f }
-    fun setStatus(text: String) { lastStatus = text; if (::statusResult.isInitialized) statusResult.text = text }
+    fun setBatteryLowBlock(b: Boolean) {
+        if (::btnOpt.isInitialized) btnOpt.alpha = if (b) 0.4f else 1f
+    }
+
+    fun setStatus(text: String) {
+        lastStatus = text
+        if (::statusResult.isInitialized) statusResult.text = text
+    }
 
     fun setOverheat(warn: Boolean, critical: Boolean) {
         if (!::statusResult.isInitialized) return
@@ -200,23 +300,39 @@ class OptimizerUI(val ctx: Context) {
     fun setEngineState(key: String, on: Boolean, score: String) {
         val e = engineViews[key] ?: return
         e.first.setOn(on, true)
-        e.second.text = if (score.isBlank()) { if (on) "…" else "—" } else score
+        e.second.text = if (score.isBlank()) {
+            if (on) "…" else "—"
+        } else score
         e.second.setTextColor(if (on) theme().primary else Color.parseColor("#88FFFFFF"))
-        e.third.background = if (isGrid()) {
-            GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(14).toFloat()
-                colors = if (on) intArrayOf(0xFF4A4A4A.toInt(), 0xFF3A3A3A.toInt()) else intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt())
-                orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(dp(2), if (on) theme().primary else 0x66FF8A00.toInt())
-            }
-        } else glassBg(14)
+        if (isGrid()) {
+            val g = GradientDrawable()
+            g.shape = GradientDrawable.RECTANGLE
+            g.cornerRadius = dp(14).toFloat()
+            g.colors = if (on) intArrayOf(0xFF4A4A4A.toInt(), 0xFF3A3A3A.toInt()) else intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt())
+            g.orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            g.setStroke(dp(2), if (on) theme().primary else 0x66FF8A00.toInt())
+            e.third.background = g
+        } else {
+            e.third.background = glassBg(14)
+        }
     }
 
-    fun setEngineScore(key: String, score: String) { engineViews[key]?.second?.text = if (score.isBlank()) "—" else score }
-    fun setEngineScoreLoading(key: String) { engineViews[key]?.second?.text = "…" }
-    fun setBackgroundBitmap(bmp: Bitmap?) { if (::bgView.isInitialized) bgView.setBackgroundImage(bmp) }
-    fun setStretchPreset(preset: Int) { currentStretch = preset; if (stretchRow != null) updStretch() }
+    fun setEngineScore(key: String, score: String) {
+        engineViews[key]?.second?.text = if (score.isBlank()) "—" else score
+    }
+
+    fun setEngineScoreLoading(key: String) {
+        engineViews[key]?.second?.text = "…"
+    }
+
+    fun setBackgroundBitmap(bmp: Bitmap?) {
+        if (::bgView.isInitialized) bgView.setBackgroundImage(bmp)
+    }
+
+    fun setStretchPreset(preset: Int) {
+        currentStretch = preset
+        if (stretchRow != null) updStretch()
+    }
 
     fun setCustomResolution(w: Int, h: Int) {
         if (::etCustomW.isInitialized && w > 0) etCustomW.setText(w.toString())
@@ -238,17 +354,26 @@ class OptimizerUI(val ctx: Context) {
     return g
 }
 
-fun OptimizerUI.accent(): Drawable = if (isGrid())
-    dr(14, 0xFF5A5A5A.toInt(), 0xFF454545.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary)
-else dr(14, theme().primary, theme().secondary, GradientDrawable.Orientation.LEFT_RIGHT, 0x33FFFFFF)
+fun OptimizerUI.accent(): Drawable {
+    if (isGrid()) {
+        return dr(14, 0xFF5A5A5A.toInt(), 0xFF454545.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary)
+    }
+    return dr(14, theme().primary, theme().secondary, GradientDrawable.Orientation.LEFT_RIGHT, 0x33FFFFFF)
+}
 
-fun OptimizerUI.unsel(): Drawable = if (isGrid())
-    dr(14, 0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary or 0x99000000.toInt())
-else dr(14, 0x1AFFFFFF, 0x10FFFFFF, stroke = 0x22FFFFFF)
+fun OptimizerUI.unsel(): Drawable {
+    if (isGrid()) {
+        return dr(14, 0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary or 0x99000000.toInt())
+    }
+    return dr(14, 0x1AFFFFFF, 0x10FFFFFF, stroke = 0x22FFFFFF)
+}
 
-fun OptimizerUI.glassBg(r: Int): Drawable = if (isGrid())
-    dr(r, 0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary or 0x66000000.toInt())
-else dr(r, 0x1CFFFFFF, 0x0DFFFFFF, stroke = 0x1FFFFFFF)
+fun OptimizerUI.glassBg(r: Int): Drawable {
+    if (isGrid()) {
+        return dr(r, 0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary or 0x66000000.toInt())
+    }
+    return dr(r, 0x1CFFFFFF, 0x0DFFFFFF, stroke = 0x1FFFFFFF)
+}
 
 fun OptimizerUI.heroBg(): Drawable {
     val t = theme()
@@ -270,212 +395,125 @@ fun OptimizerUI.heroBg(): Drawable {
 fun OptimizerUI.buildTopBar(): FrameLayout {
     val bar = FrameLayout(ctx)
     bar.setBackgroundColor(if (isGrid()) Color.parseColor("#CC1A1A1A") else Color.parseColor("#CC05070A"))
-    val h = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = android.view.Gravity.CENTER_VERTICAL
-        setPadding(dp(16), dp(12), dp(16), dp(12))
-    }
+    val h = LinearLayout(ctx)
+    h.orientation = LinearLayout.HORIZONTAL
+    h.gravity = android.view.Gravity.CENTER_VERTICAL
+    h.setPadding(dp(16), dp(12), dp(16), dp(12))
     bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    h.addView(ImageView(ctx).apply { setImageResource(R.drawable.ic_bolt); alpha = 0.9f },
-        LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(12) })
-    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    val ic = ImageView(ctx)
+    ic.setImageResource(R.drawable.ic_bolt)
+    ic.alpha = 0.9f
+    val icLp = LinearLayout.LayoutParams(dp(34), dp(34))
+    icLp.marginEnd = dp(12)
+    h.addView(ic, icLp)
+    val col = LinearLayout(ctx)
+    col.orientation = LinearLayout.VERTICAL
     h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, theme().secondary) })
-    col.addView(tv("TURBO · 2.2", 10f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
-    btnSettings = ImageView(ctx).apply {
-        setImageResource(android.R.drawable.ic_menu_preferences)
-        setColorFilter(Color.WHITE)
-        setPadding(dp(8), dp(8), dp(8), dp(8))
-        setOnClickListener { onSettingsClick?.invoke() }
-    }
+    val title = tv("TurboBoost", 22f, Color.WHITE)
+    title.letterSpacing = 0.05f
+    title.setShadowLayer(8f, 0f, 0f, theme().secondary)
+    col.addView(title)
+    val sub = tv("TURBO · 2.2", 10f, Color.parseColor("#AACCE0FF"))
+    sub.letterSpacing = 0.3f
+    col.addView(sub)
+    btnSettings = ImageView(ctx)
+    btnSettings.setImageResource(android.R.drawable.ic_menu_preferences)
+    btnSettings.setColorFilter(Color.WHITE)
+    btnSettings.setPadding(dp(8), dp(8), dp(8), dp(8))
+    btnSettings.setOnClickListener { onSettingsClick?.invoke() }
     h.addView(btnSettings, LinearLayout.LayoutParams(dp(44), dp(44)))
     return bar
 }
 
-fun OptimizerUI.lpf() = LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) }
-fun OptimizerUI.lpl() = LinearLayout.LayoutParams(0, dp(40), 1f)
+fun OptimizerUI.lpf(): LinearLayout.LayoutParams {
+    val lp = LinearLayout.LayoutParams(0, dp(40), 1f)
+    lp.marginEnd = dp(6)
+    return lp
+}
+
+fun OptimizerUI.lpl(): LinearLayout.LayoutParams {
+    return LinearLayout.LayoutParams(0, dp(40), 1f)
+}
 
 fun OptimizerUI.section(title: String): LinearLayout {
-    val box = LinearLayout(ctx).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(14), dp(12), dp(14), dp(14))
-        background = if (isGrid()) dr(20, 0xFF2A2A2A.toInt(), 0xFF1F1F1F.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary or 0x66000000.toInt()) else glassBg(20)
+    val box = LinearLayout(ctx)
+    box.orientation = LinearLayout.VERTICAL
+    box.setPadding(dp(14), dp(12), dp(14), dp(14))
+    if (isGrid()) {
+        box.background = dr(20, 0xFF2A2A2A.toInt(), 0xFF1F1F1F.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary or 0x66000000.toInt())
+    } else {
+        box.background = glassBg(20)
     }
-    box.addView(tv(title, 11f, Color.parseColor("#99FFFFFF")).apply {
-        letterSpacing = 0.18f
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-        setPadding(dp(2), 0, 0, dp(2))
-    })
-    page1.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+    val hdr = tv(title, 11f, Color.parseColor("#99FFFFFF"))
+    hdr.letterSpacing = 0.18f
+    hdr.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    hdr.setPadding(dp(2), 0, 0, dp(2))
+    box.addView(hdr)
+    val boxLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    boxLp.topMargin = dp(12)
+    page1.addView(box, boxLp)
     return box
 }
 
 fun OptimizerUI.tr(parent: LinearLayout, title: String, cb: (() -> Unit)?): ToggleRow {
-    val row = ToggleRow(ctx, title).apply {
-        onToggle = { cb?.invoke() }
-        onColor = theme().primary
-        if (isGrid()) applyGridStyle(false, theme().primary) else clearGridStyle()
+    val row = ToggleRow(ctx, title)
+    row.onToggle = { cb?.invoke() }
+    row.onColor = theme().primary
+    if (isGrid()) {
+        row.applyGridStyle(false, theme().primary)
+    } else {
+        row.clearGridStyle()
     }
-    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+    val rLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    rLp.topMargin = dp(6)
+    parent.addView(row, rLp)
     return row
-}
-
-fun OptimizerUI.buildMain() {
-    val hero = LinearLayout(ctx).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(18), dp(16), dp(18), dp(18))
-        background = heroBg()
-    }
-    heroBox = hero
-    val heroTop = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-    heroTop.addView(tv("СТАТУС", 11f, Color.parseColor("#B3FFFFFF")).apply { letterSpacing = 0.2f; typeface = android.graphics.Typeface.DEFAULT_BOLD },
-        LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    heroTop.addView(tv("v" + appVer(), 11f, Color.parseColor("#80FFFFFF")))
-    hero.addView(heroTop, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-    statusResult = tv("Готов к работе", 15f, Color.WHITE).apply { typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(0, dp(8), 0, dp(2)) }
-    hero.addView(statusResult, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-    cardApplied = tv("Применено: —", 12f, Color.parseColor("#B3FFFFFF"))
-    hero.addView(cardApplied, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(14) })
-    btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, accent()) { onToggle?.invoke() }
-    hero.addView(btnOpt, LinearLayout.LayoutParams(MATCH_PARENT, dp(58)))
-    page1.addView(hero, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-
-    buildEngineGrid(section("МОДУЛИ ZNAK"))
-
-    val sGame = section("ИГРА")
-    pkgInput = EditText(ctx).apply {
-        hint = "com.axlebolt.standoff2"
-        setHintTextColor(Color.parseColor("#88FFFFFF"))
-        setTextColor(Color.WHITE)
-        textSize = 13f
-        setSingleLine()
-        inputType = android.text.InputType.TYPE_CLASS_TEXT
-        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
-        setPadding(dp(16), dp(10), dp(16), dp(10))
-        setBackgroundColor(Color.TRANSPARENT)
-        addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) { onPackageChanged?.invoke(s?.toString()?.trim() ?: "") }
-        })
-    }
-    sGame.addView(FrameLayout(ctx).apply {
-        background = glassBg(14)
-        addView(pkgInput, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    }, LinearLayout.LayoutParams(MATCH_PARENT, dp(44)).apply { topMargin = dp(4) })
-    val r1 = row(sGame, 8)
-    btnGames = glass("Игры") { onShowGames?.invoke() }; r1.addView(btnGames, lpf())
-    btnProfiles = glass("Профили") { onShowProfiles?.invoke() }; r1.addView(btnProfiles, lpf())
-    btnLauncher = glass("Лаунчер") { onShowLauncher?.invoke() }; r1.addView(btnLauncher, lpl())
-
-    val sMode = section("РЕЖИМ")
-    val mr = row(sMode, 4)
-    btnModePerf = glass("Производительность") { onModeSelected?.invoke(0); setMode(0) }; mr.addView(btnModePerf, lpf())
-    btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }; mr.addView(btnModeBal, lpl())
-
-    val hs = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; addView(lbl("Частота экрана, Гц")) }
-    hzSection = hs
-    val hr = row(hs, 2)
-    hzRow = hr
-    listOf(60, 90, 120, 144).forEach { hz -> hr.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, lpf()) }
-    sMode.addView(hs, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-    applyHzLimit()
-
-    btnGpuBoost = tr(sMode, "GPU Boost") { onGpuBoostToggle?.invoke() }
-    btnBgLimit = tr(sMode, "Лимит фона") { onBgLimitToggle?.invoke() }
-
-    val sSense = section("СЕНСА")
-    val sr = row(sSense, 4)
-    senseRow = sr
-    senseNames.forEachIndexed { i, n ->
-        val lvl = senseLevels[i]
-        sr.addView(glass(n) {
-            if (lvl == -1) { currentSense = -1; isCustomSense = true; onSenseCustom?.invoke() }
-            else { currentSense = lvl; isCustomSense = false; onSenseSelected?.invoke(lvl) }
-            updSense()
-        }, lpf())
-    }
-    sSense.addView(glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() },
-        LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })    val sStretch = section("РАСТЯГ (STRETCH)")
-    val str = row(sStretch, 4)
-    stretchRow = str
-    stretchNames.forEachIndexed { i, name ->
-        val btn = glass(name) { currentStretch = i; onStretchPreset?.invoke(i); updStretch() }
-        if (i < stretchNames.size - 1) str.addView(btn, lpf()) else str.addView(btn, lpl())
-    }
-    btnLaunchStretch = bigBtn("ПРИМЕНИТЬ И ЗАПУСТИТЬ", 15f, accent()) { onLaunchStretch?.invoke() }
-    sStretch.addView(btnLaunchStretch, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { topMargin = dp(12) })
-    sStretch.addView(glass("Сбросить разрешение") { onResetCustomResolution?.invoke() },
-        LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
-
-    val customRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-    etCustomW = EditText(ctx).apply {
-        hint = "Ширина"; setHintTextColor(Color.parseColor("#88FFFFFF")); setTextColor(Color.WHITE)
-        textSize = 13f; inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine()
-        setPadding(dp(12), dp(10), dp(12), dp(10)); background = glassBg(12)
-    }
-    etCustomH = EditText(ctx).apply {
-        hint = "Высота"; setHintTextColor(Color.parseColor("#88FFFFFF")); setTextColor(Color.WHITE)
-        textSize = 13f; inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine()
-        setPadding(dp(12), dp(10), dp(12), dp(10)); background = glassBg(12)
-    }
-    customRow.addView(etCustomW, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(8) })
-    customRow.addView(etCustomH, LinearLayout.LayoutParams(0, dp(44), 1f))
-    sStretch.addView(customRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
-    sStretch.addView(glass("Применить кастомное разрешение") {
-        val w = etCustomW.text.toString().toIntOrNull() ?: 0
-        val h = etCustomH.text.toString().toIntOrNull() ?: 0
-        if (w > 0 && h > 0) onApplyCustomResolution?.invoke(w, h)
-    }, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
-    sStretch.addView(tv("Игра выбирается в Настройках. Разрешение применится, игра запустится, и через 7 сек (PUBG) / 10 сек (Oxide) / 25 сек (Standoff 2) вернётся исходное.", 11f, Color.parseColor("#99FFFFFF")).apply { setPadding(dp(4), dp(10), dp(4), 0) })
-
-    val sSys = section("СИСТЕМА")
-    btnThreads = tr(sSys, "Потоки CPU") { onThreadsToggle?.invoke() }
-    btnMglru = tr(sSys, "MGLRU") { onMglruToggle?.invoke() }
-    btnJoyose = tr(sSys, "Xiaomi Boost") { onJoyoseToggle?.invoke() }
-    btnJoyose.visibility = View.GONE
-    val r4 = row(sSys, 8)
-    r4.addView(glass("Пинг-тест") { onPingTest?.invoke() }, lpf())
-    btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }; r4.addView(btnGameSpace, lpf())
-    btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }; r4.addView(btnDiagnostics, lpl())
-    sSys.addView(glass("Мой аккаунт") { onShowProfile?.invoke() },
-        LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
-
-    page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
 }
 
 fun OptimizerUI.buildEngineGrid(parent: LinearLayout) {
     engineViews.clear()
     var i = 0
     while (i < engineList.size) {
-        val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(buildEngineCell(engineList[i].first, engineList[i].second),
-            LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
+        val row = LinearLayout(ctx)
+        row.orientation = LinearLayout.HORIZONTAL
+        val left = engineList[i]
+        val leftLp = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+        leftLp.marginEnd = dp(8)
+        row.addView(buildEngineCell(left.first, left.second), leftLp)
         if (i + 1 < engineList.size) {
-            row.addView(buildEngineCell(engineList[i + 1].first, engineList[i + 1].second),
-                LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            val right = engineList[i + 1]
+            row.addView(buildEngineCell(right.first, right.second), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         } else {
             row.addView(View(ctx), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         }
-        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+        val rowLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        rowLp.topMargin = dp(8)
+        parent.addView(row, rowLp)
         i += 2
     }
 }
 
 fun OptimizerUI.buildEngineCell(key: String, title: String): LinearLayout {
-    val cell = LinearLayout(ctx).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = android.view.Gravity.CENTER_VERTICAL
-        setPadding(dp(12), dp(10), dp(12), dp(10))
-        background = glassBg(14)
-    }
-    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-    col.addView(tv(title, 13f, Color.WHITE).apply { typeface = android.graphics.Typeface.DEFAULT_BOLD })
-    val scoreTv = tv(prefs().getEngineScore(key).ifBlank { "—" }, 10f, Color.parseColor("#88FFFFFF")).apply { setPadding(0, dp(2), 0, 0) }
+    val cell = LinearLayout(ctx)
+    cell.orientation = LinearLayout.HORIZONTAL
+    cell.gravity = android.view.Gravity.CENTER_VERTICAL
+    cell.setPadding(dp(12), dp(10), dp(12), dp(10))
+    cell.background = glassBg(14)
+    val col = LinearLayout(ctx)
+    col.orientation = LinearLayout.VERTICAL
+    val titleTv = tv(title, 13f, Color.WHITE)
+    titleTv.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    col.addView(titleTv)
+    val scoreTv = tv(prefs().getEngineScore(key).ifBlank { "—" }, 10f, Color.parseColor("#88FFFFFF"))
+    scoreTv.setPadding(0, dp(2), 0, 0)
     col.addView(scoreTv)
     cell.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    val sw = ToggleSwitch(ctx).apply { onColor = theme().primary; doubleBorder = false }
-    cell.addView(sw, LinearLayout.LayoutParams(dp(46), dp(28)).apply { marginStart = dp(8) })
+    val sw = ToggleSwitch(ctx)
+    sw.onColor = theme().primary
+    sw.doubleBorder = false
+    val swLp = LinearLayout.LayoutParams(dp(46), dp(28))
+    swLp.marginStart = dp(8)
+    cell.addView(sw, swLp)
     sw.onToggle = { on ->
         onEngineToggle?.invoke(key)
         if (on && scoreTv.text == "—") scoreTv.text = "…"
@@ -494,13 +532,19 @@ fun OptimizerUI.buildEngineCell(key: String, title: String): LinearLayout {
 
 fun OptimizerUI.updStretch() {
     val row = stretchRow ?: return
-    for (i in 0 until row.childCount) (row.getChildAt(i) as TextView).background = if (i == currentStretch) accent() else unsel()
+    for (i in 0 until row.childCount) {
+        val v = row.getChildAt(i) as TextView
+        v.background = if (i == currentStretch) accent() else unsel()
+    }
 }
 
 fun OptimizerUI.updHz() {
     val row = hzRow ?: return
     val m = listOf(60, 90, 120, 144)
-    for (i in 0 until row.childCount) (row.getChildAt(i) as TextView).background = if (m[i] == currentHz) accent() else unsel()
+    for (i in 0 until row.childCount) {
+        val v = row.getChildAt(i) as TextView
+        v.background = if (m[i] == currentHz) accent() else unsel()
+    }
 }
 
 fun OptimizerUI.updSense() {
@@ -508,50 +552,304 @@ fun OptimizerUI.updSense() {
     val levels = listOf(1, 2, 3, -1)
     for (i in 0 until row.childCount) {
         val lvl = levels.getOrNull(i) ?: 0
-        val bg = if (lvl == -1) { if (isCustomSense) accent() else unsel() }
-                 else { if (lvl == currentSense && !isCustomSense) accent() else unsel() }
-        (row.getChildAt(i) as TextView).background = bg
+        val bg = if (lvl == -1) {
+            if (isCustomSense) accent() else unsel()
+        } else {
+            if (lvl == currentSense && !isCustomSense) accent() else unsel()
+        }
+        val v = row.getChildAt(i) as TextView
+        v.background = bg
     }
 }
 
 fun OptimizerUI.applyHzLimit() {
     val row = hzRow ?: return
     val m = listOf(60, 90, 120, 144)
-    for (i in 0 until row.childCount) row.getChildAt(i).visibility = if (m[i] <= maxHz || m[i] == 60) View.VISIBLE else View.GONE
+    for (i in 0 until row.childCount) {
+        val v = row.getChildAt(i)
+        v.visibility = if (m[i] <= maxHz || m[i] == 60) View.VISIBLE else View.GONE
+    }
+}fun OptimizerUI.buildMain() {
+    val hero = LinearLayout(ctx)
+    hero.orientation = LinearLayout.VERTICAL
+    hero.setPadding(dp(18), dp(16), dp(18), dp(18))
+    hero.background = heroBg()
+    heroBox = hero
+
+    val heroTop = LinearLayout(ctx)
+    heroTop.orientation = LinearLayout.HORIZONTAL
+    heroTop.gravity = android.view.Gravity.CENTER_VERTICAL
+    val stLbl = tv("СТАТУС", 11f, Color.parseColor("#B3FFFFFF"))
+    stLbl.letterSpacing = 0.2f
+    stLbl.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    heroTop.addView(stLbl, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+    heroTop.addView(tv("v" + appVer(), 11f, Color.parseColor("#80FFFFFF")))
+    hero.addView(heroTop, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+    statusResult = tv("Готов к работе", 15f, Color.WHITE)
+    statusResult.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    statusResult.setPadding(0, dp(8), 0, dp(2))
+    hero.addView(statusResult, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+    cardApplied = tv("Применено: —", 12f, Color.parseColor("#B3FFFFFF"))
+    val cardLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    cardLp.bottomMargin = dp(14)
+    hero.addView(cardApplied, cardLp)
+
+    btnOpt = bigBtn("ОПТИМИЗИРОВАТЬ", 16f, accent()) { onToggle?.invoke() }
+    hero.addView(btnOpt, LinearLayout.LayoutParams(MATCH_PARENT, dp(58)))
+    page1.addView(hero, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+    buildEngineGrid(section("МОДУЛИ ZNAK"))
+
+    val sGame = section("ИГРА")
+    pkgInput = EditText(ctx)
+    pkgInput.hint = "com.axlebolt.standoff2"
+    pkgInput.setHintTextColor(Color.parseColor("#88FFFFFF"))
+    pkgInput.setTextColor(Color.WHITE)
+    pkgInput.textSize = 13f
+    pkgInput.setSingleLine()
+    pkgInput.inputType = android.text.InputType.TYPE_CLASS_TEXT
+    pkgInput.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+    pkgInput.setPadding(dp(16), dp(10), dp(16), dp(10))
+    pkgInput.setBackgroundColor(Color.TRANSPARENT)
+    pkgInput.addTextChangedListener(object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(s: android.text.Editable?) {
+            onPackageChanged?.invoke(s?.toString()?.trim() ?: "")
+        }
+    })
+    val pkgWrap = FrameLayout(ctx)
+    pkgWrap.background = glassBg(14)
+    pkgWrap.addView(pkgInput, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+    val pkgLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(44))
+    pkgLp.topMargin = dp(4)
+    sGame.addView(pkgWrap, pkgLp)
+
+    val r1 = row(sGame, 8)
+    btnGames = glass("Игры") { onShowGames?.invoke() }
+    r1.addView(btnGames, lpf())
+    btnProfiles = glass("Профили") { onShowProfiles?.invoke() }
+    r1.addView(btnProfiles, lpf())
+    btnLauncher = glass("Лаунчер") { onShowLauncher?.invoke() }
+    r1.addView(btnLauncher, lpl())
+
+    val sMode = section("РЕЖИМ")
+    val mr = row(sMode, 4)
+    btnModePerf = glass("Производительность") {
+        onModeSelected?.invoke(0)
+        setMode(0)
+    }
+    mr.addView(btnModePerf, lpf())
+    btnModeBal = glass("Сбалансированный") {
+        onModeSelected?.invoke(1)
+        setMode(1)
+    }
+    mr.addView(btnModeBal, lpl())
+
+    val hs = LinearLayout(ctx)
+    hs.orientation = LinearLayout.VERTICAL
+    hs.addView(lbl("Частота экрана, Гц"))
+    hzSection = hs
+    val hr = row(hs, 2)
+    hzRow = hr
+    listOf(60, 90, 120, 144).forEach { hz ->
+        val btn = glass(hz.toString()) {
+            currentHz = hz
+            onHzSelected?.invoke(hz)
+            updHz()
+        }
+        hr.addView(btn, lpf())
+    }
+    sMode.addView(hs, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+    applyHzLimit()
+
+    btnGpuBoost = tr(sMode, "GPU Boost") { onGpuBoostToggle?.invoke() }
+    btnBgLimit = tr(sMode, "Лимит фона") { onBgLimitToggle?.invoke() }
+
+    val sSense = section("СЕНСА")
+    val sr = row(sSense, 4)
+    senseRow = sr
+    senseNames.forEachIndexed { i, n ->
+        val lvl = senseLevels[i]
+        val btn = glass(n) {
+            if (lvl == -1) {
+                currentSense = -1
+                isCustomSense = true
+                onSenseCustom?.invoke()
+            } else {
+                currentSense = lvl
+                isCustomSense = false
+                onSenseSelected?.invoke(lvl)
+            }
+            updSense()
+        }
+        sr.addView(btn, lpf())
+    }
+    val finderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
+    val finderLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(42))
+    finderLp.topMargin = dp(8)
+    sSense.addView(finderBtn, finderLp)
+
+    val sStretch = section("РАСТЯГ (STRETCH)")
+    val str = row(sStretch, 4)
+    stretchRow = str
+    stretchNames.forEachIndexed { i, name ->
+        val btn = glass(name) {
+            currentStretch = i
+            onStretchPreset?.invoke(i)
+            updStretch()
+        }
+        if (i < stretchNames.size - 1) {
+            str.addView(btn, lpf())
+        } else {
+            str.addView(btn, lpl())
+        }
+    }
+
+    btnLaunchStretch = bigBtn("ПРИМЕНИТЬ И ЗАПУСТИТЬ", 15f, accent()) { onLaunchStretch?.invoke() }
+    val launchLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(52))
+    launchLp.topMargin = dp(12)
+    sStretch.addView(btnLaunchStretch, launchLp)
+
+    val resetBtn = glass("Сбросить разрешение") { onResetCustomResolution?.invoke() }
+    val resetLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(42))
+    resetLp.topMargin = dp(8)
+    sStretch.addView(resetBtn, resetLp)
+
+    val customRow = LinearLayout(ctx)
+    customRow.orientation = LinearLayout.HORIZONTAL
+    customRow.gravity = android.view.Gravity.CENTER_VERTICAL
+    etCustomW = EditText(ctx)
+    etCustomW.hint = "Ширина"
+    etCustomW.setHintTextColor(Color.parseColor("#88FFFFFF"))
+    etCustomW.setTextColor(Color.WHITE)
+    etCustomW.textSize = 13f
+    etCustomW.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+    etCustomW.setSingleLine()
+    etCustomW.setPadding(dp(12), dp(10), dp(12), dp(10))
+    etCustomW.background = glassBg(12)
+    etCustomH = EditText(ctx)
+    etCustomH.hint = "Высота"
+    etCustomH.setHintTextColor(Color.parseColor("#88FFFFFF"))
+    etCustomH.setTextColor(Color.WHITE)
+    etCustomH.textSize = 13f
+    etCustomH.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+    etCustomH.setSingleLine()
+    etCustomH.setPadding(dp(12), dp(10), dp(12), dp(10))
+    etCustomH.background = glassBg(12)
+    val wLp = LinearLayout.LayoutParams(0, dp(44), 1f)
+    wLp.marginEnd = dp(8)
+    customRow.addView(etCustomW, wLp)
+    customRow.addView(etCustomH, LinearLayout.LayoutParams(0, dp(44), 1f))
+    val rowLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    rowLp.topMargin = dp(8)
+    sStretch.addView(customRow, rowLp)
+
+    val applyBtn = glass("Применить кастомное разрешение") {
+        val w = etCustomW.text.toString().toIntOrNull() ?: 0
+        val h = etCustomH.text.toString().toIntOrNull() ?: 0
+        if (w > 0 && h > 0) onApplyCustomResolution?.invoke(w, h)
+    }
+    val applyLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(42))
+    applyLp.topMargin = dp(8)
+    sStretch.addView(applyBtn, applyLp)
+
+    val hint = tv("Игра выбирается в Настройках. Разрешение применится, игра запустится, и через 7 сек (PUBG) / 10 сек (Oxide) / 25 сек (Standoff 2) вернётся исходное.", 11f, Color.parseColor("#99FFFFFF"))
+    hint.setPadding(dp(4), dp(10), dp(4), dp(0))
+    sStretch.addView(hint)
+
+    val sSys = section("СИСТЕМА")
+    btnThreads = tr(sSys, "Потоки CPU") { onThreadsToggle?.invoke() }
+    btnMglru = tr(sSys, "MGLRU") { onMglruToggle?.invoke() }
+    btnJoyose = tr(sSys, "Xiaomi Boost") { onJoyoseToggle?.invoke() }
+    btnJoyose.visibility = View.GONE
+    val r4 = row(sSys, 8)
+    val pingBtn = glass("Пинг-тест") { onPingTest?.invoke() }
+    r4.addView(pingBtn, lpf())
+    btnGameSpace = glass("Game Turbo") { onGameSpace?.invoke() }
+    r4.addView(btnGameSpace, lpf())
+    btnDiagnostics = glass("Диагностика") { onDiagnostics?.invoke() }
+    r4.addView(btnDiagnostics, lpl())
+    val profileBtn = glass("Мой аккаунт") { onShowProfile?.invoke() }
+    val profileLp = LinearLayout.LayoutParams(MATCH_PARENT, dp(42))
+    profileLp.topMargin = dp(8)
+    sSys.addView(profileBtn, profileLp)
+
+    page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
 }
 
 fun OptimizerUI.animateIn() {
     for (i in 0 until page1.childCount) {
         val v = page1.getChildAt(i)
-        v.alpha = 0f; v.translationY = dp(40).toFloat(); v.scaleX = 0.9f; v.scaleY = 0.9f
-        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-            .setStartDelay((i * 20).toLong()).setDuration(500)
-            .setInterpolator(android.view.animation.AnticipateOvershootInterpolator(1.2f)).start()
+        v.alpha = 0f
+        v.translationY = dp(40).toFloat()
+        v.scaleX = 0.9f
+        v.scaleY = 0.9f
+        v.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setStartDelay((i * 20).toLong())
+            .setDuration(500)
+            .setInterpolator(android.view.animation.AnticipateOvershootInterpolator(1.2f))
+            .start()
     }
 }
 
 fun OptimizerUI.refreshActionBg() {
-    for (v in listOf(btnGames, btnProfiles, btnLauncher, btnDiagnostics, btnGameSpace)) try { v.background = unsel() } catch (_: Throwable) {}
+    val list = listOf(btnGames, btnProfiles, btnLauncher, btnDiagnostics, btnGameSpace)
+    for (v in list) {
+        try {
+            v.background = unsel()
+        } catch (_: Throwable) {
+        }
+    }
 }
 
 fun OptimizerUI.showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
     val dialog = android.app.Dialog(ctx, android.R.style.Theme_Translucent_NoTitleBar)
     dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
-    val r = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#FF1A1A1A") else Color.parseColor("#FF000000")) }
+    val r = FrameLayout(ctx)
+    r.setBackgroundColor(if (isGrid()) Color.parseColor("#FF1A1A1A") else Color.parseColor("#FF000000"))
     val scroll = ScrollView(ctx)
-    val container = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(40), dp(24), dp(40)) }
+    val container = LinearLayout(ctx)
+    container.orientation = LinearLayout.VERTICAL
+    container.setPadding(dp(24), dp(40), dp(24), dp(40))
     scroll.addView(container)
-    r.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { gravity = android.view.Gravity.CENTER })
-    container.addView(TextView(ctx).apply { text = title; setTextColor(Color.WHITE); textSize = 20f; gravity = android.view.Gravity.CENTER; setPadding(0, 0, 0, dp(20)) })
-    val dlgBg = if (isGrid()) dr(24, 0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary)
-                else dr(24, 0x33FFFFFF, 0x22FFFFFF, stroke = 0xAAFFFFFF.toInt())
+    val scrollLp = FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    scrollLp.gravity = android.view.Gravity.CENTER
+    r.addView(scroll, scrollLp)
+    val titleTv = TextView(ctx)
+    titleTv.text = title
+    titleTv.setTextColor(Color.WHITE)
+    titleTv.textSize = 20f
+    titleTv.gravity = android.view.Gravity.CENTER
+    titleTv.setPadding(0, 0, 0, dp(20))
+    container.addView(titleTv)
+    val dlgBg = if (isGrid()) {
+        dr(24, 0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt(), GradientDrawable.Orientation.TOP_BOTTOM, theme().primary)
+    } else {
+        dr(24, 0x33FFFFFF, 0x22FFFFFF, stroke = 0xAAFFFFFF.toInt())
+    }
     items.forEachIndexed { i, item ->
-        val v = TextView(ctx).apply {
-            text = item; setTextColor(Color.WHITE); textSize = 15f; gravity = android.view.Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14)); background = dlgBg
-            setOnClickListener { performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); onClick(i); dialog.dismiss() }
+        val itemTv = TextView(ctx)
+        itemTv.text = item
+        itemTv.setTextColor(Color.WHITE)
+        itemTv.textSize = 15f
+        itemTv.gravity = android.view.Gravity.CENTER_VERTICAL
+        itemTv.setPadding(dp(16), dp(14), dp(16), dp(14))
+        itemTv.background = dlgBg
+        itemTv.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            onClick(i)
+            dialog.dismiss()
         }
-        container.addView(v, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
+        val itemLp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        itemLp.bottomMargin = dp(8)
+        container.addView(itemTv, itemLp)
     }
     dialog.setContentView(r)
     dialog.window?.setLayout(MATCH_PARENT, WRAP_CONTENT)
@@ -559,43 +857,76 @@ fun OptimizerUI.showGlassList(title: String, items: List<String>, onClick: (Int)
     dialog.show()
 }
 
-fun OptimizerUI.tv(text: String, size: Float, color: Int): TextView = TextView(ctx).apply { this.text = text; setTextColor(color); textSize = size }
-fun OptimizerUI.lbl(text: String): TextView = tv(text, 12f, Color.parseColor("#99FFFFFF")).apply { setPadding(dp(4), dp(10), dp(0), dp(4)) }
-
-fun OptimizerUI.row(p: LinearLayout, margin: Int): LinearLayout = LinearLayout(ctx).apply {
-    orientation = LinearLayout.HORIZONTAL
-    gravity = android.view.Gravity.CENTER_VERTICAL
-    p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(margin) })
+fun OptimizerUI.tv(text: String, size: Float, color: Int): TextView {
+    val v = TextView(ctx)
+    v.text = text
+    v.setTextColor(color)
+    v.textSize = size
+    return v
 }
 
-fun OptimizerUI.glass(text: String, click: () -> Unit): TextView = tv(text, 12f, Color.WHITE).apply {
-    typeface = android.graphics.Typeface.DEFAULT_BOLD
-    gravity = android.view.Gravity.CENTER
-    maxLines = 1
-    setPadding(dp(4), 0, dp(4), 0)
-    background = unsel()
-    setOnTouchListener { v, ev ->
+fun OptimizerUI.lbl(text: String): TextView {
+    val v = tv(text, 12f, Color.parseColor("#99FFFFFF"))
+    v.setPadding(dp(4), dp(10), dp(0), dp(4))
+    return v
+}
+
+fun OptimizerUI.row(p: LinearLayout, margin: Int): LinearLayout {
+    val r = LinearLayout(ctx)
+    r.orientation = LinearLayout.HORIZONTAL
+    r.gravity = android.view.Gravity.CENTER_VERTICAL
+    val lp = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    lp.topMargin = dp(margin)
+    p.addView(r, lp)
+    return r
+}
+
+fun OptimizerUI.glass(text: String, click: () -> Unit): TextView {
+    val v = tv(text, 12f, Color.WHITE)
+    v.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    v.gravity = android.view.Gravity.CENTER
+    v.maxLines = 1
+    v.setPadding(dp(4), 0, dp(4), 0)
+    v.background = unsel()
+    v.setOnTouchListener { view, ev ->
         when (ev.action) {
-            android.view.MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start()
-            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(android.view.animation.AnticipateOvershootInterpolator(2f)).start()
+            android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start()
+            android.view.MotionEvent.ACTION_UP -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(android.view.animation.AnticipateOvershootInterpolator(2f)).start()
+            android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(android.view.animation.AnticipateOvershootInterpolator(2f)).start()
         }
         false
     }
-    setOnClickListener { performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); click() }
+    v.setOnClickListener {
+        it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        click()
+    }
+    return v
 }
 
-fun OptimizerUI.bigBtn(text: String, size: Float, bg: Drawable, click: () -> Unit): TextView = tv(text, size, Color.WHITE).apply {
-    gravity = android.view.Gravity.CENTER
-    setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
-    background = bg
-    setOnTouchListener { v, ev ->
+fun OptimizerUI.bigBtn(text: String, size: Float, bg: Drawable, click: () -> Unit): TextView {
+    val v = tv(text, size, Color.WHITE)
+    v.gravity = android.view.Gravity.CENTER
+    v.setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
+    v.background = bg
+    v.setOnTouchListener { view, ev ->
         when (ev.action) {
-            android.view.MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start()
-            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(android.view.animation.AnticipateOvershootInterpolator(2f)).start()
+            android.view.MotionEvent.ACTION_DOWN -> view.animate().scaleX(0.95f).scaleY(0.95f).alpha(0.8f).setDuration(50).start()
+            android.view.MotionEvent.ACTION_UP -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(android.view.animation.AnticipateOvershootInterpolator(2f)).start()
+            android.view.MotionEvent.ACTION_CANCEL -> view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(300).setInterpolator(android.view.animation.AnticipateOvershootInterpolator(2f)).start()
         }
         false
     }
-    setOnClickListener { performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); click() }
+    v.setOnClickListener {
+        it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        click()
+    }
+    return v
 }
 
-fun OptimizerUI.appVer(): String = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (_: Throwable) { "?" }
+fun OptimizerUI.appVer(): String {
+    return try {
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?"
+    } catch (_: Throwable) {
+        "?"
+    }
+}
