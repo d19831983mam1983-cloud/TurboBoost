@@ -407,16 +407,13 @@ fun MainActivity.showAppPicker() {
 fun MainActivity.stretchName(p: Int): String = when (p) {
     1 -> "4:3"
     2 -> "5:4"
-    3 -> "27:9"
-    4 -> "750p"
+    3 -> "750p"
     else -> "Стандарт"
 }
-
 fun MainActivity.stretchDims(p: Int): Pair<Int, Int>? = when (p) {
     1 -> 1080 to 1440
     2 -> 1080 to 1350
-    3 -> 950 to 2700
-    4 -> 750 to 1600
+    3 -> 750 to 1600
     else -> null
 }
 
