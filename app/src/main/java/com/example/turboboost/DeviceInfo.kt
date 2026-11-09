@@ -680,7 +680,35 @@ fun pingTest(): String {
         return true
     }
 
-    
+    fun applyCustomResolution(width: Int, height: Int): String {
+        if (width < 320 || height < 320) return "Слишком маленькое разрешение"
+        if (width > 4320 || height > 4320) return "Слишком большое разрешение"
+        if (!saveOriginalResolution()) return "Не удалось сохранить исходное"
+        val p = resPrefs()
+        val ow = p.getInt("ow", 0)
+        val oh = p.getInt("oh", 0)
+        val od = p.getInt("od", -1)
+        if (ow <= 0 || oh <= 0) return "Неизвестно исходное разрешение"
+        val w = even(width)
+        val h = even(height)
+        val oldShort = Math.min(ow, oh)
+        val newShort = Math.min(w, h)
+        if (!p.getBoolean("rot_saved", false)) {
+            val ar = SystemReader.read("settings get system accelerometer_rotation").trim().ifBlank { "1" }
+            val ur = SystemReader.read("settings get system user_rotation").trim().ifBlank { "0" }
+            p.edit().putString("old_ar", ar).putString("old_ur", ur).putBoolean("rot_saved", true).apply()
+        }
+        val cmd = StringBuilder("wm size ${w}x${h}")
+        if (od > 0) {
+            val nd = Math.max(120, (od * newShort.toFloat() / oldShort).toInt())
+            cmd.append("; wm density $nd")
+        }
+        cmd.append("; settings put system accelerometer_rotation 0; settings put system user_rotation 1")
+        SystemReader.read(cmd.toString())
+        AppPrefs(ctx).setDisplayTweaked(true)
+        p.edit().putLong("revert_at", System.currentTimeMillis() + 25_000L).apply()
+        return "Экран: ${w}x${h} (горизонт.)"
+    }
 
     fun revertResolution(): String {
         val p = resPrefs()
