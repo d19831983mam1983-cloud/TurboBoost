@@ -210,148 +210,148 @@ class DeviceInfo(private val ctx: Context) {
     private fun hasJoyoseInternal(): Boolean =
         SystemReader.read("pm list packages com.xiaomi.joyose").contains("com.xiaomi.joyose")
 
-    fun hasJoyose(): Boolean = joyose()fun disableJoyose(): String {
-    if (!isXiaomi()) return "Только Xiaomi"
-    if (!isRooted()) return "Требуется root"
-    if (!joyose()) return "Joyose не найден"
-    SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose; am force-stop com.xiaomi.joyose")
-    return "Joyose отключён"
-}
+    fun hasJoyose(): Boolean = joyose()
 
-fun enableJoyose(): String {
-    if (!isXiaomi()) return "Только Xiaomi"
-    if (!isRooted()) return "Требуется root"
-    if (!joyose()) return "Joyose не найден"
-    SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
-    return "Joyose включён"
-}
-
-fun toggleMglru(enable: Boolean): String {
-    if (!isRooted()) return "Требуется root"
-    if (!isMglruSupported()) return "MGLRU не поддерживается ядром"
-    val v = if (enable) "y" else "n"
-    val res = SystemReader.read("echo $v > $mglruPath 2>&1")
-    val check = SystemReader.read("cat $mglruPath 2>/dev/null")
-    return if (check.contains(v)) "MGLRU: ${if (enable) "вкл" else "выкл"}"
-    else "MGLRU: нет доступа на запись${if (res.isNotBlank()) " ($res)" else ""}"
-}
-
-fun checkSystemState(): Boolean {
-    if (!ShizukuHelper.hasPermission()) return false
-    return SystemReader.isReady()
-}
-
-fun detectGpu(): String {
-    if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-        val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
-        return if (name.isNotBlank()) name else "Adreno"
+    fun disableJoyose(): String {
+        if (!isXiaomi()) return "Только Xiaomi"
+        if (!isRooted()) return "Требуется root"
+        if (!joyose()) return "Joyose не найден"
+        SystemReader.read("pm disable-user --user 0 com.xiaomi.joyose; am force-stop com.xiaomi.joyose")
+        return "Joyose отключён"
     }
-    if (SystemReader.test("/sys/class/misc/mali0")) return "Mali"
-    if (SystemReader.test("/sys/class/misc/pvrsrvkm")) return "PowerVR"
-    val sf = SystemReader.read("dumpsys SurfaceFlinger | grep -iE 'GLES|Vulkan'")
-    if (sf.contains("Mali", true)) return "Mali"
-    if (sf.contains("Adreno", true)) return "Adreno"
-    return "неизвестно"
-}
 
-private fun detectClusters(): List<Pair<Int, String>> {
-    val result = mutableListOf<Pair<Int, String>>()
-    val freqs = mutableListOf<Pair<Int, Long>>()
-    for (i in 0 until 8) {
-        val f = SystemReader.read("cat /sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
-        if (f > 0L) freqs.add(i to f)
+    fun enableJoyose(): String {
+        if (!isXiaomi()) return "Только Xiaomi"
+        if (!isRooted()) return "Требуется root"
+        if (!joyose()) return "Joyose не найден"
+        SystemReader.read("pm enable --user 0 com.xiaomi.joyose")
+        return "Joyose включён"
     }
-    if (freqs.isEmpty()) {
-        for (i in 0 until 8) if (SystemReader.test("/sys/devices/system/cpu/cpu$i")) result.add(i to if (i < 4) "little" else "big")
+
+    fun toggleMglru(enable: Boolean): String {
+        if (!isRooted()) return "Требуется root"
+        if (!isMglruSupported()) return "MGLRU не поддерживается ядром"
+        val v = if (enable) "y" else "n"
+        val res = SystemReader.read("echo $v > $mglruPath 2>&1")
+        val check = SystemReader.read("cat $mglruPath 2>/dev/null")
+        return if (check.contains(v)) "MGLRU: ${if (enable) "вкл" else "выкл"}"
+        else "MGLRU: нет доступа на запись${if (res.isNotBlank()) " ($res)" else ""}"
+    }
+
+    fun checkSystemState(): Boolean {
+        if (!ShizukuHelper.hasPermission()) return false
+        return SystemReader.isReady()
+    }
+
+    fun detectGpu(): String {
+        if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
+            val name = SystemReader.read("cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null")
+            return if (name.isNotBlank()) name else "Adreno"
+        }
+        if (SystemReader.test("/sys/class/misc/mali0")) return "Mali"
+        if (SystemReader.test("/sys/class/misc/pvrsrvkm")) return "PowerVR"
+        val sf = SystemReader.read("dumpsys SurfaceFlinger | grep -iE 'GLES|Vulkan'")
+        if (sf.contains("Mali", true)) return "Mali"
+        if (sf.contains("Adreno", true)) return "Adreno"
+        return "неизвестно"
+    }
+
+    private fun detectClusters(): List<Pair<Int, String>> {
+        val result = mutableListOf<Pair<Int, String>>()
+        val freqs = mutableListOf<Pair<Int, Long>>()
+        for (i in 0 until 8) {
+            val f = SystemReader.read("cat /sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq 2>/dev/null").toLongOrNull() ?: 0L
+            if (f > 0L) freqs.add(i to f)
+        }
+        if (freqs.isEmpty()) {
+            for (i in 0 until 8) if (SystemReader.test("/sys/devices/system/cpu/cpu$i")) result.add(i to if (i < 4) "little" else "big")
+            return result
+        }
+        val minF = freqs.minOf { it.second }
+        val maxF = freqs.maxOf { it.second }
+        val mid = (minF + maxF) / 2
+        for ((idx, f) in freqs) {
+            val label = when {
+                f <= mid -> "little"
+                f >= maxF - (maxF - minF) / 4 -> "big"
+                else -> "mid"
+            }
+            result.add(idx to label)
+        }
         return result
     }
-    val minF = freqs.minOf { it.second }
-    val maxF = freqs.maxOf { it.second }
-    val mid = (minF + maxF) / 2
-    for ((idx, f) in freqs) {
-        val label = when {
-            f <= mid -> "little"
-            f >= maxF - (maxF - minF) / 4 -> "big"
-            else -> "mid"
+
+    fun gpuBoost(enable: Boolean): String {
+        if (!isRooted()) return "Требуется root"
+        val sb = StringBuilder()
+        if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
+            if (enable) {
+                sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
+                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
+                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
+                sb.append("echo 10000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
+                sb.append("echo performance > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
+                SystemReader.read(sb.toString())
+                return "GPU: boost"
+            } else {
+                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
+                sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
+                sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
+                sb.append("echo 64 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
+                sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
+                SystemReader.read(sb.toString())
+                return "GPU: stock"
+            }
         }
-        result.add(idx to label)
-    }
-    return result
-}
-
-fun gpuBoost(enable: Boolean): String {
-    if (!isRooted()) return "Требуется root"
-    val sb = StringBuilder()
-    if (SystemReader.test("/sys/class/kgsl/kgsl-3d0")) {
-        if (enable) {
-            sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
-            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
-            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
-            sb.append("echo 10000 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
-            sb.append("echo performance > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
-            SystemReader.read(sb.toString())
-            return "GPU: boost"
-        } else {
-            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/force_clk_on 2>/dev/null; ")
-            sb.append("echo 1 > /sys/class/kgsl/kgsl-3d0/min_pwrlevel 2>/dev/null; ")
-            sb.append("echo 0 > /sys/class/kgsl/kgsl-3d0/max_pwrlevel 2>/dev/null; ")
-            sb.append("echo 64 > /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null; ")
-            sb.append("echo msm-adreno-tz > /sys/class/kgsl/kgsl-3d0/devfreq/governor 2>/dev/null; ")
-            SystemReader.read(sb.toString())
-            return "GPU: stock"
+        if (SystemReader.test("/sys/class/misc/mali0")) {
+            if (enable) {
+                sb.append("echo always_on > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
+                sb.append("echo performance > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
+                SystemReader.read(sb.toString())
+                return "GPU Mali: boost"
+            } else {
+                sb.append("echo coarse_demand > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
+                sb.append("echo simple_ondemand > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
+                SystemReader.read(sb.toString())
+                return "GPU Mali: stock"
+            }
         }
+        return "GPU: не поддерживается"
     }
-    if (SystemReader.test("/sys/class/misc/mali0")) {
-        if (enable) {
-            sb.append("echo always_on > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
-            sb.append("echo performance > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
-            SystemReader.read(sb.toString())
-            return "GPU Mali: boost"
-        } else {
-            sb.append("echo coarse_demand > /sys/class/misc/mali0/device/power_policy 2>/dev/null; ")
-            sb.append("echo simple_ondemand > /sys/class/misc/mali0/device/devfreq/governor 2>/dev/null; ")
-            SystemReader.read(sb.toString())
-            return "GPU Mali: stock"
+
+    fun activateMaxPerformance(hzRaw: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
+        val hz = clampHz(hzRaw)
+        val bgLimit = if (mode == 0) "96" else "64"
+        val sb = StringBuilder()
+        sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
+        if (pkg.isNotBlank()) {
+            sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
         }
+        SystemReader.read(sb.toString())
+        val hzResult = setRefreshRate(hz)
+        val gpuResult = if (gpuBoost && isGpuBoostSupported()) gpuBoost(true) else ""
+        if (pkg.isNotBlank()) compilePackageSpeedProfile(pkg)
+        applyMemoryTweaks(true)
+        applyPowerTweaks(true)
+        applyNotificationTweaks(true)
+        val gpuLabel = when {
+            !gpuBoost -> "stock"
+            gpuResult.startsWith("GPU:") -> "boost"
+            else -> gpuResult.ifBlank { "stock" }
+        }
+        return "Класс: ${tierName()} | RAM: настроена | $hzResult | AOT: да | GPU: $gpuLabel"
     }
-    return "GPU: не поддерживается"
-}
 
-fun activateMaxPerformance(hzRaw: Int, mode: Int, gpuBoost: Boolean, pkg: String): String {
-    val hz = clampHz(hzRaw)
-    val bgLimit = if (mode == 0) "96" else "64"
-    val sb = StringBuilder()
-    sb.append("settings put global activity_manager_constants max_cached_processes=$bgLimit; ")
-    if (pkg.isNotBlank()) {
-        sb.append("cmd appops set $pkg RUN_IN_BACKGROUND allow; cmd deviceidle whitelist +$pkg; ")
-    }
-    SystemReader.read(sb.toString())
-    val hzResult = setRefreshRate(hz)
-    val gpuResult = if (gpuBoost && isGpuBoostSupported()) gpuBoost(true) else ""
-    if (pkg.isNotBlank()) compilePackageSpeedProfile(pkg)
-    applyMemoryTweaks(true)
-    applyPowerTweaks(true)
-    applyNotificationTweaks(true)
-    val gpuLabel = when {
-        !gpuBoost -> "stock"
-        gpuResult.startsWith("GPU:") -> "boost"
-        else -> gpuResult.ifBlank { "stock" }
-    }
-    return "Класс: ${tierName()} | RAM: настроена | $hzResult | AOT: да | GPU: $gpuLabel"
-}
-
-fun deactivateMaxPerformance(): String {
-    SystemReader.read("settings delete global activity_manager_constants")
-    if (isGpuBoostSupported()) gpuBoost(false)
-    resetSense()
-    restoreAllSettings()
-    applyMemoryTweaks(false)
-    applyPowerTweaks(false)
-    applyNotificationTweaks(false)
-    return "Настройки возвращены"
-}
-
-private fun firstPid(pkg: String): Int? =
+    fun deactivateMaxPerformance(): String {
+        SystemReader.read("settings delete global activity_manager_constants")
+        if (isGpuBoostSupported()) gpuBoost(false)
+        resetSense()
+        restoreAllSettings()
+        applyMemoryTweaks(false)
+        applyPowerTweaks(false)
+        applyNotificationTweaks(false)
+        return "Настройки возвращены"
+    }private fun firstPid(pkg: String): Int? =
     SystemReader.read("pidof $pkg").trim().split(Regex("\\s+")).firstOrNull()?.toIntOrNull()
 
 fun foregroundPackage(): String {
@@ -369,7 +369,9 @@ fun foregroundPackage(): String {
         if (m != null) return m.groupValues[1]
     }
     return ""
-}fun prioritizeGameThreads(pkg: String): String {
+}
+
+fun prioritizeGameThreads(pkg: String): String {
     if (!isRooted()) return "Требуется root"
     if (pkg.isBlank()) return "Пакет не указан"
     val pidInt = firstPid(pkg) ?: return "Игра не запущена"
@@ -687,19 +689,25 @@ fun pingTest(): String {
         val oh = p.getInt("oh", 0)
         val od = p.getInt("od", -1)
         if (ow <= 0 || oh <= 0) return "Неизвестно исходное разрешение"
-        val w = even(width)
-        val h = even(height)
+        val w = even(Math.max(width, height))
+        val h = even(Math.min(width, height))
         val oldShort = Math.min(ow, oh)
         val newShort = Math.min(w, h)
+        if (!p.getBoolean("rot_saved", false)) {
+            val ar = SystemReader.read("settings get system accelerometer_rotation").trim().ifBlank { "1" }
+            val ur = SystemReader.read("settings get system user_rotation").trim().ifBlank { "0" }
+            p.edit().putString("old_ar", ar).putString("old_ur", ur).putBoolean("rot_saved", true).apply()
+        }
         val cmd = StringBuilder("wm size ${w}x${h}")
         if (od > 0) {
             val nd = Math.max(120, (od * newShort.toFloat() / oldShort).toInt())
             cmd.append("; wm density $nd")
         }
+        cmd.append("; settings put system accelerometer_rotation 0; settings put system user_rotation 1")
         SystemReader.read(cmd.toString())
         AppPrefs(ctx).setDisplayTweaked(true)
         p.edit().putLong("revert_at", System.currentTimeMillis() + 25_000L).apply()
-        return "Экран: ${w}x${h}"
+        return "Экран: ${w}x${h} (горизонт.)"
     }
 
     fun revertResolution(): String {
@@ -707,9 +715,16 @@ fun pingTest(): String {
         val ow = p.getInt("ow", 0)
         val oh = p.getInt("oh", 0)
         val od = p.getInt("od", -1)
+        val rotSaved = p.getBoolean("rot_saved", false)
+        val oldAr = p.getString("old_ar", "1") ?: "1"
+        val oldUr = p.getString("old_ur", "0") ?: "0"
         val cmd = StringBuilder()
         if (ow > 0 && oh > 0) cmd.append("wm size ${ow}x${oh}; ") else cmd.append("wm size reset; ")
         if (od > 0) cmd.append("wm density $od") else cmd.append("wm density reset")
+        if (rotSaved) {
+            cmd.append("; settings put system accelerometer_rotation $oldAr")
+            if (oldAr == "0") cmd.append("; settings put system user_rotation $oldUr")
+        }
         SystemReader.read(cmd.toString())
         p.edit().clear().apply()
         AppPrefs(ctx).setDisplayTweaked(false)
