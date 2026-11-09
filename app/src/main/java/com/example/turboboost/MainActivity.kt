@@ -625,6 +625,19 @@ private fun applyEngine(key: String) {
             prefs.setEngineScore(key, result.score)
             ui.setEngineState(key, true, result.score)
             ui.setStatus("Модуль $key: ${result.score}")
+            
+            val engineName = when(key) {
+                "fps" -> "ZNAK FPS"
+                "gpu" -> "ZNAK GPU"
+                "internet" -> "ZNAK INTERNET"
+                "launch" -> "ZNAK LAUNCH"
+                "ram" -> "ZNAK RAM"
+                "touch" -> "ZNAK TOUCH"
+                "ui" -> "ZNAK UI"
+                else -> "TurboBoost"
+            }
+            val msg = if (key == "launch") "${result.score} functions applied. ART & Standby optimized." else "${result.score} functions applied. Adaptive protection active."
+            ShellNotify.send(engineName, msg)
         }
     }
 }
@@ -657,6 +670,18 @@ private fun restoreEngine(key: String) {
             prefs.setEngineScore(key, "")
             ui.setEngineState(key, false, "")
             ui.setStatus("Модуль $key: отключен")
+            
+            val engineName = when(key) {
+                "fps" -> "ZNAK FPS"
+                "gpu" -> "ZNAK GPU"
+                "internet" -> "ZNAK INTERNET"
+                "launch" -> "ZNAK LAUNCH"
+                "ram" -> "ZNAK RAM"
+                "touch" -> "ZNAK TOUCH"
+                "ui" -> "ZNAK UI"
+                else -> "TurboBoost"
+            }
+            ShellNotify.send(engineName, "Settings restored successfully.")
         }
     }
 }
