@@ -2,7 +2,7 @@ package com.example.turboboost
 
 object FpsEngine {
 
-    private const val SCRIPT = """
+    private val SCRIPT = """
         ok=0; total=0
         _put() { total=$((total+1)); settings put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(settings get "${'$'}1" "${'$'}2" 2>/dev/null)" = "${'$'}3" ] && ok=$((ok+1)); }
         _put global refresh_rate_mode 1
@@ -24,7 +24,7 @@ object FpsEngine {
         echo "${'$'}ok ${'$'}total"
     """.trimIndent()
 
-    private const val RESTORE_SCRIPT = """
+    private val RESTORE_SCRIPT = """
         settings put global window_animation_scale 1.0
         settings put global transition_animation_scale 1.0
         settings put global animator_duration_scale 1.0
