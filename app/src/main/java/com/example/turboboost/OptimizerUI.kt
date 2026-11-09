@@ -43,13 +43,14 @@ class OptimizerUI(val ctx: Context) {
     lateinit var pkgInput: EditText
     lateinit var cardApplied: TextView
     lateinit var statusResult: TextView
-    lateinit var senseRow: LinearLayout
-    lateinit var hzRow: LinearLayout
-    lateinit var hzSection: LinearLayout
-    lateinit var stretchRow: LinearLayout
     lateinit var btnLaunchStretch: TextView
     lateinit var etCustomW: EditText
     lateinit var etCustomH: EditText
+
+    var senseRow: LinearLayout? = null
+    var hzRow: LinearLayout? = null
+    var hzSection: LinearLayout? = null
+    var stretchRow: LinearLayout? = null
 
     val engineViews = LinkedHashMap<String, Triple<ToggleSwitch, TextView, LinearLayout>>()
 
@@ -152,9 +153,9 @@ class OptimizerUI(val ctx: Context) {
         if (::btnThreads.isInitialized) setThreadsState(currentThreads)
         if (::btnMglru.isInitialized) setMglruState(currentMglru)
         if (::btnJoyose.isInitialized) setJoyoseState(currentJoyose)
-        if (::hzRow.isInitialized) updHz()
-        if (::senseRow.isInitialized) updSense()
-        if (::stretchRow.isInitialized) updStretch()
+        if (hzRow != null) updHz()
+        if (senseRow != null) updSense()
+        if (stretchRow != null) updStretch()
         if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
         if (::btnGames.isInitialized) refreshActionBackgrounds()
     }
@@ -165,9 +166,9 @@ class OptimizerUI(val ctx: Context) {
         if (::btnModeBal.isInitialized) fade(btnModeBal, if (m == 1) accentDrawable() else unselDrawable())
     }
 
-    fun setHz(hz: Int) { currentHz = hz; if (::hzRow.isInitialized) updHz() }
+    fun setHz(hz: Int) { currentHz = hz; if (hzRow != null) updHz() }
     fun setPackageText(t: String) { if (t.isNotEmpty() && ::pkgInput.isInitialized) pkgInput.setText(t) }
-    fun setSenseLevel(l: Int) { currentSense = l; isCustomSense = (l == -1); if (::senseRow.isInitialized) updSense() }
+    fun setSenseLevel(l: Int) { currentSense = l; isCustomSense = (l == -1); if (senseRow != null) updSense() }
 
     fun setActive(a: Boolean) {
         isActive = a
@@ -180,9 +181,9 @@ class OptimizerUI(val ctx: Context) {
         if (::btnThreads.isInitialized) setThreadsState(currentThreads)
         if (::btnMglru.isInitialized) setMglruState(currentMglru)
         if (::btnJoyose.isInitialized) setJoyoseState(currentJoyose)
-        if (::hzRow.isInitialized) updHz()
-        if (::senseRow.isInitialized) updSense()
-        if (::stretchRow.isInitialized) updStretch()
+        if (hzRow != null) updHz()
+        if (senseRow != null) updSense()
+        if (stretchRow != null) updStretch()
     }
 
     fun setGpuBoostState(a: Boolean) { currentGpu = a; if (::btnGpuBoost.isInitialized) { applyToggleGridStyle(btnGpuBoost, a); btnGpuBoost.setOn(a) } }
@@ -214,19 +215,25 @@ class OptimizerUI(val ctx: Context) {
 
     fun setEngineState(key: String, on: Boolean, score: String) {
         val entry = engineViews[key] ?: return
-        val (sw, scoreTv, cell) = entry
+        val sw = entry.first
+        val scoreTv = entry.second
+        val cell = entry.third
         sw.setOn(on, true)
-        scoreTv.text = if (score.isBlank()) (if (on) "…" else "—") else score
+        scoreTv.text = if (score.isBlank()) { if (on) "…" else "—" } else score
         scoreTv.setTextColor(if (on) theme().primary else Color.parseColor("#88FFFFFF"))
         if (isGrid()) {
             val bg = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE; cornerRadius = dp(14).toFloat()
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(14).toFloat()
                 colors = if (on) intArrayOf(0xFF4A4A4A.toInt(), 0xFF3A3A3A.toInt()) else intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt())
-                gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                gradientType = GradientDrawable.LINEAR_GRADIENT
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
                 setStroke(dp(2), if (on) theme().primary else 0x66FF8A00.toInt())
             }
             cell.background = bg
-        } else cell.background = glassBgDrawable(14)
+        } else {
+            cell.background = glassBgDrawable(14)
+        }
     }
 
     fun setEngineScore(key: String, score: String) { engineViews[key]?.second?.text = if (score.isBlank()) "—" else score }
@@ -234,7 +241,7 @@ class OptimizerUI(val ctx: Context) {
 
     fun setBackgroundBitmap(bmp: Bitmap?) { if (::bgView.isInitialized) bgView.setBackgroundImage(bmp) }
 
-    fun setStretchPreset(preset: Int) { currentStretch = preset; if (::stretchRow.isInitialized) updStretch() }
+    fun setStretchPreset(preset: Int) { currentStretch = preset; if (stretchRow != null) updStretch() }
 
     fun setCustomResolution(w: Int, h: Int) {
         if (::etCustomW.isInitialized && w > 0) etCustomW.setText(w.toString())
@@ -368,22 +375,25 @@ fun OptimizerUI.buildMain() {
     btnModeBal = glass("Сбалансированный") { onModeSelected?.invoke(1); setMode(1) }
     mr.addView(btnModeBal, lpl())
 
-    hzSection = LinearLayout(ctx)
-    hzSection.orientation = LinearLayout.VERTICAL
-    hzSection.addView(lbl("Частота экрана, Гц"))
-    hzRow = row(hzSection, 2)
+    val hs = LinearLayout(ctx)
+    hs.orientation = LinearLayout.VERTICAL
+    hzSection = hs
+    hs.addView(lbl("Частота экрана, Гц"))
+    val hr = row(hs, 2)
+    hzRow = hr
     listOf(60, 90, 120, 144).forEach { hz ->
-        hzRow.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, lpf())
+        hr.addView(glass(hz.toString()) { currentHz = hz; onHzSelected?.invoke(hz); updHz() }, lpf())
     }
-    sMode.addView(hzSection, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+    sMode.addView(hs, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     applyHzLimit()
 
     btnGpuBoost = toggleRow(sMode, "GPU Boost") { onGpuBoostToggle?.invoke() }
     btnBgLimit = toggleRow(sMode, "Лимит фона") { onBgLimitToggle?.invoke() }    val sSense = section("СЕНСА")
-    senseRow = row(sSense, 4)
+    val sr = row(sSense, 4)
+    senseRow = sr
     senseNames.forEachIndexed { i, n ->
         val lvl = senseLevels[i]
-        senseRow.addView(glass(n) {
+        sr.addView(glass(n) {
             if (lvl == -1) { currentSense = -1; isCustomSense = true; onSenseCustom?.invoke() }
             else { currentSense = lvl; isCustomSense = false; onSenseSelected?.invoke(lvl) }
             updSense()
@@ -393,15 +403,16 @@ fun OptimizerUI.buildMain() {
     sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
     val sStretch = section("РАСТЯГ (STRETCH)")
-    stretchRow = row(sStretch, 4)
+    val str = row(sStretch, 4)
+    stretchRow = str
     stretchNames.forEachIndexed { i, name ->
         val btn = glass(name) {
             currentStretch = i
             onStretchPreset?.invoke(i)
             updStretch()
         }
-        if (i < stretchNames.size - 1) stretchRow.addView(btn, lpf())
-        else stretchRow.addView(btn, lpl())
+        if (i < stretchNames.size - 1) str.addView(btn, lpf())
+        else str.addView(btn, lpl())
     }
 
     btnLaunchStretch = bigBtn("ПРИМЕНИТЬ И ЗАПУСТИТЬ", 15f, accentDrawable()) { onLaunchStretch?.invoke() }
@@ -519,16 +530,49 @@ fun OptimizerUI.buildEngineCell(key: String, title: String): LinearLayout {
 }
 
 fun OptimizerUI.updStretch() {
-    if (!::stretchRow.isInitialized) return
-    for (i in 0 until stretchRow.childCount) {
-        (stretchRow.getChildAt(i) as TextView).background = if (i == currentStretch) accentDrawable() else unselDrawable()
+    val row = stretchRow ?: return
+    for (i in 0 until row.childCount) {
+        (row.getChildAt(i) as TextView).background = if (i == currentStretch) accentDrawable() else unselDrawable()
+    }
+}
+
+fun OptimizerUI.updHz() {
+    val row = hzRow ?: return
+    val m = listOf(60, 90, 120, 144)
+    for (i in 0 until row.childCount) {
+        (row.getChildAt(i) as TextView).background = if (m[i] == currentHz) accentDrawable() else unselDrawable()
+    }
+}
+
+fun OptimizerUI.updSense() {
+    val row = senseRow ?: return
+    val levels = listOf(1, 2, 3, -1)
+    for (i in 0 until row.childCount) {
+        val lvl = levels.getOrNull(i) ?: 0
+        val bg = if (lvl == -1) {
+            if (isCustomSense) accentDrawable() else unselDrawable()
+        } else {
+            if (lvl == currentSense && !isCustomSense) accentDrawable() else unselDrawable()
+        }
+        (row.getChildAt(i) as TextView).background = bg
+    }
+}
+
+fun OptimizerUI.applyHzLimit() {
+    val row = hzRow ?: return
+    val m = listOf(60, 90, 120, 144)
+    for (i in 0 until row.childCount) {
+        row.getChildAt(i).visibility = if (m[i] <= maxHz || m[i] == 60) View.VISIBLE else View.GONE
     }
 }
 
 fun OptimizerUI.animateIn() {
     for (i in 0 until page1.childCount) {
         val v = page1.getChildAt(i)
-        v.alpha = 0f; v.translationY = dp(40).toFloat(); v.scaleX = 0.9f; v.scaleY = 0.9f
+        v.alpha = 0f
+        v.translationY = dp(40).toFloat()
+        v.scaleX = 0.9f
+        v.scaleY = 0.9f
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setStartDelay((i * 20).toLong()).setDuration(500).setInterpolator(AnticipateOvershootInterpolator(1.2f)).start()
     }
 }
@@ -543,16 +587,26 @@ fun OptimizerUI.showGlassList(title: String, items: List<String>, onClick: (Int)
     r.addView(scroll, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { gravity = Gravity.CENTER })
     container.addView(TextView(ctx).apply { text = title; setTextColor(Color.WHITE); textSize = 20f; gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(20)) })
     val dlgBg = if (isGrid()) gridButton(false) else GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(24).toFloat()
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(24).toFloat()
         colors = intArrayOf(0x33FFFFFF, 0x1AFFFFFF, 0x22FFFFFF)
-        gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR
+        gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.TL_BR
         setStroke(dp(1), 0xAAFFFFFF.toInt())
     }
     items.forEachIndexed { i, item ->
         val tvItem = TextView(ctx).apply {
-            text = item; setTextColor(Color.WHITE); textSize = 15f; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(14), dp(16), dp(14)); background = dlgBg
-            setOnClickListener { performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); onClick(i); dialog.dismiss() }
+            text = item
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = dlgBg
+            setOnClickListener {
+                performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick(i)
+                dialog.dismiss()
+            }
         }
         container.addView(tvItem, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = dp(8) })
     }
@@ -565,8 +619,14 @@ fun OptimizerUI.showGlassList(title: String, items: List<String>, onClick: (Int)
 
 fun OptimizerUI.fade(v: View, bg: Drawable) {
     val o = v.background
-    if (o == null) { v.background = bg; return }
-    val t = TransitionDrawable(arrayOf(o, bg)); t.isCrossFadeEnabled = true; v.background = t; t.startTransition(500)
+    if (o == null) {
+        v.background = bg
+        return
+    }
+    val t = TransitionDrawable(arrayOf(o, bg))
+    t.isCrossFadeEnabled = true
+    v.background = t
+    t.startTransition(500)
 }
 
 fun OptimizerUI.gridButton(active: Boolean): Drawable {
@@ -637,27 +697,6 @@ fun OptimizerUI.refreshActionBackgrounds() {
     }
 }
 
-fun OptimizerUI.applyHzLimit() {
-    if (!::hzRow.isInitialized) return
-    val m = listOf(60, 90, 120, 144)
-    for (i in 0 until hzRow.childCount) hzRow.getChildAt(i).visibility = if (m[i] <= maxHz || m[i] == 60) View.VISIBLE else View.GONE
-}
-
-fun OptimizerUI.updHz() {
-    val m = listOf(60, 90, 120, 144)
-    if (!::hzRow.isInitialized) return
-    for (i in 0 until hzRow.childCount) (hzRow.getChildAt(i) as TextView).background = if (m[i] == currentHz) accentDrawable() else unselDrawable()
-}
-
-fun OptimizerUI.updSense() {
-    if (!::senseRow.isInitialized) return
-    val levels = listOf(1, 2, 3, -1)
-    for (i in 0 until senseRow.childCount) {
-        val lvl = levels.getOrNull(i) ?: 0
-        (senseRow.getChildAt(i) as TextView).background = if (lvl == -1) { if (isCustomSense) accentDrawable() else unselDrawable() } else { if (lvl == currentSense && !isCustomSense) accentDrawable() else unselDrawable() }
-    }
-}
-
 fun OptimizerUI.appVer(): String = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?" } catch (_: Throwable) { "?" }
 
 fun OptimizerUI.touch(v: View, click: () -> Unit) {
@@ -672,30 +711,61 @@ fun OptimizerUI.touch(v: View, click: () -> Unit) {
 }
 
 fun OptimizerUI.glass(text: String, click: () -> Unit): TextView = TextView(ctx).apply {
-    this.text = text; setTextColor(Color.WHITE); textSize = 12f; typeface = android.graphics.Typeface.DEFAULT_BOLD
-    gravity = Gravity.CENTER; maxLines = 1; setPadding(dp(4), 0, dp(4), 0); background = unselDrawable(); touch(this, click)
+    this.text = text
+    setTextColor(Color.WHITE)
+    textSize = 12f
+    typeface = android.graphics.Typeface.DEFAULT_BOLD
+    gravity = Gravity.CENTER
+    maxLines = 1
+    setPadding(dp(4), 0, dp(4), 0)
+    background = unselDrawable()
+    touch(this, click)
 }
 
 fun OptimizerUI.bigBtn(text: String, size: Float, bg: Drawable, click: () -> Unit): TextView = TextView(ctx).apply {
-    this.text = text; setTextColor(Color.WHITE); textSize = size; gravity = Gravity.CENTER
-    setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000")); background = bg; touch(this, click)
+    this.text = text
+    setTextColor(Color.WHITE)
+    textSize = size
+    gravity = Gravity.CENTER
+    setShadowLayer(6f, 0f, 2f, Color.parseColor("#55000000"))
+    background = bg
+    touch(this, click)
 }
 
 fun OptimizerUI.glassBgDrawable(radius: Int): Drawable {
     if (isGrid()) {
         val tt = theme()
         return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE; cornerRadius = dp(radius).toFloat()
-            colors = intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt()); gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(radius).toFloat()
+            colors = intArrayOf(0xFF3A3A3A.toInt(), 0xFF2A2A2A.toInt())
+            gradientType = GradientDrawable.LINEAR_GRADIENT
+            orientation = GradientDrawable.Orientation.TOP_BOTTOM
             setStroke(dp(1), (tt.primary and 0xFFFFFF) or 0x66000000.toInt())
         }
     }
     return GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; cornerRadius = dp(radius).toFloat()
-        colors = intArrayOf(0x1CFFFFFF, 0x0DFFFFFF); gradientType = GradientDrawable.LINEAR_GRADIENT; orientation = GradientDrawable.Orientation.TL_BR; setStroke(dp(1), 0x1FFFFFFF)
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(radius).toFloat()
+        colors = intArrayOf(0x1CFFFFFF, 0x0DFFFFFF)
+        gradientType = GradientDrawable.LINEAR_GRADIENT
+        orientation = GradientDrawable.Orientation.TL_BR
+        setStroke(dp(1), 0x1FFFFFFF)
     }
 }
 
-fun OptimizerUI.tv(text: String, size: Float, color: Int): TextView = TextView(ctx).apply { this.text = text; setTextColor(color); textSize = size }
-fun OptimizerUI.lbl(text: String): TextView = tv(text, 12f, Color.parseColor("#99FFFFFF")).apply { setPadding(dp(4), dp(10), dp(0), dp(4)) }
-fun OptimizerUI.row(p: LinearLayout, margin: Int): LinearLayout = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(margin) }) }
+fun OptimizerUI.tv(text: String, size: Float, color: Int): TextView = TextView(ctx).apply {
+    this.text = text
+    setTextColor(color)
+    textSize = size
+}
+
+fun OptimizerUI.lbl(text: String): TextView = tv(text, 12f, Color.parseColor("#99FFFFFF")).apply {
+    setPadding(dp(4), dp(10), dp(0), dp(4))
+}
+
+fun OptimizerUI.row(p: LinearLayout, margin: Int): LinearLayout = LinearLayout(ctx).apply {
+    orientation = LinearLayout.HORIZONTAL
+    gravity = Gravity.CENTER_VERTICAL
+    p.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(margin) })
+}
