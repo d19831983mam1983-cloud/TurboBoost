@@ -210,87 +210,87 @@ class OptimizerUI(private val ctx: Context) {
         val showRes = selected == "standoff"
         hzSection.visibility = if (showHz) View.VISIBLE else View.GONE
         resSection.visibility = if (showRes) View.VISIBLE else View.GONE
-    }fun build(): FrameLayout {
-    root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
-    bgView = LiquidBackgroundView(ctx)
-    bgView.setTheme(themeIndex, isActive)
-    root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    val content = FrameLayout(ctx)
-    root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
-    scroll1 = ScrollView(ctx).apply {
-        isFillViewport = true
-        setBackgroundColor(Color.TRANSPARENT)
-        addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        setPadding(0, dp(80), 0, 0)
     }
-    content.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    topBar = buildTopBar()
-    content.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
-    buildMain()
-    animateIn()
-    return root
-}
 
-private fun buildTopBar(): FrameLayout {
-    val bar = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#CC1A1A1A") else Color.parseColor("#CC05070A")) }
-    val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)) }
-    bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-    val ic = ImageView(ctx).apply { setImageResource(R.drawable.ic_bolt); alpha = 0.9f }
-    h.addView(ic, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(12) })
-    val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-    h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-    col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, theme().secondary) })
-    col.addView(tv("TURBO · 2.1", 10f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
-    btnSettings = ImageView(ctx).apply {
-        setImageResource(android.R.drawable.ic_menu_preferences)
-        setColorFilter(Color.WHITE)
-        setPadding(dp(8), dp(8), dp(8), dp(8))
-        setOnClickListener { onSettingsClick?.invoke() }
+    fun build(): FrameLayout {
+        root = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#1A1A1A") else Color.parseColor("#05070A")) }
+        bgView = LiquidBackgroundView(ctx)
+        bgView.setTheme(themeIndex, isActive)
+        root.addView(bgView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        val content = FrameLayout(ctx)
+        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        page1 = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(24), dp(16), dp(24)) }
+        scroll1 = ScrollView(ctx).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.TRANSPARENT)
+            addView(page1, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            setPadding(0, dp(80), 0, 0)
+        }
+        content.addView(scroll1, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        topBar = buildTopBar()
+        content.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, dp(72)))
+        buildMain()
+        animateIn()
+        return root
     }
-    h.addView(btnSettings, LinearLayout.LayoutParams(dp(44), dp(44)))
-    return bar
-}
 
-private fun lpf(): LinearLayout.LayoutParams = LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) }
-private fun lpl(): LinearLayout.LayoutParams = LinearLayout.LayoutParams(0, dp(40), 1f)
-
-private fun section(title: String): LinearLayout {
-    val box = LinearLayout(ctx).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(14), dp(12), dp(14), dp(14))
-        val tt = theme()
-        background = if (isGrid()) {
-            GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(20).toFloat()
-                colors = intArrayOf(0xFF2A2A2A.toInt(), 0xFF1F1F1F.toInt())
-                gradientType = GradientDrawable.LINEAR_GRADIENT
-                orientation = GradientDrawable.Orientation.TOP_BOTTOM
-                setStroke(dp(1), (tt.primary and 0xFFFFFF) or 0x66000000.toInt())
-            }
-        } else glassBgDrawable(20)
+    private fun buildTopBar(): FrameLayout {
+        val bar = FrameLayout(ctx).apply { setBackgroundColor(if (isGrid()) Color.parseColor("#CC1A1A1A") else Color.parseColor("#CC05070A")) }
+        val h = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)) }
+        bar.addView(h, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        val ic = ImageView(ctx).apply { setImageResource(R.drawable.ic_bolt); alpha = 0.9f }
+        h.addView(ic, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(12) })
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        h.addView(col, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        col.addView(tv("TurboBoost", 22f, Color.WHITE).apply { letterSpacing = 0.05f; setShadowLayer(8f, 0f, 0f, theme().secondary) })
+        col.addView(tv("TURBO · 2.1", 10f, Color.parseColor("#AACCE0FF")).apply { letterSpacing = 0.3f })
+        btnSettings = ImageView(ctx).apply {
+            setImageResource(android.R.drawable.ic_menu_preferences)
+            setColorFilter(Color.WHITE)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setOnClickListener { onSettingsClick?.invoke() }
+        }
+        h.addView(btnSettings, LinearLayout.LayoutParams(dp(44), dp(44)))
+        return bar
     }
-    box.addView(tv(title, 11f, Color.parseColor("#99FFFFFF")).apply {
-        letterSpacing = 0.18f
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-        setPadding(dp(2), 0, 0, dp(2))
-    })
-    page1.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
-    return box
-}
 
-private fun toggleRow(parent: LinearLayout, title: String, onToggle: (() -> Unit)?): ToggleRow {
-    val row = ToggleRow(ctx, title).apply {
-        this.onToggle = { onToggle?.invoke() }
-        onColor = theme().primary
-        if (isGrid()) applyGridStyle(false, theme().primary) else clearGridStyle()
+    private fun lpf(): LinearLayout.LayoutParams = LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) }
+    private fun lpl(): LinearLayout.LayoutParams = LinearLayout.LayoutParams(0, dp(40), 1f)
+
+    private fun section(title: String): LinearLayout {
+        val box = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(14))
+            val tt = theme()
+            background = if (isGrid()) {
+                GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(20).toFloat()
+                    colors = intArrayOf(0xFF2A2A2A.toInt(), 0xFF1F1F1F.toInt())
+                    gradientType = GradientDrawable.LINEAR_GRADIENT
+                    orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                    setStroke(dp(1), (tt.primary and 0xFFFFFF) or 0x66000000.toInt())
+                }
+            } else glassBgDrawable(20)
+        }
+        box.addView(tv(title, 11f, Color.parseColor("#99FFFFFF")).apply {
+            letterSpacing = 0.18f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(2), 0, 0, dp(2))
+        })
+        page1.addView(box, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        return box
     }
-    parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
-    return row
-}
 
-private fun buildMain() {
+    private fun toggleRow(parent: LinearLayout, title: String, onToggle: (() -> Unit)?): ToggleRow {
+        val row = ToggleRow(ctx, title).apply {
+            this.onToggle = { onToggle?.invoke() }
+            onColor = theme().primary
+            if (isGrid()) applyGridStyle(false, theme().primary) else clearGridStyle()
+        }
+        parent.addView(row, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+        return row
+    }private fun buildMain() {
     val hero = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(18), dp(16), dp(18), dp(18))
@@ -507,7 +507,7 @@ private fun buildEngineCell(key: String, title: String): LinearLayout {
         if (!on) scoreTv.text = prefs().getEngineScore(key).ifBlank { "—" }
     }
     cell.setOnClickListener {
-        performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+        cell.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
         val next = !sw.on
         sw.setOn(next, true)
         onEngineToggle?.invoke(key)
