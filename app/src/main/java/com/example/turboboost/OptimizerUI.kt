@@ -49,7 +49,8 @@ class OptimizerUI(private val ctx: Context) {
     lateinit var senseRow: LinearLayout
     lateinit var hzRow: LinearLayout
     lateinit var hzSection: LinearLayout
-    lateinit var resSection: LinearLayout
+    lateinit var stretchRow: LinearLayout
+    lateinit var btnLaunchStretch: TextView
 
     private val engineViews = LinkedHashMap<String, Triple<ToggleSwitch, TextView, LinearLayout>>()
 
@@ -72,15 +73,16 @@ class OptimizerUI(private val ctx: Context) {
     var onShowProfile: (() -> Unit)? = null
     var onSenseFinder: (() -> Unit)? = null
     var onSenseCustom: (() -> Unit)? = null
-    var onApplyCustomResolution: ((Int, Int) -> Unit)? = null
     var onResetCustomResolution: (() -> Unit)? = null
     var onEngineToggle: ((String) -> Unit)? = null
-    var onStretchPreset: ((Int, Int, String) -> Unit)? = null
+    var onStretchPreset: ((Int) -> Unit)? = null
+    var onLaunchStretch: (() -> Unit)? = null
 
     var currentSense = -1
     var currentMode = 0
     var currentHz = 120
     var maxHz = 144
+    var currentStretch = 0
     var onPingTest: (() -> Unit)? = null
 
     private var isActive = false
@@ -97,6 +99,7 @@ class OptimizerUI(private val ctx: Context) {
 
     private val senseLevels = listOf(1, 2, 3, -1)
     private val senseNames = listOf("Сильный", "Эксп.", "Макс", "Кастом")
+    private val stretchNames = listOf("Стандарт", "4:3", "5:4", "27:9", "750p")
 
     private val engineList = listOf(
         "fps" to "FPS", "gpu" to "GPU", "internet" to "Internet",
@@ -177,7 +180,6 @@ class OptimizerUI(private val ctx: Context) {
     fun setThemeIndex(i: Int) {
         themeIndex = i.coerceIn(0, ThemePalette.themes.size - 1)
         if (!::root.isInitialized) return
-        applyGameVisibility()
         heroBox?.background = heroBgDrawable()
         if (::bgView.isInitialized) bgView.setTheme(themeIndex, isActive)
         if (::btnModePerf.isInitialized) setMode(currentMode)
@@ -188,6 +190,7 @@ class OptimizerUI(private val ctx: Context) {
         if (::btnJoyose.isInitialized) setJoyoseState(currentJoyose)
         if (::hzRow.isInitialized) updHz()
         if (::senseRow.isInitialized) updSense()
+        if (::stretchRow.isInitialized) updStretch()
         if (::btnOpt.isInitialized) fade(btnOpt, accentDrawable())
         if (::btnGames.isInitialized) refreshActionBackgrounds()
     }
@@ -197,13 +200,6 @@ class OptimizerUI(private val ctx: Context) {
         for (v in list) {
             try { v.background = unselDrawable() } catch (_: Throwable) {}
         }
-    }
-
-    private fun applyGameVisibility() {
-        if (!::hzSection.isInitialized || !::resSection.isInitialized) return
-        val selected = try { prefs().getSelectedGame() } catch (_: Throwable) { "standoff" }
-        hzSection.visibility = if (selected == "standoff" || selected == "oxide") View.VISIBLE else View.GONE
-        resSection.visibility = if (selected == "standoff" || selected == "pubg" || selected == "oxide") View.VISIBLE else View.GONE
     }
 
     fun build(): FrameLayout {
@@ -375,32 +371,26 @@ class OptimizerUI(private val ctx: Context) {
     val senseFinderBtn = glass("Подбор сенсы Standoff 2") { onSenseFinder?.invoke() }
     sSense.addView(senseFinderBtn, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
-    resSection = section("РАСТЯГ (STRETCH)")
-    resSection.addView(lbl("Игра для растяга:"))
-    
-    var selectedStretchGame = "standoff"
-    val gameRow = row(resSection, 4)
-    val bStd = glass("Standoff 2") { selectedStretchGame = "standoff" }
-    val bPubg = glass("PUBG") { selectedStretchGame = "pubg" }
-    val bOxide = glass("Oxide") { selectedStretchGame = "oxide" }
-    gameRow.addView(bStd, lpf())
-    gameRow.addView(bPubg, lpf())
-    gameRow.addView(bOxide, lpl())
+    val sStretch = section("РАСТЯГ (STRETCH)")
+    stretchRow = row(sStretch, 4)
+    stretchNames.forEachIndexed { i, name ->
+        val btn = glass(name) {
+            currentStretch = i
+            onStretchPreset?.invoke(i)
+            updStretch()
+        }
+        if (i < stretchNames.size - 1) stretchRow.addView(btn, lpf())
+        else stretchRow.addView(btn, lpl())
+    }
 
-    resSection.addView(lbl("Пресеты (нажми для запуска):"))
-    val presetRow1 = row(resSection, 4)
-    presetRow1.addView(glass("4:3") { onStretchPreset?.invoke(1440, 1080, selectedStretchGame) }, lpf())
-    presetRow1.addView(glass("5:4") { onStretchPreset?.invoke(1350, 1080, selectedStretchGame) }, lpl())
+    btnLaunchStretch = bigBtn("ПРИМЕНИТЬ И ЗАПУСТИТЬ", 15f, accentDrawable()) { onLaunchStretch?.invoke() }
+    sStretch.addView(btnLaunchStretch, LinearLayout.LayoutParams(MATCH_PARENT, dp(52)).apply { topMargin = dp(12) })
 
-    val presetRow2 = row(resSection, 4)
-    presetRow2.addView(glass("27:9") { onStretchPreset?.invoke(2700, 950, selectedStretchGame) }, lpf())
-    presetRow2.addView(glass("750p") { onStretchPreset?.invoke(1600, 750, selectedStretchGame) }, lpl())
-
-    resSection.addView(glass("Сбросить разрешение") { onResetCustomResolution?.invoke() },
+    sStretch.addView(glass("Сбросить разрешение") { onResetCustomResolution?.invoke() },
         LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
-    resSection.addView(tv("Разрешение применится, игра запустится, и через время (7с для PUBG, 10с для Oxide) вернётся исходное.", 11f, Color.parseColor("#99FFFFFF")).apply {
-        setPadding(dp(4), dp(8), dp(4), dp(0))
+    sStretch.addView(tv("Игра выбирается в Настройках. Разрешение применится, игра запустится, и через 7 сек (PUBG) / 10 сек (Oxide) / 25 сек (Standoff 2) вернётся исходное.", 11f, Color.parseColor("#99FFFFFF")).apply {
+        setPadding(dp(4), dp(10), dp(4), dp(0))
     })
 
     val sSys = section("СИСТЕМА")
@@ -419,7 +409,18 @@ class OptimizerUI(private val ctx: Context) {
     sSys.addView(btnProfile, LinearLayout.LayoutParams(MATCH_PARENT, dp(42)).apply { topMargin = dp(8) })
 
     page1.addView(View(ctx), LinearLayout.LayoutParams(MATCH_PARENT, dp(24)))
-    applyGameVisibility()
+}
+
+fun setStretchPreset(preset: Int) {
+    currentStretch = preset
+    if (::stretchRow.isInitialized) updStretch()
+}
+
+private fun updStretch() {
+    if (!::stretchRow.isInitialized) return
+    for (i in 0 until stretchRow.childCount) {
+        (stretchRow.getChildAt(i) as TextView).background = if (i == currentStretch) accentDrawable() else unselDrawable()
+    }
 }
 
 private fun buildEngineGrid(parent: LinearLayout) {
@@ -480,9 +481,7 @@ private fun buildEngineCell(key: String, title: String): LinearLayout {
         }
     }
 
-    fun setBackgroundBitmap(bmp: Bitmap?) {
-        if (::bgView.isInitialized) bgView.setBackgroundImage(bmp)
-    }
+    fun setBackgroundBitmap(bmp: Bitmap?) { if (::bgView.isInitialized) bgView.setBackgroundImage(bmp) }
 
     fun showGlassList(title: String, items: List<String>, onClick: (Int) -> Unit) {
         val dialog = android.app.Dialog(ctx, android.R.style.Theme_Translucent_NoTitleBar)
@@ -537,6 +536,7 @@ private fun buildEngineCell(key: String, title: String): LinearLayout {
         if (::btnJoyose.isInitialized) setJoyoseState(currentJoyose)
         if (::hzRow.isInitialized) updHz()
         if (::senseRow.isInitialized) updSense()
+        if (::stretchRow.isInitialized) updStretch()
     }
 
     private fun applyToggleGridStyle(row: ToggleRow, on: Boolean) {
