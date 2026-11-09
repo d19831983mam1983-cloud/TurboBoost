@@ -2,44 +2,37 @@ package com.example.turboboost
 
 object TouchEngine {
 
-    private const val SCRIPT = """
+    private val SCRIPT = """
         ok=0; total=0
         _put() { total=$((total+1)); settings put "${'$'}1" "${'$'}2" "${'$'}3" >/dev/null 2>&1; [ "$(settings get "${'$'}1" "${'$'}2" 2>/dev/null)" = "${'$'}3" ] && ok=$((ok+1)); }
         _dis() { total=$((total+1)); settings put "${'$'}1" "${'$'}2" 0 >/dev/null 2>&1; [ "$(settings get "${'$'}1" "${'$'}2" 2>/dev/null)" = "0" ] && ok=$((ok+1)); }
-
         _dis system show_touches
         _dis system pointer_location
         _dis system sound_effects_enabled
         _dis system lockscreen_sounds_enabled
         _dis global charging_sounds_enabled
-
         _put global window_animation_scale 0.5
         _put global transition_animation_scale 0.5
         _put global animator_duration_scale 0.5
         _dis global fancy_ime_animations
-
         _dis global disable_window_blurs
         _dis secure notification_bubbles
         _dis secure screensaver_enabled
-
         _dis system notification_light_pulse
         _dis secure notification_badging
         _put global always_finish_activities 0
         _dis system dtmf_tone
-
         _put global text_classifier_constants enabled=false
         _dis global smart_selection_animation_enabled
         _dis global enable_back_animation
         _dis secure accessibility_display_magnification_enabled
         _dis secure accessibility_autoclick_enabled
         _dis secure touch_exploration_enabled
-
         _put system pointer_speed 3
         _dis secure spell_checker_enabled
         _dis global wifi_scan_throttle_enabled
         _dis global network_scoring_ui_enabled
         _dis global verifier_verify_adb_installs
-
         setprop debug.hwui.show_dirty_regions 0 >/dev/null 2>&1 && ok=$((ok+1)); total=$((total+1))
         am kill-all >/dev/null 2>&1 && ok=$((ok+1)); total=$((total+1))
         pm trim-caches 1000M >/dev/null 2>&1 && ok=$((ok+1)); total=$((total+1))
@@ -49,7 +42,7 @@ object TouchEngine {
         echo "${'$'}ok ${'$'}total"
     """.trimIndent()
 
-    private const val RESTORE_SCRIPT = """
+    private val RESTORE_SCRIPT = """
         settings put system show_touches 0
         settings put system pointer_location 0
         settings put system sound_effects_enabled 1
