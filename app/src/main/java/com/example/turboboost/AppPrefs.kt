@@ -228,9 +228,6 @@ class AppPrefs(ctx: Context) {
     fun getAnimScale(): Int = prefs.getInt("sense_anim_scale", 100).coerceIn(50, 100)
     fun setAnimScale(v: Int) = prefs.edit().putInt("sense_anim_scale", v.coerceIn(50, 100)).apply()
 
-    fun getLongPressTimeout(): Int = prefs.getInt("sense_long_press", 400).coerceIn(200, 700)
-    fun setLongPressTimeout(v: Int) = prefs.edit().putInt("sense_long_press", v.coerceIn(200, 700)).apply()
-
     fun isGtGpuTuner(): Boolean = prefs.getBoolean("gt_gpu_tuner", false)
     fun setGtGpuTuner(v: Boolean) = prefs.edit().putBoolean("gt_gpu_tuner", v).apply()
 
@@ -239,6 +236,9 @@ class AppPrefs(ctx: Context) {
 
     fun getCustomH(): Int = prefs.getInt("custom_h", 0)
     fun setCustomH(v: Int) = prefs.edit().putInt("custom_h", v).apply()
+
+    fun getStretchPreset(): Int = prefs.getInt("stretch_preset", 0)
+    fun setStretchPreset(v: Int) = prefs.edit().putInt("stretch_preset", v).apply()
 
     fun isFpsEngine(): Boolean = prefs.getBoolean("engine_fps", false)
     fun setFpsEngine(v: Boolean) = prefs.edit().putBoolean("engine_fps", v).apply()
